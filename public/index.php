@@ -104,6 +104,42 @@ class Router {
     if (is_callable($h)) return $h;
     throw new \RuntimeException('Handler inválido');
   }
+
+  private function matchRoute(string $method, string $uri): ?array {
+    if (isset($this->routes[$method][$uri])) {
+      [$handler, $opts] = $this->routes[$method][$uri];
+      return [$handler, $opts, []];
+    }
+
+    foreach ($this->routes[$method] as $path => $info) {
+      $params = $this->matchDynamic($path, $uri);
+      if ($params !== null) {
+        [$handler, $opts] = $info;
+        return [$handler, $opts, $params];
+      }
+    }
+
+    return null;
+  }
+
+  private function matchDynamic(string $pattern, string $uri): ?array {
+    if (strpos($pattern, '{') === false) {
+      return null;
+    }
+
+    $regex = preg_quote($pattern, '#');
+    $regex = preg_replace('#\\\{([^/]+)\\\}#', '([^/]+)', $regex);
+    if ($regex === null) {
+      return null;
+    }
+
+    if (preg_match('#^' . $regex . '$#', $uri, $matches)) {
+      array_shift($matches);
+      return $matches;
+    }
+
+    return null;
+  }
 }
 
 // Kernel de middleware

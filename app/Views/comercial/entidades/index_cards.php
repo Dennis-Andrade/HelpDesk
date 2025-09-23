@@ -20,6 +20,9 @@ function h($value): string
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
+/**
+ * Helpers consistentes con feature/agenda
+ */
 function entSegmento(array $row): string
 {
     $label = trim((string)($row['segmento'] ?? $row['segmento_nombre'] ?? ''));
@@ -80,15 +83,20 @@ function entServicios(array $row): array
     return $parts;
 }
 
+$pages = max(1, (int)ceil(max(1, $total) / max(1, $perPage)));
+$prev  = max(1, $page - 1);
+$next  = min($pages, $page + 1);
+
 include __DIR__ . '/../../partials/breadcrumbs.php';
 ?>
 <link rel="stylesheet" href="/css/comercial_style/entidades-cards.css">
+
 <section class="ent-cards-wrapper" aria-labelledby="entidades-heading">
   <header class="ent-cards-header">
     <div class="ent-cards-header__titles">
       <h1 id="entidades-heading" class="ent-title">Entidades financieras</h1>
       <p class="ent-cards-header__summary" aria-live="polite">
-        <?= (int)$total ?> entidades · Página <?= (int)$page ?> de <?= max(1, (int)ceil(max(1, $total) / max(1, $perPage))) ?>
+        <?= (int)$total ?> entidades · Página <?= (int)$page ?> de <?= (int)$pages ?>
       </p>
     </div>
     <div class="ent-cards-header__actions">
@@ -133,6 +141,7 @@ include __DIR__ . '/../../partials/breadcrumbs.php';
               <h2 class="ent-card-item__title"><?= h($nombre) ?></h2>
               <p class="ent-card-item__subtitle"><?= h($segmento) ?></p>
             </div>
+            <span class="ent-card-item__badge" aria-label="Servicios activos"><?= count($servicios) ?> servicios</span>
           </header>
           <div class="ent-card-item__body">
             <dl class="ent-card-item__details">
@@ -189,6 +198,23 @@ include __DIR__ . '/../../partials/breadcrumbs.php';
         </article>
       <?php endforeach; ?>
     </div>
+
+    <!-- Paginación accesible (coherente con Pagination.php del backend) -->
+    <nav class="ent-cards-pagination" aria-label="Paginación de entidades">
+      <?php if ($page > 1): ?>
+        <a href="/comercial/entidades?page=<?= (int)$prev ?>&perPage=<?= (int)$perPage ?>&q=<?= urlencode($q) ?>" rel="prev">&laquo; Anterior</a>
+      <?php else: ?>
+        <span class="disabled" aria-disabled="true">&laquo; Anterior</span>
+      <?php endif; ?>
+
+      <span aria-live="polite">Página <?= (int)$page ?> de <?= (int)$pages ?></span>
+
+      <?php if ($page < $pages): ?>
+        <a href="/comercial/entidades?page=<?= (int)$next ?>&perPage=<?= (int)$perPage ?>&q=<?= urlencode($q) ?>" rel="next">Siguiente &raquo;</a>
+      <?php else: ?>
+        <span class="disabled" aria-disabled="true">Siguiente &raquo;</span>
+      <?php endif; ?>
+    </nav>
   <?php endif; ?>
 </section>
 
@@ -220,4 +246,5 @@ include __DIR__ . '/../../partials/breadcrumbs.php';
     </footer>
   </div>
 </div>
+
 <script src="/js/entidades_cards.js" defer></script>

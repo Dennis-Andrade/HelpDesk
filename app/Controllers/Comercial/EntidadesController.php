@@ -39,8 +39,6 @@ final class EntidadesController
     }
     public function show(): void
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         $id = (int)($_GET['id'] ?? 0);
         if ($id < 1) {
             http_response_code(400);
@@ -63,6 +61,7 @@ final class EntidadesController
 
         $this->renderEntidadJson($id);
     }
+
     public function createForm(): void
     {
         $crumbs = Breadcrumbs::make([
