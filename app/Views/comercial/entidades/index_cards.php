@@ -1,195 +1,208 @@
 <?php
-/** @var array $items  Lista de entidades */
-/** @var int   $total  Total de registros */
-/** @var int   $page   Página actual */
-/** @var int   $perPage Elementos por página */
-/** @var string $q     Búsqueda actual */
-/** @var string $csrf  Token CSRF */
+/** @var array $items */
+/** @var array $crumbs */
+/** @var string $csrf */
+/** @var string $q */
+/** @var int $total */
+/** @var int $page */
+/** @var int $perPage */
+
+$crumbs = $crumbs ?? [];
+$items  = is_array($items ?? null) ? $items : [];
+$q      = (string)($q ?? '');
+$total  = (int)($total ?? count($items));
+$page   = (int)($page ?? 1);
+$perPage = (int)($perPage ?? 20);
+$csrf   = (string)($csrf ?? '');
 
 function h($value): string
 {
     return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
-function formatSegment($row): string
+/**
+ * Helpers consistentes con feature/agenda
+ */
+function entSegmento(array $row): string
 {
-    if (isset($row['segmento']) && $row['segmento'] !== '') {
-        return h($row['segmento']);
+    $label = trim((string)($row['segmento'] ?? $row['segmento_nombre'] ?? ''));
+    if ($label !== '') {
+        return $label;
     }
-    if (isset($row['segmento_nombre']) && $row['segmento_nombre'] !== '') {
-        return h($row['segmento_nombre']);
-    }
-    if (!empty($row['nombre_segmento'])) {
-        return h($row['nombre_segmento']);
-    }
-    if (!empty($row['id_segmento'])) {
-        return 'Segmento ' . (int)$row['id_segmento'];
-    }
-    return 'No especificado';
-}
-
-function formatLocation($row): string
-{
-    $provincia = trim((string)($row['provincia'] ?? $row['provincia_nombre'] ?? ''));
-    $canton    = trim((string)($row['canton'] ?? $row['canton_nombre'] ?? ''));
-    if ($provincia === '' && $canton === '') {
+    $id = $row['id_segmento'] ?? null;
+    if ($id === null || $id === '') {
         return 'No especificado';
     }
-    if ($provincia === '') {
-        return h($canton);
+    return 'Segmento ' . (int)$id;
+}
+
+function entUbicacion(array $row): string
+{
+    $prov = trim((string)($row['provincia'] ?? $row['provincia_nombre'] ?? ''));
+    $canton = trim((string)($row['canton'] ?? $row['canton_nombre'] ?? ''));
+    if ($prov === '' && $canton === '') {
+        return 'No especificado';
+    }
+    if ($prov === '') {
+        return $canton;
     }
     if ($canton === '') {
-        return h($provincia);
+        return $prov;
     }
-    return h($provincia . ' – ' . $canton);
+    return $prov . ' - ' . $canton;
 }
 
-function gatherPhones($row): array
+function entTelefono(?string $value): string
 {
-    $phones = [];
-    foreach (['telefono_fijo', 'telefono_fijo_1', 'telefono', 'telefono_movil', 'celular'] as $key) {
-        if (!empty($row[$key])) {
-            $phones[] = trim((string)$row[$key]);
-        }
-    }
-    $phones = array_values(array_unique(array_filter($phones, static function ($v) {
-        return $v !== '';
-    })));
-    return $phones;
+    $trim = trim((string)$value);
+    return $trim === '' ? 'No especificado' : $trim;
 }
 
-function gatherServices($row): array
+function entServicios(array $row): array
 {
-    $raw = $row['servicios'] ?? [];
+    $raw = $row['servicios'] ?? $row['servicios_activos'] ?? $row['servicios_nombres'] ?? [];
     if (is_string($raw)) {
-        $parts = array_map('trim', explode(',', $raw));
-        $raw   = array_values(array_filter($parts, static function ($v) { return $v !== ''; }));
-        return $raw;
-    }
-    if (!is_array($raw)) {
-        return [];
-    }
-    $labels = [];
-    foreach ($raw as $svc) {
-        if (is_array($svc) && isset($svc['nombre_servicio'])) {
-            $labels[] = trim((string)$svc['nombre_servicio']);
-        } elseif (is_scalar($svc)) {
-            $labels[] = trim((string)$svc);
+        $parts = array_map('trim', preg_split('/[,;]\s*/', $raw));
+    } elseif (is_array($raw)) {
+        $parts = [];
+        foreach ($raw as $item) {
+            if (is_array($item)) {
+                $label = $item['nombre_servicio'] ?? $item['nombre'] ?? reset($item);
+            } else {
+                $label = $item;
+            }
+            $label = trim((string)$label);
+            if ($label !== '') {
+                $parts[] = $label;
+            }
         }
+    } else {
+        $parts = [];
     }
-    return array_values(array_filter($labels, static function ($v) { return $v !== ''; }));
+    $parts = array_values(array_filter($parts, static fn($s) => $s !== ''));
+    return $parts;
 }
 
-$pages = max(1, (int)ceil($total / max(1, $perPage)));
+$pages = max(1, (int)ceil(max(1, $total) / max(1, $perPage)));
 $prev  = max(1, $page - 1);
 $next  = min($pages, $page + 1);
+
+include __DIR__ . '/../../partials/breadcrumbs.php';
 ?>
-<section class="ent-list ent-list--cards" aria-labelledby="ent-cards-title">
-  <header class="ent-toolbar" role="search">
-    <div class="ent-toolbar__lead">
-      <h1 id="ent-cards-title" class="ent-title">Entidades financieras</h1>
-      <p class="ent-toolbar__caption" aria-live="polite">
+<link rel="stylesheet" href="/css/comercial_style/entidades-cards.css">
+
+<section class="ent-cards-wrapper" aria-labelledby="entidades-heading">
+  <header class="ent-cards-header">
+    <div class="ent-cards-header__titles">
+      <h1 id="entidades-heading" class="ent-title">Entidades financieras</h1>
+      <p class="ent-cards-header__summary" aria-live="polite">
         <?= (int)$total ?> entidades · Página <?= (int)$page ?> de <?= (int)$pages ?>
       </p>
     </div>
-    <a class="btn btn-primary" href="/comercial/entidades/crear">Nueva entidad</a>
-    <form class="ent-search" action="/comercial/entidades" method="get">
-      <label for="ent-search-input">Buscar por nombre o RUC</label>
-      <input id="ent-search-input" type="text" name="q" value="<?= h($q) ?>" aria-describedby="ent-search-help" placeholder="Cooperativa...">
-      <span id="ent-search-help" class="ent-search__help">Escribe al menos 3 caracteres</span>
-      <button class="btn btn-outline" type="submit">Buscar</button>
-    </form>
+    <div class="ent-cards-header__actions">
+      <a class="btn btn-primary" href="/comercial/entidades/crear">Nueva entidad</a>
+      <form class="ent-cards-search" action="/comercial/entidades" method="get" role="search" aria-label="Buscar entidades">
+        <label for="ent-search" class="ent-cards-search__label">Buscar por nombre o RUC</label>
+        <div class="ent-cards-search__group">
+          <input
+            id="ent-search"
+            name="q"
+            type="search"
+            value="<?= h($q) ?>"
+            placeholder="Ej. Cooperativa"
+            aria-describedby="ent-search-help"
+          >
+          <button class="btn btn-outline" type="submit">Buscar</button>
+        </div>
+        <span id="ent-search-help" class="ent-cards-search__help">Presiona enter para filtrar resultados</span>
+      </form>
+    </div>
   </header>
 
-  <?php if (empty($items)): ?>
-    <div class="card" role="status" aria-live="polite">No se encontraron entidades.</div>
-  <?php else: ?>
-    <ul class="ent-cards-grid" role="list">
+  <?php if (empty($items)) : ?>
+    <div class="ent-cards-empty" role="status">No se encontraron entidades con los criterios actuales.</div>
+  <?php else : ?>
+    <div class="ent-cards-grid" role="list">
       <?php foreach ($items as $index => $row): ?>
         <?php
-          $entityId   = (int)($row['id_entidad'] ?? $row['id'] ?? 0);
-          $cardTitle  = $row['nombre'] ?? 'Entidad';
-          $phones     = gatherPhones($row);
-          $services   = gatherServices($row);
+          $id = (int)($row['id'] ?? $row['id_entidad'] ?? $row['id_cooperativa'] ?? 0);
+          $nombre = $row['nombre'] ?? '';
+          $segmento = entSegmento((array)$row);
+          $ubicacion = entUbicacion((array)$row);
+          $telefonoFijo = entTelefono($row['telefono_fijo_1'] ?? $row['telefono_fijo'] ?? $row['telefono'] ?? null);
+          $telefonoMovil = entTelefono($row['telefono_movil'] ?? null);
+          $email = entTelefono($row['email'] ?? null);
+          $servicios = entServicios((array)$row);
         ?>
-        <li class="ent-cards-grid__item" role="listitem">
-          <article class="ent-card" aria-labelledby="ent-card-title-<?= $entityId ?>">
-            <header class="ent-card-head">
-              <div class="ent-card-icon" aria-hidden="true">🏦</div>
-              <h2 id="ent-card-title-<?= $entityId ?>" class="ent-card-title"><?= h($cardTitle) ?></h2>
-              <span class="ent-badge" aria-label="Servicios activos">
-                <?= count($services) ?> servicios
-              </span>
-            </header>
-            <div class="ent-card-body">
-              <div class="ent-card-row">
-                <span class="ent-card-label">Segmento</span>
-                <span class="ent-card-value"><?= formatSegment($row) ?></span>
-              </div>
-              <div class="ent-card-row">
-                <span class="ent-card-label">Provincia – Cantón</span>
-                <span class="ent-card-value"><?= formatLocation($row) ?></span>
-              </div>
-              <div class="ent-card-row">
-                <span class="ent-card-label">Teléfonos</span>
-                <span class="ent-card-value">
-                  <?php if (empty($phones)): ?>
-                    No especificado
-                  <?php else: ?>
-                    <ul class="ent-card-phones" aria-label="Teléfonos de contacto">
-                      <?php foreach ($phones as $phone): ?>
-                        <li><?= h($phone) ?></li>
-                      <?php endforeach; ?>
-                    </ul>
-                  <?php endif; ?>
-                </span>
-              </div>
-              <div class="ent-card-row">
-                <span class="ent-card-label">Correo</span>
-                <span class="ent-card-value">
-                  <?php $mail = trim((string)($row['email'] ?? '')); ?>
-                  <?= $mail === '' ? 'No especificado' : h($mail) ?>
-                </span>
-              </div>
-              <div class="ent-card-row">
-                <span class="ent-card-label">Servicios</span>
-                <span class="ent-card-value">
-                  <?php if (empty($services)): ?>
-                    <span class="ent-chip ent-chip--empty">Sin registros</span>
-                  <?php else: ?>
-                    <span class="ent-badge-wrap" role="list">
-                      <?php foreach ($services as $svc): ?>
-                        <span class="ent-badge ent-badge--secondary" role="listitem"><?= h($svc) ?></span>
-                      <?php endforeach; ?>
-                    </span>
-                  <?php endif; ?>
-                </span>
-              </div>
+        <article class="ent-card-item" role="listitem">
+          <header class="ent-card-item__header">
+            <div class="ent-card-item__icon" aria-hidden="true">🏦</div>
+            <div class="ent-card-item__text">
+              <h2 class="ent-card-item__title"><?= h($nombre) ?></h2>
+              <p class="ent-card-item__subtitle"><?= h($segmento) ?></p>
             </div>
-            <footer class="ent-card-actions">
-              <button type="button"
-                      class="btn btn-outline js-entidad-view"
-                      data-entidad-id="<?= $entityId ?>"
-                      aria-haspopup="dialog"
-                      aria-controls="ent-card-modal"
-                      aria-label="Ver detalles de <?= h($cardTitle) ?>">
-                Ver
+            <span class="ent-card-item__badge" aria-label="Servicios activos"><?= count($servicios) ?> servicios</span>
+          </header>
+          <div class="ent-card-item__body">
+            <dl class="ent-card-item__details">
+              <div>
+                <dt>Ubicación</dt>
+                <dd><?= h($ubicacion) ?></dd>
+              </div>
+              <div>
+                <dt>Teléfono fijo</dt>
+                <dd><?= h($telefonoFijo) ?></dd>
+              </div>
+              <div>
+                <dt>Teléfono móvil</dt>
+                <dd><?= h($telefonoMovil) ?></dd>
+              </div>
+              <div>
+                <dt>Email</dt>
+                <dd><?= h($email) ?></dd>
+              </div>
+            </dl>
+            <div class="ent-card-item__services" aria-label="Servicios activos">
+              <?php if (!empty($servicios)): ?>
+                <?php foreach ($servicios as $serviceName): ?>
+                  <span class="ent-card-item__badge"><?= h($serviceName) ?></span>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <span class="ent-card-item__badge ent-card-item__badge--empty">Sin servicios registrados</span>
+              <?php endif; ?>
+            </div>
+          </div>
+          <footer class="ent-card-item__footer">
+            <button
+              type="button"
+              class="btn btn-outline ent-card-item__action"
+              data-entity-id="<?= $id ?>"
+              aria-haspopup="dialog"
+              aria-controls="ent-card-modal"
+            >Ver</button>
+            <a class="btn btn-primary ent-card-item__action" href="/comercial/entidades/editar?id=<?= $id ?>">Editar</a>
+            <form
+              class="ent-card-item__delete"
+              method="post"
+              action="/comercial/entidades/eliminar"
+              onsubmit="return confirm('¿Deseas eliminar esta entidad?');"
+            >
+              <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
+              <input id="ent-delete-<?= $index ?>" type="hidden" name="id" value="<?= $id ?>">
+              <button class="btn btn-danger ent-card-item__action" type="submit" aria-labelledby="delete-label-<?= $index ?>">
+                <span id="delete-label-<?= $index ?>" class="visually-hidden">Eliminar <?= h($nombre) ?></span>
+                <span aria-hidden="true">Eliminar</span>
               </button>
-              <a class="btn btn-primary" href="/comercial/entidades/editar?id=<?= $entityId ?>">Editar</a>
-              <form method="post" action="/comercial/entidades/eliminar" class="ent-card-delete" aria-label="Eliminar <?= h($cardTitle) ?>">
-                <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
-                <input type="hidden" name="id" value="<?= $entityId ?>">
-                <button type="submit" class="btn btn-danger" onclick="return confirm('¿Deseas eliminar esta entidad?');">Eliminar</button>
-              </form>
-            </footer>
-          </article>
-        </li>
+            </form>
+          </footer>
+        </article>
       <?php endforeach; ?>
-    </ul>
+    </div>
 
-    <nav class="pagination" aria-label="Paginación de entidades">
+    <!-- Paginación accesible (coherente con Pagination.php del backend) -->
+    <nav class="ent-cards-pagination" aria-label="Paginación de entidades">
       <?php if ($page > 1): ?>
-        <a href="/comercial/entidades?page=<?= $prev ?>&perPage=<?= (int)$perPage ?>&q=<?= urlencode($q) ?>" rel="prev">&laquo; Anterior</a>
+        <a href="/comercial/entidades?page=<?= (int)$prev ?>&perPage=<?= (int)$perPage ?>&q=<?= urlencode($q) ?>" rel="prev">&laquo; Anterior</a>
       <?php else: ?>
         <span class="disabled" aria-disabled="true">&laquo; Anterior</span>
       <?php endif; ?>
@@ -197,7 +210,7 @@ $next  = min($pages, $page + 1);
       <span aria-live="polite">Página <?= (int)$page ?> de <?= (int)$pages ?></span>
 
       <?php if ($page < $pages): ?>
-        <a href="/comercial/entidades?page=<?= $next ?>&perPage=<?= (int)$perPage ?>&q=<?= urlencode($q) ?>" rel="next">Siguiente &raquo;</a>
+        <a href="/comercial/entidades?page=<?= (int)$next ?>&perPage=<?= (int)$perPage ?>&q=<?= urlencode($q) ?>" rel="next">Siguiente &raquo;</a>
       <?php else: ?>
         <span class="disabled" aria-disabled="true">Siguiente &raquo;</span>
       <?php endif; ?>
@@ -205,34 +218,32 @@ $next  = min($pages, $page + 1);
   <?php endif; ?>
 </section>
 
-<div id="ent-card-modal" class="ent-modal" aria-hidden="true">
-  <div class="ent-modal__box" role="dialog" aria-modal="true" aria-labelledby="ent-card-modal-title">
-    <button type="button" class="ent-modal__close" aria-label="Cerrar" data-close-modal>&times;</button>
-    <div class="ent-modal__header">
-      <div class="ent-card-icon" aria-hidden="true">🏦</div>
-      <div>
-        <h2 id="ent-card-modal-title" class="ent-card-title">Entidad</h2>
-        <p id="ent-card-modal-subtitle" class="ent-card-subtitle">—</p>
+<div id="ent-card-modal" class="ent-card-modal" aria-hidden="true">
+  <div class="ent-card-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="ent-card-modal-title">
+    <button type="button" class="ent-card-modal__close" aria-label="Cerrar modal">×</button>
+    <header class="ent-card-modal__header">
+      <div class="ent-card-item__icon" aria-hidden="true">🏦</div>
+      <div class="ent-card-modal__titles">
+        <h2 id="ent-card-modal-title" class="ent-card-item__title">Entidad</h2>
+        <p id="ent-card-modal-segmento" class="ent-card-item__subtitle">Segmento</p>
       </div>
-      <span id="ent-card-modal-servicios" class="ent-badge">0 servicios</span>
-    </div>
-    <div class="ent-modal__body">
-      <div id="ent-card-modal-error" class="ent-modal__error" role="alert" aria-live="assertive"></div>
-      <dl class="ent-details">
-        <div><dt>Ubicación</dt><dd id="ent-md-ubicacion">—</dd></div>
-        <div><dt>Segmento</dt><dd id="ent-md-segmento">—</dd></div>
-        <div><dt>Tipo</dt><dd id="ent-md-tipo">—</dd></div>
-        <div><dt>RUC</dt><dd id="ent-md-ruc">—</dd></div>
-        <div><dt>Teléfono fijo</dt><dd id="ent-md-tfijo">—</dd></div>
-        <div><dt>Teléfono móvil</dt><dd id="ent-md-tmovil">—</dd></div>
-        <div><dt>Correo</dt><dd id="ent-md-email">—</dd></div>
-        <div><dt>Notas</dt><dd id="ent-md-notas">—</dd></div>
-        <div><dt>Servicios activos</dt><dd id="ent-md-servicios">—</dd></div>
+      <span id="ent-card-modal-serv-count" class="ent-card-item__badge">0 servicios</span>
+    </header>
+    <div class="ent-card-modal__body">
+      <dl class="ent-card-modal__details">
+        <div><dt>Ubicación</dt><dd id="modal-ubicacion">—</dd></div>
+        <div><dt>Tipo</dt><dd id="modal-tipo">—</dd></div>
+        <div><dt>RUC</dt><dd id="modal-ruc">—</dd></div>
+        <div><dt>Teléfono fijo</dt><dd id="modal-telefono-fijo">—</dd></div>
+        <div><dt>Teléfono móvil</dt><dd id="modal-telefono-movil">—</dd></div>
+        <div><dt>Email</dt><dd id="modal-email">—</dd></div>
+        <div><dt>Notas</dt><dd id="modal-notas">—</dd></div>
+        <div><dt>Servicios</dt><dd id="modal-servicios">—</dd></div>
       </dl>
     </div>
-    <div class="ent-modal__footer">
-      <button type="button" class="btn btn-outline" data-close-modal>Cerrar</button>
-    </div>
+    <footer class="ent-card-modal__footer">
+      <button type="button" class="btn btn-outline ent-card-modal__close">Cerrar</button>
+    </footer>
   </div>
 </div>
 

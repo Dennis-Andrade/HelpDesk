@@ -1,145 +1,110 @@
 (function(){
   const modal = document.getElementById('ent-card-modal');
-  if (!modal) { return; }
+  if (!modal) return;
 
-  const closeButtons = modal.querySelectorAll('[data-close-modal]');
-  const errorBox     = modal.querySelector('#ent-card-modal-error');
-  const titleEl      = modal.querySelector('#ent-card-modal-title');
-  const subtitleEl   = modal.querySelector('#ent-card-modal-subtitle');
-  const badgeEl      = modal.querySelector('#ent-card-modal-servicios');
-  const fields = {
-    ubicacion: modal.querySelector('#ent-md-ubicacion'),
-    segmento:  modal.querySelector('#ent-md-segmento'),
-    tipo:      modal.querySelector('#ent-md-tipo'),
-    ruc:       modal.querySelector('#ent-md-ruc'),
-    tfijo:     modal.querySelector('#ent-md-tfijo'),
-    tmovil:    modal.querySelector('#ent-md-tmovil'),
-    email:     modal.querySelector('#ent-md-email'),
-    notas:     modal.querySelector('#ent-md-notas'),
-    servicios: modal.querySelector('#ent-md-servicios')
+  const closeButtons = modal.querySelectorAll('.ent-card-modal__close');
+  const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+  let lastFocus = null;
+
+  const setText = (selector, value, fallback) => {
+    const el = modal.querySelector(selector);
+    if (!el) return;
+    const text = value === null || value === undefined || String(value).trim() === ''
+      ? (fallback ?? '—')
+      : String(value);
+    el.textContent = text;
   };
 
-  let lastTrigger = null;
-
-  function setText(node, value) {
-    if (!node) { return; }
-    node.textContent = value && String(value).trim() !== '' ? String(value).trim() : '—';
-  }
-
-  function resetModal(){
-    errorBox.textContent = '';
-    setText(titleEl, 'Entidad');
-    setText(subtitleEl, '—');
-    setText(badgeEl, '0 servicios');
-    Object.keys(fields).forEach(function(key){ setText(fields[key], '—'); });
-    if (fields.servicios) {
-      fields.servicios.innerHTML = '—';
-    }
-  }
-
-  function openModal(trigger){
-    lastTrigger = trigger || null;
+  const openModal = () => {
+    lastFocus = document.activeElement;
     modal.setAttribute('aria-hidden', 'false');
     document.documentElement.style.overflow = 'hidden';
-    const focusTarget = modal.querySelector('[data-close-modal]');
-    if (focusTarget) { focusTarget.focus(); }
-  }
+    const focusable = modal.querySelectorAll(focusableSelectors);
+    if (focusable.length) focusable[0].focus();
+  };
 
-  function closeModal(){
+  const closeModal = () => {
     modal.setAttribute('aria-hidden', 'true');
     document.documentElement.style.overflow = '';
-    if (lastTrigger && typeof lastTrigger.focus === 'function') {
-      lastTrigger.focus();
-    }
-  }
+    if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+  };
 
-  closeButtons.forEach(function(btn){
-    btn.addEventListener('click', function(){ closeModal(); });
+  // Cerrar por botón(es)
+  closeButtons.forEach(btn => btn.addEventListener('click', closeModal));
+
+  // Cerrar clic fuera del diálogo
+  modal.addEventListener('click', event => {
+    if (event.target === modal) closeModal();
   });
 
-  modal.addEventListener('click', function(ev){
-    if (ev.target === modal) {
+  // Cerrar por Escape
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && modal.getAttribute('aria-hidden') === 'false') {
       closeModal();
     }
   });
 
-  modal.addEventListener('keydown', function(ev){
-    if (ev.key === 'Escape') {
-      ev.preventDefault();
-      closeModal();
-    }
-  });
-
-  async function fetchDetalle(id){
-    const url = '/comercial/entidades/' + encodeURIComponent(id) + '/show';
-    const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-    if (!res.ok) {
-      throw new Error('Error al obtener el detalle (HTTP ' + res.status + ')');
-    }
-    return res.json();
+  function formatServicios(servicios) {
+    if (!Array.isArray(servicios)) return [];
+    return servicios.reduce((acc, item) => {
+      const label = item && typeof item === 'object'
+        ? (item.nombre_servicio ?? item.nombre ?? item.label ?? '')
+        : item;
+      const text = String(label ?? '').trim();
+      if (text !== '') acc.push(text);
+      return acc;
+    }, []);
   }
 
-  function renderServicios(data){
-    if (!fields.servicios) { return; }
-    const servicios = Array.isArray(data) ? data : [];
-    if (!servicios.length) {
-      fields.servicios.textContent = '—';
-      return;
+  async function loadEntity(id) {
+    try {
+      const response = await fetch(`/comercial/entidades/${encodeURIComponent(id)}/show`, {
+        headers: { 'Accept': 'application/json' }
+      });
+      if (!response.ok) throw new Error('Respuesta no válida');
+
+      const data = await response.json();
+      if (data && data.error) throw new Error(data.error);
+
+      setText('#ent-card-modal-title', data.nombre || 'Entidad');
+      setText('#ent-card-modal-segmento', data.segmento || 'No especificado');
+
+      const servicios = formatServicios(data.servicios || []);
+      setText('#ent-card-modal-serv-count', `${servicios.length} servicios`);
+
+      setText('#modal-ubicacion', data.ubicacion || 'No especificado');
+      setText('#modal-tipo', data.tipo || 'No especificado');
+      setText('#modal-ruc', data.ruc || '—');
+      setText('#modal-telefono-fijo', data.telefono_fijo || '—');
+      setText('#modal-telefono-movil', data.telefono_movil || '—');
+      setText('#modal-email', data.email || '—');
+      setText('#modal-notas', data.notas || '—');
+      setText('#modal-servicios', servicios.length ? servicios.join('\n') : 'Sin servicios registrados');
+
+      openModal();
+    } catch (error) {
+      console.error('No se pudo cargar la entidad', error);
+      setText('#ent-card-modal-title', 'Entidad');
+      setText('#ent-card-modal-segmento', 'No especificado');
+      setText('#ent-card-modal-serv-count', '0 servicios');
+      setText('#modal-ubicacion', '—');
+      setText('#modal-tipo', '—');
+      setText('#modal-ruc', '—');
+      setText('#modal-telefono-fijo', '—');
+      setText('#modal-telefono-movil', '—');
+      setText('#modal-email', '—');
+      setText('#modal-notas', '—');
+      setText('#modal-servicios', 'No se pudo cargar la información');
+      openModal();
     }
-    const list = document.createElement('ul');
-    list.className = 'ent-card-phones';
-    list.setAttribute('aria-label', 'Servicios activos');
-    servicios.forEach(function(svc){
-      var label = '';
-      if (svc && typeof svc === 'object' && 'nombre_servicio' in svc) {
-        label = String(svc.nombre_servicio || '');
-      } else if (typeof svc === 'string') {
-        label = svc;
-      }
-      label = label.trim();
-      if (!label) { return; }
-      const item = document.createElement('li');
-      item.textContent = label;
-      list.appendChild(item);
-    });
-    if (!list.childNodes.length) {
-      fields.servicios.textContent = '—';
-      return;
-    }
-    fields.servicios.innerHTML = '';
-    fields.servicios.appendChild(list);
   }
 
-  document.addEventListener('click', function(ev){
-    const trigger = ev.target.closest('.js-entidad-view');
-    if (!trigger) { return; }
-    const id = trigger.getAttribute('data-entidad-id');
-    if (!id) { return; }
-
-    ev.preventDefault();
-    resetModal();
-    openModal(trigger);
-
-    fetchDetalle(id).then(function(data){
-      if (data && data.error) {
-        throw new Error(String(data.error));
-      }
-      setText(titleEl, data && data.nombre ? data.nombre : 'Entidad');
-      setText(subtitleEl, data && data.tipo ? data.tipo : '—');
-      const servicios = Array.isArray(data && data.servicios) ? data.servicios : [];
-      var servicioCount = servicios.length;
-      setText(badgeEl, servicioCount + ' servicios');
-      setText(fields.ubicacion, data && data.ubicacion ? data.ubicacion : '—');
-      setText(fields.segmento, data && data.segmento ? data.segmento : '—');
-      setText(fields.tipo, data && data.tipo ? data.tipo : '—');
-      setText(fields.ruc, data && data.ruc ? data.ruc : '—');
-      setText(fields.tfijo, data && data.telefono_fijo ? data.telefono_fijo : '—');
-      setText(fields.tmovil, data && data.telefono_movil ? data.telefono_movil : '—');
-      setText(fields.email, data && data.email ? data.email : '—');
-      setText(fields.notas, data && data.notas ? data.notas : '—');
-      renderServicios(servicios);
-    }).catch(function(err){
-      errorBox.textContent = err && err.message ? err.message : 'No fue posible cargar el detalle.';
-    });
+  // Delegación para botones "Ver" (atributo data-entity-id)
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-entity-id]');
+    if (!button) return;
+    const id = button.getAttribute('data-entity-id');
+    if (!id) return;
+    loadEntity(id);
   });
 })();

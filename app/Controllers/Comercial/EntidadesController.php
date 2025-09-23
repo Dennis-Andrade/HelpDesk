@@ -40,12 +40,26 @@ final class EntidadesController
     public function show(): void
     {
         $id = (int)($_GET['id'] ?? 0);
-        $this->respondEntidadJson($id);
+        if ($id < 1) {
+            http_response_code(400);
+            echo json_encode(['error' => 'id inválido'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $this->renderEntidadJson($id);
     }
 
     public function showJson(int $id): void
     {
-        $this->respondEntidadJson($id);
+        header('Content-Type: application/json; charset=utf-8');
+
+        if ($id < 1) {
+            http_response_code(400);
+            echo json_encode(['error' => 'id inválido'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $this->renderEntidadJson($id);
     }
 
     public function createForm(): void
@@ -165,59 +179,59 @@ final class EntidadesController
         redirect('/comercial/entidades');
     }
 
-    private function respondEntidadJson(int $id): void
+    private function renderEntidadJson(int $id): void
     {
-        header('Content-Type: application/json; charset=utf-8');
-
-        if ($id < 1) {
-            http_response_code(400);
-            echo json_encode(['error' => 'ID inválido'], JSON_UNESCAPED_UNICODE);
-            return;
-        }
-
         try {
-            $data = $this->loadEntidadDetalle($id);
-            if ($data === null) {
+            $data = $this->buildEntidadPayload($id);
+            if (isset($data['error'])) {
                 http_response_code(404);
-                echo json_encode(['error' => 'Entidad no encontrada'], JSON_UNESCAPED_UNICODE);
-                return;
             }
-
             echo json_encode($data, JSON_UNESCAPED_UNICODE);
         } catch (\Throwable $e) {
             http_response_code(500);
-            echo json_encode(['error' => 'No se pudo obtener la entidad'], JSON_UNESCAPED_UNICODE);
+            echo json_encode(['error' => 'Error al obtener la entidad'], JSON_UNESCAPED_UNICODE);
         }
     }
 
-    private function loadEntidadDetalle(int $id): ?array
+    /**
+     * @return array<string,mixed>
+     */
+    private function buildEntidadPayload(int $id): array
     {
         $repo = new EntidadRepository();
         $row  = $repo->findDetalles($id);
         if (!$row) {
-            return null;
+            return ['error' => 'no encontrado'];
         }
-
-        $servicios = $repo->serviciosActivos($id);
 
         $provincia = trim((string)($row['provincia'] ?? ''));
         $canton    = trim((string)($row['canton'] ?? ''));
-        $ubicacion = trim($provincia . (($provincia !== '' && $canton !== '') ? ' - ' : '') . $canton);
+        $ubicacion = $provincia;
+        if ($provincia !== '' && $canton !== '') {
+            $ubicacion .= ' - ' . $canton;
+        } elseif ($canton !== '') {
+            $ubicacion = $canton;
+        }
         if ($ubicacion === '') {
             $ubicacion = 'No especificado';
         }
 
+        $segmento = 'No especificado';
+        if (!empty($row['id_segmento'])) {
+            $segmento = 'Segmento ' . (int)$row['id_segmento'];
+        }
+
         return [
-            'nombre'         => $row['nombre'],
+            'nombre'         => $row['nombre'] ?? null,
             'ruc'            => $row['ruc'] ?? null,
-            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
+            'telefono_fijo'  => $row['telefono_fijo_1'] ?? $row['telefono_fijo'] ?? $row['telefono'] ?? null,
             'telefono_movil' => $row['telefono_movil'] ?? null,
             'email'          => $row['email'] ?? null,
             'tipo'           => $row['tipo_entidad'] ?? null,
-            'segmento'       => $row['id_segmento'] ? ('Segmento ' . (int)$row['id_segmento']) : 'No especificado',
+            'segmento'       => $segmento,
             'ubicacion'      => $ubicacion,
             'notas'          => $row['notas'] ?? null,
-            'servicios'      => $servicios,
+            'servicios'      => $repo->serviciosActivos($id),
         ];
     }
 }
