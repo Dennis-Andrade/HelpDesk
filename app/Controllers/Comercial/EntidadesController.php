@@ -42,28 +42,26 @@ final class EntidadesController
         header('Content-Type: application/json; charset=utf-8');
 
         $id = (int)($_GET['id'] ?? 0);
-        if ($id < 1) { echo json_encode(['error'=>'id inválido']); return; }
+        if ($id < 1) {
+            http_response_code(400);
+            echo json_encode(['error' => 'id inválido'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
 
-        $repo = new \App\Repositories\Comercial\EntidadRepository();
-        $row  = $repo->findDetalles($id);
-        $sv   = $repo->serviciosActivos($id);
+        $this->renderEntidadJson($id);
+    }
 
-        if (!$row) { echo json_encode(['error'=>'no encontrado']); return; }
+    public function showJson(int $id): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
 
-        $data = [
-            'nombre'         => $row['nombre'],
-            'ruc'            => $row['ruc'] ?? null,
-            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
-            'telefono_movil' => $row['telefono_movil'] ?? null,
-            'email'          => $row['email'] ?? null,
-            'tipo'           => $row['tipo_entidad'] ?? null,
-            'segmento'       => $row['id_segmento'] ? ('Segmento ' . (int)$row['id_segmento']) : 'No especificado',
-            'ubicacion'      => trim(($row['provincia'] ?? '') . (($row['provincia']??'') && ($row['canton']??'') ? ' - ' : '') . ($row['canton'] ?? '')) ?: 'No especificado',
-            'notas'          => $row['notas'] ?? null,
-            'servicios'      => $sv,
-        ];
+        if ($id < 1) {
+            http_response_code(400);
+            echo json_encode(['error' => 'id inválido'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
 
-        echo json_encode($data);
+        $this->renderEntidadJson($id);
     }
     public function createForm(): void
     {
@@ -180,5 +178,61 @@ final class EntidadesController
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) { (new EntidadRepository())->delete($id); }
         redirect('/comercial/entidades');
+    }
+
+    private function renderEntidadJson(int $id): void
+    {
+        try {
+            $data = $this->buildEntidadPayload($id);
+            if (isset($data['error'])) {
+                http_response_code(404);
+            }
+            echo json_encode($data, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Error al obtener la entidad'], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function buildEntidadPayload(int $id): array
+    {
+        $repo = new EntidadRepository();
+        $row  = $repo->findDetalles($id);
+        if (!$row) {
+            return ['error' => 'no encontrado'];
+        }
+
+        $provincia = trim((string)($row['provincia'] ?? ''));
+        $canton    = trim((string)($row['canton'] ?? ''));
+        $ubicacion = $provincia;
+        if ($provincia !== '' && $canton !== '') {
+            $ubicacion .= ' - ' . $canton;
+        } elseif ($canton !== '') {
+            $ubicacion = $canton;
+        }
+        if ($ubicacion === '') {
+            $ubicacion = 'No especificado';
+        }
+
+        $segmento = 'No especificado';
+        if (!empty($row['id_segmento'])) {
+            $segmento = 'Segmento ' . (int)$row['id_segmento'];
+        }
+
+        return [
+            'nombre'         => $row['nombre'] ?? null,
+            'ruc'            => $row['ruc'] ?? null,
+            'telefono_fijo'  => $row['telefono_fijo_1'] ?? $row['telefono_fijo'] ?? $row['telefono'] ?? null,
+            'telefono_movil' => $row['telefono_movil'] ?? null,
+            'email'          => $row['email'] ?? null,
+            'tipo'           => $row['tipo_entidad'] ?? null,
+            'segmento'       => $segmento,
+            'ubicacion'      => $ubicacion,
+            'notas'          => $row['notas'] ?? null,
+            'servicios'      => $repo->serviciosActivos($id),
+        ];
     }
 }
