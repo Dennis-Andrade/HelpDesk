@@ -37,15 +37,36 @@ final class EntidadesController
             'csrf'    => csrf_token()
         ]);
     }
+
+    public function cards(): void
+    {
+        $q        = trim($_GET['q'] ?? '');
+        $filters  = is_array($_GET) ? $_GET : [];
+        $pager    = Pagination::fromRequest($_GET, 1, 20, 0);
+        $service  = new BuscarEntidadesService();
+        $result   = $service->buscar($q, $pager->page, $pager->perPage);
+
+        view('comercial/entidades/index_cards', [
+            'layout'  => 'layout',
+            'title'   => 'Entidades financieras',
+            'items'   => $result['items'],
+            'total'   => $result['total'],
+            'page'    => $result['page'],
+            'perPage' => $result['perPage'],
+            'q'       => $q,
+            'csrf'    => csrf_token(),
+            'filters' => $filters,
+        ]);
+    }
     public function show(): void
     {
         $id = (int)($_GET['id'] ?? 0);
         $this->respondEntidadJson($id);
     }
 
-    public function showJson(int $id): void
+    public function showJson($id): void
     {
-        $this->respondEntidadJson($id);
+        $this->respondEntidadJson((int)$id);
     }
 
     public function createForm(): void
