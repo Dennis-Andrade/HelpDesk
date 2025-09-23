@@ -63,36 +63,14 @@ class Router {
   public function dispatch(){
     $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $uri = strtok($_SERVER['REQUEST_URI'] ?? '/', '?') ?: '/';
-    $routes = $this->routes[$m] ?? [];
-    $matched = null;
-    $params = [];
-
-    foreach ($routes as $route) {
-      if ($route['path'] === $uri) {
-        $matched = $route;
-        break;
-      }
-      if ($route['hasParams'] && $route['pattern'] && preg_match($route['pattern'], $uri, $matches)) {
-        $matched = $route;
-        foreach ($matches as $key => $value) {
-          if (!is_int($key)) {
-            $params[] = $value;
-          }
-        }
-        break;
-      }
-    }
-
-    if (!$matched) { http_response_code(404); echo "404"; return; }
-
-    $handler = $matched['handler'];
-    $opts = $matched['opts'];
+    $match = $this->matchRoute($m, $uri);
+    if ($match === null) { http_response_code(404); echo "404"; return; }
+    [$handler, $opts, $params] = $match;
     $mwList = $opts['middleware'] ?? [];
     $callable = $this->toCallable($handler);
-    $runner = function() use ($callable, $params) {
+    $pipeline = MiddlewareKernel::pipeline($mwList, function() use ($callable, $params) {
       return call_user_func_array($callable, $params);
-    };
-    $pipeline = MiddlewareKernel::pipeline($mwList, $runner);
+    });
     return $pipeline();
   }
 
