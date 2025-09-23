@@ -36,24 +36,70 @@ function view(string $tpl, array $data=[]){
 // ---------------- Router + Middleware ----------------
 class Router {
   private $routes = ['GET'=>[], 'POST'=>[]];
-  public function get(string $path, $handler, array $opts = []){ $this->routes['GET'][$path]=[$handler,$opts]; }
-  public function post(string $path, $handler, array $opts = []){ $this->routes['POST'][$path]=[$handler,$opts]; }
+
+  public function get(string $path, $handler, array $opts = []): void {
+    $this->addRoute('GET', $path, $handler, $opts);
+  }
+
+  public function post(string $path, $handler, array $opts = []): void {
+    $this->addRoute('POST', $path, $handler, $opts);
+  }
+
+  private function addRoute(string $method, string $path, $handler, array $opts): void {
+    $hasParams = strpos($path, '{') !== false;
+    $pattern = null;
+    if ($hasParams) {
+      $pattern = '#^' . preg_replace('#\{([a-zA-Z_][a-zA-Z0-9_-]*)\}#', '(?P<$1>[^/]+)', $path) . '$#';
+    }
+    $this->routes[$method][] = [
+      'path' => $path,
+      'handler' => $handler,
+      'opts' => $opts,
+      'pattern' => $pattern,
+      'hasParams' => $hasParams,
+    ];
+  }
 
   public function dispatch(){
     $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $uri = strtok($_SERVER['REQUEST_URI'] ?? '/', '?') ?: '/';
-    if (!isset($this->routes[$m][$uri])) { http_response_code(404); echo "404"; return; }
-    [$handler, $opts] = $this->routes[$m][$uri];
+    $routes = $this->routes[$m] ?? [];
+    $matched = null;
+    $params = [];
+
+    foreach ($routes as $route) {
+      if ($route['path'] === $uri) {
+        $matched = $route;
+        break;
+      }
+      if ($route['hasParams'] && $route['pattern'] && preg_match($route['pattern'], $uri, $matches)) {
+        $matched = $route;
+        foreach ($matches as $key => $value) {
+          if (!is_int($key)) {
+            $params[] = $value;
+          }
+        }
+        break;
+      }
+    }
+
+    if (!$matched) { http_response_code(404); echo "404"; return; }
+
+    $handler = $matched['handler'];
+    $opts = $matched['opts'];
     $mwList = $opts['middleware'] ?? [];
     $callable = $this->toCallable($handler);
-    $pipeline = MiddlewareKernel::pipeline($mwList, $callable);
+    $runner = function() use ($callable, $params) {
+      return call_user_func_array($callable, $params);
+    };
+    $pipeline = MiddlewareKernel::pipeline($mwList, $runner);
     return $pipeline();
   }
 
   private function toCallable($h): callable {
     if (is_array($h) && is_string($h[0])) { // [Class, method]
       $obj = new $h[0]();
-      return function() use ($obj, $h){ return call_user_func([$obj, $h[1]]); };
+      return [$obj, $h[1]];
     }
     if (is_callable($h)) return $h;
     throw new \RuntimeException('Handler inválido');
