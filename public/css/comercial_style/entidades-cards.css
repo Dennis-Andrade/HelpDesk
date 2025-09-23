@@ -1,4 +1,3 @@
-
 /* Tarjetas de entidades (vista grid) */
 .ent-cards-wrapper {
   max-width: 1200px;
@@ -109,8 +108,6 @@ main
   color:#1f2937;
   border-color:#c7d2fe;
 }
-
-.ent-card-item__badge--empty,
 .ent-chip--empty{
   display:inline-flex;
   align-items:center;

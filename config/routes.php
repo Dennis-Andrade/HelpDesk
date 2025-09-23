@@ -43,15 +43,12 @@ $router->post('/comercial/entidades/eliminar', [EntidadesController::class, 'del
 
 // 
 
-$router->get('/comercial/agenda',            [AgendaController::class, 'index'],   ['middleware'=>['auth','role:comercial,administrador']]);
-$router->get('/comercial/agenda/ver',        [AgendaController::class, 'show'],    ['middleware'=>['auth','role:comercial,administrador']]); // JSON para modal
-$router->get('/comercial/agenda/crear',      [AgendaController::class, 'createForm'], ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/agenda/crear',     [AgendaController::class, 'create'],  ['middleware'=>['auth','role:comercial,administrador']]);
-$router->get('/comercial/agenda/editar',     [AgendaController::class, 'editForm'], ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/agenda/editar',    [AgendaController::class, 'update'],  ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/agenda/eliminar',  [AgendaController::class, 'delete'],  ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/agenda/cancelar',  [AgendaController::class, 'cancel'],  ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/agenda/completar', [AgendaController::class, 'complete'],['middleware'=>['auth','role:comercial,administrador']]);
+$router->get('/comercial/agenda',                   [AgendaController::class, 'index'],        ['middleware'=>['auth','role:comercial']]);
+$router->post('/comercial/agenda',                  [AgendaController::class, 'create'],       ['middleware'=>['auth','role:comercial']]);
+$router->get('/comercial/agenda/{id}',              [AgendaController::class, 'showJson'],     ['middleware'=>['auth','role:comercial']]);
+$router->post('/comercial/agenda/{id}/editar',      [AgendaController::class, 'edit'],         ['middleware'=>['auth','role:comercial']]);
+$router->post('/comercial/agenda/{id}/estado',      [AgendaController::class, 'changeStatus'], ['middleware'=>['auth','role:comercial']]);
+$router->post('/comercial/agenda/{id}/eliminar',    [AgendaController::class, 'delete'],       ['middleware'=>['auth','role:comercial']]);
 
 // AJAX: cantones por provincia (auth)
 $router->get('/shared/cantones', [UbicacionesController::class, 'cantones'], ['middleware'=>['auth']]);
