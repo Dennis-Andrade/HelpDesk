@@ -35,38 +35,30 @@ function view(string $tpl, array $data=[]){
 
 // ---------------- Router + Middleware ----------------
 class Router {
-  private $routes = ['GET'=>[], 'POST'=>[]];
+  private $routes = ['GET' => [], 'POST' => []];
 
-  public function get(string $path, $handler, array $opts = []): void {
+  public function get($path, $handler, array $opts = array()) {
     $this->addRoute('GET', $path, $handler, $opts);
   }
 
-  public function post(string $path, $handler, array $opts = []): void {
+  public function post($path, $handler, array $opts = array()) {
     $this->addRoute('POST', $path, $handler, $opts);
   }
 
-  private function addRoute(string $method, string $path, $handler, array $opts): void {
-    $hasParams = strpos($path, '{') !== false;
-    $pattern = null;
-    if ($hasParams) {
-      $pattern = '#^' . preg_replace('#\{([a-zA-Z_][a-zA-Z0-9_-]*)\}#', '(?P<$1>[^/]+)', $path) . '$#';
-    }
-    $this->routes[$method][] = [
-      'path' => $path,
-      'handler' => $handler,
-      'opts' => $opts,
-      'pattern' => $pattern,
-      'hasParams' => $hasParams,
-    ];
+  private function addRoute($method, $path, $handler, $opts) {
+    $this->routes[$method][$path] = array($handler, $opts);
   }
 
-  public function dispatch(){
-    $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-    $uri = strtok($_SERVER['REQUEST_URI'] ?? '/', '?') ?: '/';
+  public function dispatch() {
+    $m   = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+    $uri = strtok(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/', '?');
+    if (!$uri) { $uri = '/'; }
+
     $match = $this->matchRoute($m, $uri);
     if ($match === null) { http_response_code(404); echo "404"; return; }
-    [$handler, $opts, $params] = $match;
-    $mwList = $opts['middleware'] ?? [];
+
+    list($handler, $opts, $params) = $match;
+    $mwList   = isset($opts['middleware']) ? $opts['middleware'] : array();
     $callable = $this->toCallable($handler);
     $pipeline = MiddlewareKernel::pipeline($mwList, function() use ($callable, $params) {
       return call_user_func_array($callable, $params);
@@ -74,48 +66,45 @@ class Router {
     return $pipeline();
   }
 
-  private function toCallable($h): callable {
+  private function toCallable($h) {
     if (is_array($h) && is_string($h[0])) { // [Class, method]
       $obj = new $h[0]();
-      return [$obj, $h[1]];
+      return array($obj, $h[1]);
     }
-    if (is_callable($h)) return $h;
+    if (is_callable($h)) { return $h; }
     throw new \RuntimeException('Handler inválido');
   }
 
-  private function matchRoute(string $method, string $uri): ?array {
+  /** @return array|null [$handler, $opts, $params] */
+  private function matchRoute($method, $uri) {
     if (isset($this->routes[$method][$uri])) {
-      [$handler, $opts] = $this->routes[$method][$uri];
-      return [$handler, $opts, []];
+      list($handler, $opts) = $this->routes[$method][$uri];
+      return array($handler, $opts, array());
     }
 
     foreach ($this->routes[$method] as $path => $info) {
       $params = $this->matchDynamic($path, $uri);
       if ($params !== null) {
-        [$handler, $opts] = $info;
-        return [$handler, $opts, $params];
+        list($handler, $opts) = $info;
+        return array($handler, $opts, $params);
       }
     }
 
     return null;
   }
 
-  private function matchDynamic(string $pattern, string $uri): ?array {
-    if (strpos($pattern, '{') === false) {
-      return null;
-    }
+  /** Convierte '/foo/{id}/bar' a regex y devuelve params o null (PHP 7 compatible) */
+  private function matchDynamic($pattern, $uri) {
+    if (strpos($pattern, '{') === false) { return null; }
 
     $regex = preg_quote($pattern, '#');
     $regex = preg_replace('#\\\{([^/]+)\\\}#', '([^/]+)', $regex);
-    if ($regex === null) {
-      return null;
-    }
+    if ($regex === null) { return null; }
 
     if (preg_match('#^' . $regex . '$#', $uri, $matches)) {
       array_shift($matches);
-      return $matches;
+      return $matches; // params ordenados
     }
-
     return null;
   }
 }
