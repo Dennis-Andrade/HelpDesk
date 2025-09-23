@@ -36,8 +36,29 @@ function view(string $tpl, array $data=[]){
 // ---------------- Router + Middleware ----------------
 class Router {
   private $routes = ['GET'=>[], 'POST'=>[]];
-  public function get(string $path, $handler, array $opts = []){ $this->routes['GET'][$path]=[$handler,$opts]; }
-  public function post(string $path, $handler, array $opts = []){ $this->routes['POST'][$path]=[$handler,$opts]; }
+
+  public function get(string $path, $handler, array $opts = []): void {
+    $this->addRoute('GET', $path, $handler, $opts);
+  }
+
+  public function post(string $path, $handler, array $opts = []): void {
+    $this->addRoute('POST', $path, $handler, $opts);
+  }
+
+  private function addRoute(string $method, string $path, $handler, array $opts): void {
+    $hasParams = strpos($path, '{') !== false;
+    $pattern = null;
+    if ($hasParams) {
+      $pattern = '#^' . preg_replace('#\{([a-zA-Z_][a-zA-Z0-9_-]*)\}#', '(?P<$1>[^/]+)', $path) . '$#';
+    }
+    $this->routes[$method][] = [
+      'path' => $path,
+      'handler' => $handler,
+      'opts' => $opts,
+      'pattern' => $pattern,
+      'hasParams' => $hasParams,
+    ];
+  }
 
   public function dispatch(){
     $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
