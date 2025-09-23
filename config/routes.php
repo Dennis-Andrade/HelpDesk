@@ -31,6 +31,7 @@ $router->get('/sistemas/dashboard',      [SistemasDashboard::class,    'index'],
 $router->get('/cumplimiento/dashboard',  [CumplimientoDashboard::class,'index'], ['middleware'=>['auth','role:cumplimiento,administrador']]);
 $router->get('/administrador/dashboard', [AdminDashboard::class,       'index'], ['middleware'=>['auth','role:administrador']]);
 $router->get('/comercial/entidades/ver', [EntidadesController::class, 'show'], ['middleware'=>['auth','role:comercial,administrador']]);
+$router->get('/comercial/entidades/{id}/show', [EntidadesController::class, 'showJson'], ['middleware'=>['auth','role:comercial']]);
 
 // ---------- Comercial → Entidades (CRUD, auth + role) ----------
 $router->get('/comercial/entidades',           [EntidadesController::class, 'index'],      ['middleware'=>['auth','role:comercial,administrador']]);
