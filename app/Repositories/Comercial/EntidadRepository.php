@@ -59,6 +59,24 @@ final class EntidadRepository
         $page    = max(1, $page);
         $perPage = max(1, min(60, $perPage));
         $offset  = ($page - 1) * $perPage;
+        $q      = trim($q);
+        $qLike  = $q !== '' ? '%' . $q . '%' : null;
+        $qParam = $q !== '' ? $q : null;
+
+        $countSql = "
+            SELECT COUNT(*)
+            FROM " . self::T_COOP . " c
+            WHERE (
+                :q IS NULL
+                OR (
+                    unaccent(lower(c." . self::COL_NOMBRE . ")) LIKE unaccent(lower(:q_like))
+                    OR c." . self::COL_RUC . " LIKE :q_like
+                )
+            )
+        ";
+
+        $stTotal = $pdo->prepare($countSql);
+        $this->bindSearchTerms($stTotal, $qParam, $qLike);
 
         $q      = trim($q);
         $hasQ   = $q !== '' ? 1 : 0;
@@ -78,7 +96,6 @@ final class EntidadRepository
 
         $stTotal = $pdo->prepare($countSql);
         $this->bindSearchTerms($stTotal, $hasQ, $qLike);
-
         try {
             $stTotal->execute();
         } catch (PDOException $e) {
@@ -119,6 +136,7 @@ final class EntidadRepository
             LEFT JOIN public.canton            can  ON can.id = c." . self::COL_CANTON . "
             WHERE (
                 :has_q = 0
+
                 OR (
                     unaccent(lower(c." . self::COL_NOMBRE . ")) LIKE unaccent(lower(:q_like))
                     OR c." . self::COL_RUC . " LIKE :q_like
@@ -398,7 +416,6 @@ final class EntidadRepository
         } catch (PDOException $e) {
             throw new RuntimeException('Error al obtener los servicios.', 0, $e);
         }
-
         return $st->fetchAll(PDO::FETCH_ASSOC);
     }
 

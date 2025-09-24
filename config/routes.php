@@ -40,7 +40,6 @@ $router->get(
 );
 $router->get('/comercial/entidades/ver', [EntidadesController::class, 'show'], ['middleware'=>['auth','role:comercial,administrador']]);
 $router->get('/comercial/entidades/{id}/show', [EntidadesController::class, 'showJson'], ['middleware'=>['auth','role:comercial']]);
-
 // ---------- Comercial → Entidades (CRUD, auth + role) ----------
 $router->get(
     '/comercial/entidades',
