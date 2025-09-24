@@ -78,6 +78,24 @@ final class EntidadRepository
         $stTotal = $pdo->prepare($countSql);
         $this->bindSearchTerms($stTotal, $qParam, $qLike);
 
+        $q      = trim($q);
+        $hasQ   = $q !== '' ? 1 : 0;
+        $qLike  = '%' . $q . '%';
+
+        $countSql = "
+            SELECT COUNT(*)
+            FROM " . self::T_COOP . " c
+            WHERE (
+                :has_q = 0
+                OR (
+                    unaccent(lower(c." . self::COL_NOMBRE . ")) LIKE unaccent(lower(:q_like))
+                    OR c." . self::COL_RUC . " LIKE :q_like
+                )
+            )
+        ";
+
+        $stTotal = $pdo->prepare($countSql);
+        $this->bindSearchTerms($stTotal, $hasQ, $qLike);
         try {
             $stTotal->execute();
         } catch (PDOException $e) {
@@ -117,7 +135,8 @@ final class EntidadRepository
             LEFT JOIN public.provincia         prov ON prov.id = c." . self::COL_PROV . "
             LEFT JOIN public.canton            can  ON can.id = c." . self::COL_CANTON . "
             WHERE (
-                :q IS NULL
+                :has_q = 0
+
                 OR (
                     unaccent(lower(c." . self::COL_NOMBRE . ")) LIKE unaccent(lower(:q_like))
                     OR c." . self::COL_RUC . " LIKE :q_like
@@ -128,7 +147,7 @@ final class EntidadRepository
         ";
 
         $st = $pdo->prepare($sql);
-        $this->bindSearchTerms($st, $qParam, $qLike);
+        $this->bindSearchTerms($st, $hasQ, $qLike);
         $st->bindValue(':limit', $perPage, PDO::PARAM_INT);
         $st->bindValue(':offset', $offset, PDO::PARAM_INT);
 
@@ -503,15 +522,9 @@ final class EntidadRepository
         return $map;
     }
 
-    private function bindSearchTerms(PDOStatement $stmt, ?string $qParam, ?string $qLike): void
+    private function bindSearchTerms(PDOStatement $stmt, int $hasQ, string $qLike): void
     {
-        if ($qParam === null || $qLike === null) {
-            $stmt->bindValue(':q', null, PDO::PARAM_NULL);
-            $stmt->bindValue(':q_like', null, PDO::PARAM_NULL);
-            return;
-        }
-
-        $stmt->bindValue(':q', $qParam, PDO::PARAM_STR);
+        $stmt->bindValue(':has_q', $hasQ, PDO::PARAM_INT);
         $stmt->bindValue(':q_like', $qLike, PDO::PARAM_STR);
     }
 
