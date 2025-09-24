@@ -59,7 +59,6 @@ final class EntidadRepository
         $page    = max(1, $page);
         $perPage = max(1, min(60, $perPage));
         $offset  = ($page - 1) * $perPage;
-
         $q      = trim($q);
         $qLike  = $q !== '' ? '%' . $q . '%' : null;
         $qParam = $q !== '' ? $q : null;
@@ -398,7 +397,6 @@ final class EntidadRepository
         } catch (PDOException $e) {
             throw new RuntimeException('Error al obtener los servicios.', 0, $e);
         }
-
         return $st->fetchAll(PDO::FETCH_ASSOC);
     }
 

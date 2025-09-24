@@ -192,7 +192,6 @@ final class EntidadesController
         if ($id > 0) { $this->entidades->delete($id); }
         redirect('/comercial/entidades');
     }
-
     // --- Helpers JSON (privados) ---
     private function respondEntidadJson(array $payload, $status = 200): void
     {
@@ -218,7 +217,6 @@ final class EntidadesController
         if ($ubicacion === '') {
             $ubicacion = 'No especificado';
         }
-
         $segmentoNombre = trim((string)($row['segmento_nombre'] ?? ''));
         if ($segmentoNombre === '' && !empty($row['id_segmento'])) {
             $segmentoNombre = 'Segmento ' . (int)$row['id_segmento'];
@@ -226,7 +224,6 @@ final class EntidadesController
         if ($segmentoNombre === '') {
             $segmentoNombre = 'No especificado';
         }
-
         return [
             'nombre'         => $row['nombre'],
             'ruc'            => $row['ruc'] ?? null,
