@@ -4,8 +4,7 @@ declare(strict_types=1);
 namespace App\Repositories\Comercial;
 
 use App\Repositories\BaseRepository;
-use PDO;
-use PDOStatement;
+use RuntimeException;
 
 final class AgendaRepository extends BaseRepository
 {
@@ -32,43 +31,52 @@ final class AgendaRepository extends BaseRepository
         $page    = max(1, $page);
         $perPage = max(1, min(100, $perPage));
         $offset  = ($page - 1) * $perPage;
-
-        $conditions = [];
-        $params     = [];
+        $conditions = array();
+        $params     = array();
 
         $texto = trim((string)($filters['texto'] ?? ''));
         if ($texto !== '') {
-            $conditions[]   = 'c.' . self::COL_COOP_NOMBRE . ' ILIKE :texto';
-            $params[':texto'] = '%' . $texto . '%';
+            $conditions[]      = 'c.' . self::COL_COOP_NOMBRE . ' ILIKE :texto';
+            $params[':texto']  = array('%' . $texto . '%', \PDO::PARAM_STR);
         }
 
         $desde = trim((string)($filters['desde'] ?? ''));
         if ($desde !== '') {
-            $conditions[]   = 'ae.' . self::COL_FECHA . ' >= :desde';
-            $params[':desde'] = $desde;
+            $conditions[]      = 'ae.' . self::COL_FECHA . ' >= :desde';
+            $params[':desde']  = array($desde, \PDO::PARAM_STR);
         }
 
         $hasta = trim((string)($filters['hasta'] ?? ''));
         if ($hasta !== '') {
-            $conditions[]   = 'ae.' . self::COL_FECHA . ' <= :hasta';
-            $params[':hasta'] = $hasta;
+            $conditions[]      = 'ae.' . self::COL_FECHA . ' <= :hasta';
+            $params[':hasta']  = array($hasta, \PDO::PARAM_STR);
         }
 
         $estado = trim((string)($filters['estado'] ?? ''));
         if ($estado !== '') {
-            $conditions[]    = 'ae.' . self::COL_ESTADO . ' = :estado';
-            $params[':estado'] = $estado;
+            $conditions[]      = 'ae.' . self::COL_ESTADO . ' = :estado';
+            $params[':estado'] = array($estado, \PDO::PARAM_STR);
         }
 
         $whereSql = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
-
-        $sqlCount = 'SELECT COUNT(*) FROM ' . self::TABLE . ' ae JOIN ' . self::TABLE_COOPS . ' c ON c.' . self::COL_COOP_ID . ' = ae.' . self::COL_COOP_ID . $whereSql;
-        $stCount  = $this->pdo->prepare($sqlCount);
-        foreach ($params as $key => $value) {
-            $stCount->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        $sqlCount = 'SELECT COUNT(*) AS total FROM ' . self::TABLE . ' ae'
+            . ' JOIN ' . self::TABLE_COOPS . ' c ON c.' . self::COL_COOP_ID . ' = ae.' . self::COL_COOP_ID
+            . $whereSql;
+        try {
+            $countRow = $this->db->fetch($sqlCount, $params);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al contar eventos de agenda.', 0, $e);
         }
-        $stCount->execute();
-        $total = (int)$stCount->fetchColumn();
+        $total    = $countRow ? (int)$countRow['total'] : 0;
+
+        if ($total === 0) {
+            return array(
+                'data'      => array(),
+                'total'     => 0,
+                'page'      => $page,
+                'per_page'  => $perPage,
+            );
+        }
 
         $sql = 'SELECT'
             . ' ae.' . self::COL_ID . ' AS id,'
@@ -86,18 +94,18 @@ final class AgendaRepository extends BaseRepository
             . ' ORDER BY ae.' . self::COL_FECHA . ' DESC'
             . ' LIMIT :limit OFFSET :offset';
 
-        $st = $this->pdo->prepare($sql);
-        foreach ($params as $key => $value) {
-            $st->bindValue($key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        $queryParams = $params;
+        $queryParams[':limit']  = array($perPage, \PDO::PARAM_INT);
+        $queryParams[':offset'] = array($offset, \PDO::PARAM_INT);
+        try {
+            $rows = $this->db->fetchAll($sql, $queryParams);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al listar eventos de agenda.', 0, $e);
         }
-        $st->bindValue(':limit', $perPage, PDO::PARAM_INT);
-        $st->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $st->execute();
 
-        $rows = $st->fetchAll();
-        $data = [];
+        $data = array();
         foreach ($rows as $row) {
-            $data[] = [
+            $data[] = array(
                 'id'                => isset($row['id']) ? (int)$row['id'] : 0,
                 'id_cooperativa'    => isset($row['id_cooperativa']) ? (int)$row['id_cooperativa'] : 0,
                 'cooperativa'       => isset($row['cooperativa']) ? (string)$row['cooperativa'] : '',
@@ -107,15 +115,15 @@ final class AgendaRepository extends BaseRepository
                 'telefono_contacto' => array_key_exists('telefono_contacto', $row) && $row['telefono_contacto'] !== null ? (string)$row['telefono_contacto'] : null,
                 'email_contacto'    => array_key_exists('email_contacto', $row) && $row['email_contacto'] !== null ? (string)$row['email_contacto'] : null,
                 'estado'            => isset($row['estado']) ? (string)$row['estado'] : '',
-            ];
+            );
         }
 
-        return [
+        return array(
             'data'      => $data,
             'total'     => $total,
             'page'      => $page,
             'per_page'  => $perPage,
-        ];
+        );
     }
 
     public function findById(int $id): ?array
@@ -137,28 +145,28 @@ final class AgendaRepository extends BaseRepository
             . ' WHERE ae.' . self::COL_ID . ' = :id'
             . ' LIMIT 1';
 
-        $st = $this->pdo->prepare($sql);
-        $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
-        $row = $st->fetch();
-
-        if (!$row) {
+        try {
+            $row = $this->db->fetch($sql, array(':id' => array($id, \PDO::PARAM_INT)));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al obtener el evento.', 0, $e);
+        }
+        if ($row === null) {
             return null;
         }
 
-        return [
-            'id'                => (int)$row['id'],
-            'id_cooperativa'    => (int)$row['id_cooperativa'],
-            'cooperativa'       => (string)$row['cooperativa'],
-            'titulo'            => (string)$row['titulo'],
-            'descripcion'       => $row['descripcion'] !== null ? (string)$row['descripcion'] : null,
-            'fecha_evento'      => (string)$row['fecha_evento'],
-            'telefono_contacto' => $row['telefono_contacto'] !== null ? (string)$row['telefono_contacto'] : null,
-            'email_contacto'    => $row['email_contacto'] !== null ? (string)$row['email_contacto'] : null,
-            'estado'            => (string)$row['estado'],
-            'created_at'        => $row['created_at'] !== null ? (string)$row['created_at'] : null,
-            'updated_at'        => $row['updated_at'] !== null ? (string)$row['updated_at'] : null,
-        ];
+        return array(
+            'id'                => isset($row['id']) ? (int)$row['id'] : 0,
+            'id_cooperativa'    => isset($row['id_cooperativa']) ? (int)$row['id_cooperativa'] : 0,
+            'cooperativa'       => isset($row['cooperativa']) ? (string)$row['cooperativa'] : '',
+            'titulo'            => isset($row['titulo']) ? (string)$row['titulo'] : '',
+            'descripcion'       => array_key_exists('descripcion', $row) && $row['descripcion'] !== null ? (string)$row['descripcion'] : null,
+            'fecha_evento'      => isset($row['fecha_evento']) ? (string)$row['fecha_evento'] : '',
+            'telefono_contacto' => array_key_exists('telefono_contacto', $row) && $row['telefono_contacto'] !== null ? (string)$row['telefono_contacto'] : null,
+            'email_contacto'    => array_key_exists('email_contacto', $row) && $row['email_contacto'] !== null ? (string)$row['email_contacto'] : null,
+            'estado'            => isset($row['estado']) ? (string)$row['estado'] : '',
+            'created_at'        => array_key_exists('created_at', $row) && $row['created_at'] !== null ? (string)$row['created_at'] : null,
+            'updated_at'        => array_key_exists('updated_at', $row) && $row['updated_at'] !== null ? (string)$row['updated_at'] : null,
+        );
     }
 
     /** @param array<string,mixed> $data */
@@ -166,23 +174,26 @@ final class AgendaRepository extends BaseRepository
     {
         $sql = 'INSERT INTO ' . self::TABLE
             . ' (' . self::COL_COOP_ID . ', ' . self::COL_TITULO . ', ' . self::COL_DESCRIPCION . ', '
-            . self::COL_FECHA . ', ' . self::COL_TELF . ', ' . self::COL_MAIL . ', ' . self::COL_ESTADO . ')
-            VALUES (:cooperativa, :titulo, :descripcion, :fecha, :telefono, :email, :estado)
-            RETURNING ' . self::COL_ID;
+            . self::COL_FECHA . ', ' . self::COL_TELF . ', ' . self::COL_MAIL . ', ' . self::COL_ESTADO . ')'
+            . ' VALUES (:cooperativa, :titulo, :descripcion, :fecha, :telefono, :email, :estado)'
+            . ' RETURNING ' . self::COL_ID . ' AS id';
 
-        $st = $this->pdo->prepare($sql);
-        $st->bindValue(':cooperativa', (int)$data['id_cooperativa'], PDO::PARAM_INT);
-        $st->bindValue(':titulo', (string)$data['titulo'], PDO::PARAM_STR);
-        $this->bindNullable($st, ':descripcion', $data['descripcion'] ?? null);
-        $st->bindValue(':fecha', (string)$data['fecha_evento'], PDO::PARAM_STR);
-        $this->bindNullable($st, ':telefono', $data['telefono_contacto'] ?? null);
-        $this->bindNullable($st, ':email', $data['email_contacto'] ?? null);
-        $st->bindValue(':estado', (string)$data['estado'], PDO::PARAM_STR);
+        try {
+            $result = $this->db->execute($sql, array(
+                ':cooperativa' => array((int)$data['id_cooperativa'], \PDO::PARAM_INT),
+                ':titulo'      => array((string)$data['titulo'], \PDO::PARAM_STR),
+                ':descripcion' => $this->nullableStringParam($data['descripcion'] ?? null),
+                ':fecha'       => array((string)$data['fecha_evento'], \PDO::PARAM_STR),
+                ':telefono'    => $this->nullableStringParam($data['telefono_contacto'] ?? null),
+                ':email'       => $this->nullableStringParam($data['email_contacto'] ?? null),
+                ':estado'      => array((string)$data['estado'], \PDO::PARAM_STR),
+            ));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al crear el evento.', 0, $e);
+        }
 
-        $st->execute();
-        $id = $st->fetchColumn();
-
-        return (int)$id;
+        $row = is_array($result) && isset($result[0]) ? $result[0] : null;
+        return $row && isset($row['id']) ? (int)$row['id'] : 0;
     }
 
     /** @param array<string,mixed> $data */
@@ -198,17 +209,20 @@ final class AgendaRepository extends BaseRepository
             . ' ' . self::COL_ESTADO . ' = :estado,'
             . ' ' . self::COL_UPDATED_AT . ' = NOW()'
             . ' WHERE ' . self::COL_ID . ' = :id';
-
-        $st = $this->pdo->prepare($sql);
-        $st->bindValue(':cooperativa', (int)$data['id_cooperativa'], PDO::PARAM_INT);
-        $st->bindValue(':titulo', (string)$data['titulo'], PDO::PARAM_STR);
-        $this->bindNullable($st, ':descripcion', $data['descripcion'] ?? null);
-        $st->bindValue(':fecha', (string)$data['fecha_evento'], PDO::PARAM_STR);
-        $this->bindNullable($st, ':telefono', $data['telefono_contacto'] ?? null);
-        $this->bindNullable($st, ':email', $data['email_contacto'] ?? null);
-        $st->bindValue(':estado', (string)$data['estado'], PDO::PARAM_STR);
-        $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
+        try {
+            $this->db->execute($sql, array(
+                ':cooperativa' => array((int)$data['id_cooperativa'], \PDO::PARAM_INT),
+                ':titulo'      => array((string)$data['titulo'], \PDO::PARAM_STR),
+                ':descripcion' => $this->nullableStringParam($data['descripcion'] ?? null),
+                ':fecha'       => array((string)$data['fecha_evento'], \PDO::PARAM_STR),
+                ':telefono'    => $this->nullableStringParam($data['telefono_contacto'] ?? null),
+                ':email'       => $this->nullableStringParam($data['email_contacto'] ?? null),
+                ':estado'      => array((string)$data['estado'], \PDO::PARAM_STR),
+                ':id'          => array($id, \PDO::PARAM_INT),
+            ));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al actualizar el evento.', 0, $e);
+        }
     }
 
     public function updateEstado(int $id, string $estado): void
@@ -218,27 +232,36 @@ final class AgendaRepository extends BaseRepository
             . ' ' . self::COL_UPDATED_AT . ' = NOW()'
             . ' WHERE ' . self::COL_ID . ' = :id';
 
-        $st = $this->pdo->prepare($sql);
-        $st->bindValue(':estado', $estado, PDO::PARAM_STR);
-        $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
+        try {
+            $this->db->execute($sql, array(
+                ':estado' => array($estado, \PDO::PARAM_STR),
+                ':id'     => array($id, \PDO::PARAM_INT),
+            ));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al cambiar el estado del evento.', 0, $e);
+        }
     }
 
     public function delete(int $id): void
     {
         $sql = 'DELETE FROM ' . self::TABLE . ' WHERE ' . self::COL_ID . ' = :id';
-        $st  = $this->pdo->prepare($sql);
-        $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
+        try {
+            $this->db->execute($sql, array(':id' => array($id, \PDO::PARAM_INT)));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al eliminar el evento.', 0, $e);
+        }
     }
 
-    private function bindNullable(PDOStatement $st, string $param, mixed $value): void
+    /**
+     * @param mixed $value
+     * @return array{0:mixed,1:int}
+     */
+    private function nullableStringParam($value): array
     {
         if ($value === null || $value === '') {
-            $st->bindValue($param, null, PDO::PARAM_NULL);
-            return;
+            return array(null, \PDO::PARAM_NULL);
         }
 
-        $st->bindValue($param, (string)$value, PDO::PARAM_STR);
+        return array((string)$value, \PDO::PARAM_STR);
     }
 }

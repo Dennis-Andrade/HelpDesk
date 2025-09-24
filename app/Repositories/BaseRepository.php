@@ -2,16 +2,17 @@
 declare(strict_types=1);
 
 namespace App\Repositories;
-
-use PDO;
+use App\Support\Db\DbAdapterInterface;
+use App\Support\Db\PdoAdapter;
 use function Config\db;
 
 abstract class BaseRepository
 {
-    protected PDO $pdo;
+    /** @var DbAdapterInterface */
+    protected $db;
 
-    public function __construct(?PDO $pdo = null)
+    public function __construct(?DbAdapterInterface $adapter = null)
     {
-        $this->pdo = $pdo ?? db();
+        $this->db = $adapter ?: new PdoAdapter(db());
     }
 }
