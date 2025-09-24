@@ -23,10 +23,10 @@ final class Cnxn
         }
 
         $host = getenv('PGHOST')     ?: '127.0.0.1';
-        $port = getenv('PGPORT')     ?: '5433';
+        $port = getenv('PGPORT')     ?: '5434';
         $db   = getenv('PGDATABASE') ?: 'helpdesk';
         $user = getenv('PGUSER')     ?: 'postgres';
-        $pass = getenv('PGPASSWORD') ?: '091914092bc';
+        $pass = getenv('PGPASSWORD') ?: '12345';
 
         $dsn  = "pgsql:host={$host};port={$port};dbname={$db}";
 

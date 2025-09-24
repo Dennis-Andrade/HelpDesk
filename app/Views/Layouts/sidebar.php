@@ -7,7 +7,7 @@
   <nav>
     <div class="nav-group">Comercial</div>
     <a href="/comercial/dashboard" class="nav-item">Dashboard</a>
-    <a href="/comercial/entidades" class="nav-item">Entidades Financieras</a>
+    <a href="/comercial/entidades/cards" class="nav-item">Entidades Financieras</a>
     <a href="/comercial/contactos" class="nav-item">Agenda de Contactos</a>
     <a href="/comercial/eventos" class="nav-item">Eventos</a>
     <a href="/comercial/incidencias" class="nav-item">Incidencias</a>
