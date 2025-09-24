@@ -35,28 +35,77 @@ function view(string $tpl, array $data=[]){
 
 // ---------------- Router + Middleware ----------------
 class Router {
-  private $routes = ['GET'=>[], 'POST'=>[]];
-  public function get(string $path, $handler, array $opts = []){ $this->routes['GET'][$path]=[$handler,$opts]; }
-  public function post(string $path, $handler, array $opts = []){ $this->routes['POST'][$path]=[$handler,$opts]; }
+  private $routes = ['GET' => [], 'POST' => []];
 
-  public function dispatch(){
-    $m = $_SERVER['REQUEST_METHOD'] ?? 'GET';
-    $uri = strtok($_SERVER['REQUEST_URI'] ?? '/', '?') ?: '/';
-    if (!isset($this->routes[$m][$uri])) { http_response_code(404); echo "404"; return; }
-    [$handler, $opts] = $this->routes[$m][$uri];
-    $mwList = $opts['middleware'] ?? [];
+  public function get($path, $handler, array $opts = array()) {
+    $this->addRoute('GET', $path, $handler, $opts);
+  }
+
+  public function post($path, $handler, array $opts = array()) {
+    $this->addRoute('POST', $path, $handler, $opts);
+  }
+
+  private function addRoute($method, $path, $handler, $opts) {
+    $this->routes[$method][$path] = array($handler, $opts);
+  }
+
+  public function dispatch() {
+    $m   = isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'GET';
+    $uri = strtok(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/', '?');
+    if (!$uri) { $uri = '/'; }
+
+    $match = $this->matchRoute($m, $uri);
+    if ($match === null) { http_response_code(404); echo "404"; return; }
+
+    list($handler, $opts, $params) = $match;
+    $mwList   = isset($opts['middleware']) ? $opts['middleware'] : array();
     $callable = $this->toCallable($handler);
-    $pipeline = MiddlewareKernel::pipeline($mwList, $callable);
+    $pipeline = MiddlewareKernel::pipeline($mwList, function() use ($callable, $params) {
+      return call_user_func_array($callable, $params);
+    });
     return $pipeline();
   }
 
-  private function toCallable($h): callable {
+  private function toCallable($h) {
     if (is_array($h) && is_string($h[0])) { // [Class, method]
       $obj = new $h[0]();
-      return function() use ($obj, $h){ return call_user_func([$obj, $h[1]]); };
+      return array($obj, $h[1]);
     }
-    if (is_callable($h)) return $h;
+    if (is_callable($h)) { return $h; }
     throw new \RuntimeException('Handler inválido');
+  }
+
+  /** @return array|null [$handler, $opts, $params] */
+  private function matchRoute($method, $uri) {
+    if (isset($this->routes[$method][$uri])) {
+      list($handler, $opts) = $this->routes[$method][$uri];
+      return array($handler, $opts, array());
+    }
+
+    foreach ($this->routes[$method] as $path => $info) {
+      $params = $this->matchDynamic($path, $uri);
+      if ($params !== null) {
+        list($handler, $opts) = $info;
+        return array($handler, $opts, $params);
+      }
+    }
+
+    return null;
+  }
+
+  /** Convierte '/foo/{id}/bar' a regex y devuelve params o null (PHP 7 compatible) */
+  private function matchDynamic($pattern, $uri) {
+    if (strpos($pattern, '{') === false) { return null; }
+
+    $regex = preg_quote($pattern, '#');
+    $regex = preg_replace('#\\\{([^/]+)\\\}#', '([^/]+)', $regex);
+    if ($regex === null) { return null; }
+
+    if (preg_match('#^' . $regex . '$#', $uri, $matches)) {
+      array_shift($matches);
+      return $matches; // params ordenados
+    }
+    return null;
   }
 }
 
