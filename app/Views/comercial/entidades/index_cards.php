@@ -15,11 +15,11 @@ function h($value): string
 
 function formatSegment($row): string
 {
-    if (isset($row['segmento_nombre']) && $row['segmento_nombre'] !== '') {
-        return h($row['segmento_nombre']);
-    }
     if (isset($row['segmento']) && $row['segmento'] !== '') {
         return h($row['segmento']);
+    }
+    if (isset($row['segmento_nombre']) && $row['segmento_nombre'] !== '') {
+        return h($row['segmento_nombre']);
     }
     if (!empty($row['nombre_segmento'])) {
         return h($row['nombre_segmento']);
@@ -32,8 +32,8 @@ function formatSegment($row): string
 
 function formatLocation($row): string
 {
-    $provincia = trim((string)($row['provincia_nombre'] ?? $row['provincia'] ?? ''));
-    $canton    = trim((string)($row['canton_nombre'] ?? $row['canton'] ?? ''));
+    $provincia = trim((string)($row['provincia'] ?? $row['provincia_nombre'] ?? ''));
+    $canton    = trim((string)($row['canton'] ?? $row['canton_nombre'] ?? ''));
     if ($provincia === '' && $canton === '') {
         return 'No especificado';
     }
@@ -49,23 +49,14 @@ function formatLocation($row): string
 function gatherPhones($row): array
 {
     $phones = [];
-
-    if (isset($row['telefonos']) && is_array($row['telefonos'])) {
-        foreach ($row['telefonos'] as $value) {
-            if (!is_scalar($value)) { continue; }
-            $phones[] = trim((string)$value);
-        }
-    }
     foreach (['telefono_fijo', 'telefono_fijo_1', 'telefono', 'telefono_movil', 'celular'] as $key) {
         if (!empty($row[$key])) {
             $phones[] = trim((string)$row[$key]);
         }
     }
-
     $phones = array_values(array_unique(array_filter($phones, static function ($v) {
         return $v !== '';
     })));
-
     return $phones;
 }
 
@@ -74,14 +65,12 @@ function gatherServices($row): array
     $raw = $row['servicios'] ?? [];
     if (is_string($raw)) {
         $parts = array_map('trim', explode(',', $raw));
-        return array_values(array_filter($parts, static function ($v) {
-            return $v !== '';
-        }));
+        $raw   = array_values(array_filter($parts, static function ($v) { return $v !== ''; }));
+        return $raw;
     }
     if (!is_array($raw)) {
         return [];
     }
-
     $labels = [];
     foreach ($raw as $svc) {
         if (is_array($svc) && isset($svc['nombre_servicio'])) {
@@ -90,26 +79,7 @@ function gatherServices($row): array
             $labels[] = trim((string)$svc);
         }
     }
-
-    return array_values(array_filter($labels, static function ($v) {
-        return $v !== '';
-    }));
-}
-
-function primaryEmail($row): ?string
-{
-    if (isset($row['emails']) && is_array($row['emails'])) {
-        foreach ($row['emails'] as $value) {
-            if (!is_scalar($value)) { continue; }
-            $trimmed = trim((string)$value);
-            if ($trimmed !== '') {
-                return $trimmed;
-            }
-        }
-    }
-
-    $email = trim((string)($row['email'] ?? ''));
-    return $email === '' ? null : $email;
+    return array_values(array_filter($labels, static function ($v) { return $v !== ''; }));
 }
 
 $filters = isset($filters) && is_array($filters) ? $filters : [];
@@ -187,11 +157,10 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
     <ul class="ent-cards-grid" role="list">
       <?php foreach ($items as $index => $row): ?>
         <?php
-          $entityId   = (int)($row['id'] ?? $row['id_entidad'] ?? 0);
+          $entityId   = (int)($row['id_entidad'] ?? $row['id'] ?? 0);
           $cardTitle  = $row['nombre'] ?? 'Entidad';
           $phones     = gatherPhones($row);
           $services   = gatherServices($row);
-          $serviceCount = isset($row['servicios_count']) ? (int)$row['servicios_count'] : count($services);
         ?>
         <li class="ent-cards-grid__item" role="listitem">
           <article class="ent-card" aria-labelledby="ent-card-title-<?= h((string)$entityId) ?>">
@@ -199,7 +168,7 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
               <div class="ent-card-icon" aria-hidden="true">🏦</div>
               <h2 id="ent-card-title-<?= h((string)$entityId) ?>" class="ent-card-title"><?= h($cardTitle) ?></h2>
               <span class="ent-badge" aria-label="Servicios activos">
-                <?= h((string)$serviceCount) ?> servicios
+                <?= h((string)count($services)) ?> servicios
               </span>
             </header>
             <div class="ent-card-body">
@@ -228,8 +197,8 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
               <div class="ent-card-row">
                 <span class="ent-card-label">Correo</span>
                 <span class="ent-card-value">
-                  <?php $mail = primaryEmail($row); ?>
-                  <?= $mail === null ? 'No especificado' : h($mail) ?>
+                  <?php $mail = trim((string)($row['email'] ?? '')); ?>
+                  <?= $mail === '' ? 'No especificado' : h($mail) ?>
                 </span>
               </div>
               <div class="ent-card-row">
