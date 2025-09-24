@@ -16,55 +16,61 @@ use function Config\db;
 
 final class EntidadesController
 {
-    public function index(): void
+    public function index()
     {
-        $crumbs = Breadcrumbs::make([
-            ['href'=>'/comercial', 'label'=>'Comercial'],
-            ['label'=>'Entidades Financieras']
-        ]);
-        $q  = trim($_GET['q'] ?? '');
-        $pg = Pagination::fromRequest($_GET, 1, 20, 100);
-        $rs = (new BuscarEntidadesService())->buscar($q, $pg->page, $pg->perPage);
+        return $this->cards();
+    }
 
-        view('comercial/entidades/index', [
-            'title'   => 'Comercial · Entidades',
-            'crumbs'  => $crumbs,
-            'items'   => $rs['items'],
-            'total'   => $rs['total'],
-            'page'    => $rs['page'],
-            'perPage' => $rs['perPage'],
+    public function cards()
+    {
+        $q        = trim($_GET['q'] ?? '');
+        $filters  = is_array($_GET) ? $_GET : [];
+        $pager    = Pagination::fromRequest($_GET, 1, 20, 0);
+        $service  = new BuscarEntidadesService();
+        $result   = $service->buscar($q, $pager->page, $pager->perPage);
+
+        return view('comercial/entidades/index_cards', [
+            'layout'  => 'layout',
+            'title'   => 'Entidades financieras',
+            'items'   => $result['items'],
+            'total'   => $result['total'],
+            'page'    => $result['page'],
+            'perPage' => $result['perPage'],
             'q'       => $q,
-            'csrf'    => csrf_token()
+            'csrf'    => csrf_token(),
+            'filters' => $filters,
         ]);
     }
     public function show(): void
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         $id = (int)($_GET['id'] ?? 0);
-        if ($id < 1) { echo json_encode(['error'=>'id inválido']); return; }
-
-        $repo = new \App\Repositories\Comercial\EntidadRepository();
-        $row  = $repo->findDetalles($id);
-        $sv   = $repo->serviciosActivos($id);
-
-        if (!$row) { echo json_encode(['error'=>'no encontrado']); return; }
-
-        $data = [
-            'nombre'         => $row['nombre'],
-            'ruc'            => $row['ruc'] ?? null,
-            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
-            'telefono_movil' => $row['telefono_movil'] ?? null,
-            'email'          => $row['email'] ?? null,
-            'tipo'           => $row['tipo_entidad'] ?? null,
-            'segmento'       => $row['id_segmento'] ? ('Segmento ' . (int)$row['id_segmento']) : 'No especificado',
-            'ubicacion'      => trim(($row['provincia'] ?? '') . (($row['provincia']??'') && ($row['canton']??'') ? ' - ' : '') . ($row['canton'] ?? '')) ?: 'No especificado',
-            'notas'          => $row['notas'] ?? null,
-            'servicios'      => $sv,
-        ];
-
-        echo json_encode($data);
+        $this->showJson($id);
     }
+
+    public function showJson($id): void
+    {
+        $id = (int) $id;
+
+        if ($id < 1) {
+            $this->respondEntidadJson(['error' => 'ID inválido'], 400);
+            return;
+        }
+
+        try {
+            $data = $this->loadEntidadDetalle($id);
+            if ($data === null) {
+                $this->respondEntidadJson(['error' => 'No se pudo obtener la entidad'], 404);
+                return;
+            }
+
+            $this->respondEntidadJson(['data' => $data], 200);
+            return;
+        } catch (\Throwable $e) {
+            $this->respondEntidadJson(['error' => 'Error interno'], 500);
+            return;
+        }
+    }
+
     public function createForm(): void
     {
         $crumbs = Breadcrumbs::make([
@@ -180,5 +186,44 @@ final class EntidadesController
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) { (new EntidadRepository())->delete($id); }
         redirect('/comercial/entidades');
+    }
+
+    private function respondEntidadJson(array $data, int $status = 200): void
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    private function loadEntidadDetalle(int $id): ?array
+    {
+        $repo = new EntidadRepository();
+        $row  = $repo->findDetalles($id);
+        if (!$row) {
+            return null;
+        }
+
+        $servicios = $repo->serviciosActivos($id);
+
+        $provincia = trim((string)($row['provincia'] ?? ''));
+        $canton    = trim((string)($row['canton'] ?? ''));
+        $ubicacion = trim($provincia . (($provincia !== '' && $canton !== '') ? ' - ' : '') . $canton);
+        if ($ubicacion === '') {
+            $ubicacion = 'No especificado';
+        }
+
+        return [
+            'nombre'         => $row['nombre'],
+            'ruc'            => $row['ruc'] ?? null,
+            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
+            'telefono_movil' => $row['telefono_movil'] ?? null,
+            'email'          => $row['email'] ?? null,
+            'tipo'           => $row['tipo_entidad'] ?? null,
+            'segmento'       => $row['id_segmento'] ? ('Segmento ' . (int)$row['id_segmento']) : 'No especificado',
+            'ubicacion'      => $ubicacion,
+            'notas'          => $row['notas'] ?? null,
+            'servicios'      => $servicios,
+        ];
     }
 }
