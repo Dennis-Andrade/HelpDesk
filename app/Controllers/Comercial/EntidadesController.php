@@ -450,4 +450,44 @@ final class EntidadesController
             'servicios'      => $servicios,
         ];
     }
+
+    // --- Helpers JSON (privados) ---
+    private function respondEntidadJson(array $payload, $status = 200): void
+    {
+        http_response_code((int) $status);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    private function loadEntidadDetalle(int $id): ?array
+    {
+        $repo = new EntidadRepository();
+        $row  = $repo->findDetalles($id);
+        if (!$row) {
+            return null;
+        }
+
+        $servicios = $repo->serviciosActivos($id);
+
+        $provincia = trim((string)($row['provincia'] ?? ''));
+        $canton    = trim((string)($row['canton'] ?? ''));
+        $ubicacion = trim($provincia . (($provincia !== '' && $canton !== '') ? ' - ' : '') . $canton);
+        if ($ubicacion === '') {
+            $ubicacion = 'No especificado';
+        }
+
+        return [
+            'nombre'         => $row['nombre'],
+            'ruc'            => $row['ruc'] ?? null,
+            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
+            'telefono_movil' => $row['telefono_movil'] ?? null,
+            'email'          => $row['email'] ?? null,
+            'tipo'           => $row['tipo_entidad'] ?? null,
+            'segmento'       => $row['id_segmento'] ? ('Segmento ' . (int)$row['id_segmento']) : 'No especificado',
+            'ubicacion'      => $ubicacion,
+            'notas'          => $row['notas'] ?? null,
+            'servicios'      => $servicios,
+        ];
+    }
 }
