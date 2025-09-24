@@ -43,6 +43,8 @@ final class ValidationService
             'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
             'notas'           => trim((string)($in['notas'] ?? '')),
         ];
+        // Alias para compatibilidad con repositorios que esperan 'nit'.
+        $data['nit'] = $data['ruc'];
 
         // servicios[] (opcional)
         $serv = $in['servicios'] ?? [];
