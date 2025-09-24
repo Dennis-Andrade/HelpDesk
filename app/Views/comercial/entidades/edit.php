@@ -12,7 +12,7 @@ include __DIR__ . '/../../partials/breadcrumbs.php';
     <?php include __DIR__.'/_form.php'; ?>
     <div class="form-actions ent-actions">
       <button class="btn btn-primary" type="submit">Actualizar</button>
-      <a class="btn btn-cancel" href="/comercial/entidades">Cancelar</a>
+      <a class="btn btn-cancel" href="/comercial/entidades/cards">Cancelar</a>
     </div>
   </form>
 </section>

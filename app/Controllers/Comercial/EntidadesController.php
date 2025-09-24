@@ -16,60 +16,42 @@ use function Config\db;
 
 final class EntidadesController
 {
-    public function index(): void
+    public function cards(): void
     {
-        $crumbs = Breadcrumbs::make([
-            ['href'=>'/comercial', 'label'=>'Comercial'],
-            ['label'=>'Entidades Financieras']
-        ]);
-        $q  = trim($_GET['q'] ?? '');
-        $pg = Pagination::fromRequest($_GET, 1, 20, 100);
-        $rs = (new BuscarEntidadesService())->buscar($q, $pg->page, $pg->perPage);
+        $q        = trim($_GET['q'] ?? '');
+        $filters  = is_array($_GET) ? $_GET : [];
+        $pager    = Pagination::fromRequest($_GET, 1, 20, 0);
+        $service  = new BuscarEntidadesService();
+        $result   = $service->buscar($q, $pager->page, $pager->perPage);
 
-        view('comercial/entidades/index', [
-            'title'   => 'Comercial · Entidades',
-            'crumbs'  => $crumbs,
-            'items'   => $rs['items'],
-            'total'   => $rs['total'],
-            'page'    => $rs['page'],
-            'perPage' => $rs['perPage'],
+        view('comercial/entidades/index_cards', [
+            'layout'  => 'layout',
+            'title'   => 'Entidades financieras',
+            'items'   => $result['items'],
+            'total'   => $result['total'],
+            'page'    => $result['page'],
+            'perPage' => $result['perPage'],
             'q'       => $q,
-            'csrf'    => csrf_token()
+            'csrf'    => csrf_token(),
+            'filters' => $filters,
         ]);
     }
     public function show(): void
     {
-        header('Content-Type: application/json; charset=utf-8');
-
         $id = (int)($_GET['id'] ?? 0);
-        if ($id < 1) { echo json_encode(['error'=>'id inválido']); return; }
-
-        $repo = new \App\Repositories\Comercial\EntidadRepository();
-        $row  = $repo->findDetalles($id);
-        $sv   = $repo->serviciosActivos($id);
-
-        if (!$row) { echo json_encode(['error'=>'no encontrado']); return; }
-
-        $data = [
-            'nombre'         => $row['nombre'],
-            'ruc'            => $row['ruc'] ?? null,
-            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
-            'telefono_movil' => $row['telefono_movil'] ?? null,
-            'email'          => $row['email'] ?? null,
-            'tipo'           => $row['tipo_entidad'] ?? null,
-            'segmento'       => $row['id_segmento'] ? ('Segmento ' . (int)$row['id_segmento']) : 'No especificado',
-            'ubicacion'      => trim(($row['provincia'] ?? '') . (($row['provincia']??'') && ($row['canton']??'') ? ' - ' : '') . ($row['canton'] ?? '')) ?: 'No especificado',
-            'notas'          => $row['notas'] ?? null,
-            'servicios'      => $sv,
-        ];
-
-        echo json_encode($data);
+        $this->respondEntidadJson($id);
     }
+
+    public function showJson($id): void
+    {
+        $this->respondEntidadJson((int)$id);
+    }
+
     public function createForm(): void
     {
         $crumbs = Breadcrumbs::make([
             ['href'=>'/comercial', 'label'=>'Comercial'],
-            ['href'=>'/comercial/entidades', 'label'=>'Entidades'],
+            ['href'=>'/comercial/entidades/cards', 'label'=>'Entidades'],
             ['label'=>'Crear']
         ]);
 
@@ -92,7 +74,7 @@ final class EntidadesController
         $res  = $val->validarCooperativa($_POST);
 
         if (!$res['ok']) {
-            $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Crear']];
+            $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades/cards','label'=>'Entidades'],['label'=>'Crear']];
             $ubi = new UbicacionesService();
             view('comercial/entidades/create', [
                 'title'=>'Nueva Cooperativa',
@@ -110,21 +92,21 @@ final class EntidadesController
 
         $id = $repo->create($res['data']);
         $repo->replaceServicios($id, $res['servicios']);
-        redirect('/comercial/entidades');
+        redirect('/comercial/entidades/cards');
     }
 
     public function editForm(): void
     {
         $id = (int)($_GET['id'] ?? 0);
-        if ($id < 1) { redirect('/comercial/entidades'); }
+        if ($id < 1) { redirect('/comercial/entidades/cards'); }
 
         $repo = new EntidadRepository();
         $row  = $repo->findById($id);
-        if (!$row) { redirect('/comercial/entidades'); }
+        if (!$row) { redirect('/comercial/entidades/cards'); }
 
         $crumbs = Breadcrumbs::make([
             ['href'=>'/comercial', 'label'=>'Comercial'],
-            ['href'=>'/comercial/entidades', 'label'=>'Entidades'],
+            ['href'=>'/comercial/entidades/cards', 'label'=>'Entidades'],
             ['label'=>'Editar']
         ]);
 
@@ -144,7 +126,7 @@ final class EntidadesController
     {
         if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
         $id = (int)($_POST['id'] ?? 0);
-        if ($id < 1) { redirect('/comercial/entidades'); }
+        if ($id < 1) { redirect('/comercial/entidades/cards'); }
 
         $val  = new ValidationService();
         $repo = new EntidadRepository();
@@ -153,7 +135,7 @@ final class EntidadesController
         if (!$res['ok']) {
             $ubi = new UbicacionesService();
             $row = array_merge((array)$repo->findById($id), $res['data']);
-            $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Editar']];
+            $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades/cards','label'=>'Entidades'],['label'=>'Editar']];
             view('comercial/entidades/edit', [
                 'title'=>'Editar Cooperativa',
                 'crumbs'=>$crumbs,
@@ -171,7 +153,7 @@ final class EntidadesController
 
         $repo->update($id, $res['data']);
         $repo->replaceServicios($id, $res['servicios']);
-        redirect('/comercial/entidades');
+        redirect('/comercial/entidades/cards');
     }
 
     public function delete(): void
@@ -179,6 +161,62 @@ final class EntidadesController
         if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) { (new EntidadRepository())->delete($id); }
-        redirect('/comercial/entidades');
+        redirect('/comercial/entidades/cards');
+    }
+
+    private function respondEntidadJson(int $id): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+
+        if ($id < 1) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ID inválido'], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $data = $this->loadEntidadDetalle($id);
+            if ($data === null) {
+                http_response_code(404);
+                echo json_encode(['error' => 'Entidad no encontrada'], JSON_UNESCAPED_UNICODE);
+                return;
+            }
+
+            echo json_encode($data, JSON_UNESCAPED_UNICODE);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'No se pudo obtener la entidad'], JSON_UNESCAPED_UNICODE);
+        }
+    }
+
+    private function loadEntidadDetalle(int $id): ?array
+    {
+        $repo = new EntidadRepository();
+        $row  = $repo->findDetalles($id);
+        if (!$row) {
+            return null;
+        }
+
+        $servicios = $repo->serviciosActivos($id);
+
+        $provincia = trim((string)($row['provincia'] ?? ''));
+        $canton    = trim((string)($row['canton'] ?? ''));
+        $ubicacion = trim($provincia . (($provincia !== '' && $canton !== '') ? ' - ' : '') . $canton);
+        if ($ubicacion === '') {
+            $ubicacion = 'No especificado';
+        }
+
+        return [
+            'nombre'         => $row['nombre'],
+            'ruc'            => $row['ruc'] ?? null,
+            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
+            'telefono_movil' => $row['telefono_movil'] ?? null,
+            'email'          => $row['email'] ?? null,
+            'tipo'           => $row['tipo_entidad'] ?? null,
+            'segmento'       => $row['id_segmento'] ? ('Segmento ' . (int)$row['id_segmento']) : 'No especificado',
+            'ubicacion'      => $ubicacion,
+            'notas'          => $row['notas'] ?? null,
+            'servicios'      => $servicios,
+        ];
     }
 }
