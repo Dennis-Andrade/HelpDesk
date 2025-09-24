@@ -128,10 +128,6 @@ final class EntidadRepository extends BaseRepository
             "            SELECT NULLIF(TRIM(c." . self::COL_TFIJ . "), '')",
             "            UNION ALL",
             "            SELECT NULLIF(TRIM(c." . self::COL_TMOV . "), '')",
-            "            UNION ALL",
-            "            SELECT NULLIF(TRIM(df.telefono), '')",
-            "            UNION ALL",
-            "            SELECT NULLIF(TRIM(df.celular), '')",
             '        ) AS raw',
             '        WHERE phone IS NOT NULL',
             '    ) AS phones',
@@ -142,8 +138,6 @@ final class EntidadRepository extends BaseRepository
             '        SELECT DISTINCT email',
             '        FROM (',
             "            SELECT NULLIF(TRIM(c." . self::COL_MAIL . "), '') AS email",
-            "            UNION ALL",
-            "            SELECT NULLIF(TRIM(df.email), '')",
             '        ) AS raw',
             '        WHERE email IS NOT NULL',
             '    ) AS emails',
@@ -172,6 +166,7 @@ final class EntidadRepository extends BaseRepository
         );
 
         $sql = implode("\n", $sqlLines);
+
         $queryParams = $bindings;
         $queryParams[':limit']  = array($perPage, PDO::PARAM_INT);
         $queryParams[':offset'] = array($offset, PDO::PARAM_INT);
@@ -229,10 +224,10 @@ final class EntidadRepository extends BaseRepository
         SELECT
             c.id_cooperativa                                        AS id_entidad,
             c.nombre,
-            COALESCE(NULLIF(c.ruc, ' . "''" . '), NULLIF(df.ruc, ' . "''" . '))         AS ruc,
-            COALESCE(NULLIF(c.telefono_fijo_1, ' . "''" . '), NULLIF(df.telefono, ' . "''" . ')) AS telefono_fijo_1,
-            COALESCE(NULLIF(c.telefono_movil, ' . "''" . '), NULLIF(df.celular, ' . "''" . '))  AS telefono_movil,
-            COALESCE(NULLIF(c.email, ' . "''" . '), NULLIF(df.email, ' . "''" . '))      AS email,
+            NULLIF(c.ruc, ' . "''" . ')                             AS ruc,
+            NULLIF(c.telefono_fijo_1, ' . "''" . ')                  AS telefono_fijo_1,
+            NULLIF(c.telefono_movil, ' . "''" . ')                   AS telefono_movil,
+            NULLIF(c.email, ' . "''" . ')                            AS email,
             COALESCE(c.provincia_id, df.provincia_id)               AS provincia_id,
             COALESCE(c.canton_id, df.canton_id)                     AS canton_id,
             prov.nombre                                             AS provincia,
