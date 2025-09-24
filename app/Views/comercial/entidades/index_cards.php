@@ -133,7 +133,6 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
       </p>
     </div>
     <a class="btn btn-primary" href="/comercial/entidades/crear">Nueva entidad</a>
-    <form class="ent-search" action="/comercial/entidades" method="get">
       <label for="ent-search-input">Buscar por nombre o RUC</label>
       <input id="ent-search-input" type="text" name="q" value="<?= h($q) ?>" aria-describedby="ent-search-help" placeholder="Cooperativa...">
       <?php foreach ($filters as $filterKey => $filterValue): ?>
