@@ -1,5 +1,10 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Services\Shared;
+
+use DateTimeImmutable;
+use DateTimeInterface;
 
 final class ValidationService
 {
@@ -38,6 +43,8 @@ final class ValidationService
             'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
             'notas'           => trim((string)($in['notas'] ?? '')),
         ];
+        // Alias para compatibilidad con repositorios que esperan 'nit'.
+        $data['nit'] = $data['ruc'];
 
         // servicios[] (opcional)
         $serv = $in['servicios'] ?? [];
@@ -82,5 +89,55 @@ final class ValidationService
         }
 
         return ['ok' => empty($e), 'errors' => $e, 'data' => $data];
+    }
+
+    public function stringLength(string $value, int $min, int $max): bool
+    {
+        $length = mb_strlen($value);
+        return $length >= $min && $length <= $max;
+    }
+
+    public function regex(string $value, string $pattern): bool
+    {
+        return (bool)preg_match($pattern, $value);
+    }
+
+    public function dateTimeValid(string $value, string $format = DateTimeInterface::ATOM): bool
+    {
+        $dt = DateTimeImmutable::createFromFormat($format, $value);
+        if ($dt === false) {
+            return false;
+        }
+
+        return $dt->format($format) === $value;
+    }
+
+    public function dateTimeFuture(string $value, string $format = DateTimeInterface::ATOM): bool
+    {
+        if (!$this->dateTimeValid($value, $format)) {
+            return false;
+        }
+
+        $dt = DateTimeImmutable::createFromFormat($format, $value);
+        if ($dt === false) {
+            return false;
+        }
+
+        return $dt > new DateTimeImmutable();
+    }
+
+    public function digits(string $value, int $minLength, int $maxLength): bool
+    {
+        if ($value === '') {
+            return false;
+        }
+
+        if (!preg_match('/^\d+$/', $value)) {
+            return false;
+        }
+
+        $length = strlen($value);
+
+        return $length >= $minLength && $length <= $maxLength;
     }
 }
