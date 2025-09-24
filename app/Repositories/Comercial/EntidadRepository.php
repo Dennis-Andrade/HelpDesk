@@ -93,84 +93,85 @@ final class EntidadRepository extends BaseRepository
             );
         }
 
-        $sql = '
-            SELECT
-                c.' + self::COL_ID + '                           AS id,
-                c.' + self::COL_NOMBRE + '                       AS nombre,
-                c.' + self::COL_RUC + '                          AS ruc,
-                c.' + self::COL_TIPO + '                         AS tipo_entidad,
-                c.' + self::COL_SEGMENTO + '                     AS id_segmento,
-                seg.' + self::COL_NOM_SEG + '                     AS segmento_nombre,
-                COALESCE(c.' + self::COL_PROV + ', df.provincia_id) AS provincia_id,
-                prov.nombre                                      AS provincia_nombre,
-                COALESCE(c.' + self::COL_CANTON + ', df.canton_id) AS canton_id,
-                can.nombre                                       AS canton_nombre,
-                phone_data.telefonos_json,
-                email_data.emails_json,
-                svc.servicios_json,
-                COALESCE(svc.servicios_count, 0)                 AS servicios_count
-            FROM ' + self::T_COOP + ' c
-            LEFT JOIN ' + self::T_SEG + ' seg
-              ON seg.' + self::COL_ID_SEG + ' = c.' + self::COL_SEGMENTO + '
-            LEFT JOIN public.datos_facturacion df
-              ON df.id_cooperativa = c.' + self::COL_ID + '
-            LEFT JOIN public.provincia prov
-              ON prov.id = COALESCE(c.' + self::COL_PROV + ', df.provincia_id)
-            LEFT JOIN public.canton can
-              ON can.id = COALESCE(c.' + self::COL_CANTON + ', df.canton_id)
-            LEFT JOIN LATERAL (
-                SELECT json_agg(phone ORDER BY phone) AS telefonos_json
-                FROM (
-                    SELECT DISTINCT phone
-                    FROM (
-                        SELECT NULLIF(TRIM(c.' + self::COL_TELF + '), ' . "''" . ') AS phone
-                        UNION ALL
-                        SELECT NULLIF(TRIM(c.' + self::COL_TFIJ + '), ' . "''" . ')
-                        UNION ALL
-                        SELECT NULLIF(TRIM(c.' + self::COL_TMOV + '), ' . "''" . ')
-                        UNION ALL
-                        SELECT NULLIF(TRIM(df.telefono), ' . "''" . ')
-                        UNION ALL
-                        SELECT NULLIF(TRIM(df.celular), ' . "''" . ')
-                    ) AS raw
-                    WHERE phone IS NOT NULL
-                ) AS phones
-            ) AS phone_data ON TRUE
-            LEFT JOIN LATERAL (
-                SELECT json_agg(email ORDER BY email) AS emails_json
-                FROM (
-                    SELECT DISTINCT email
-                    FROM (
-                        SELECT NULLIF(TRIM(c.' + self::COL_MAIL + '), ' . "''" . ') AS email
-                        UNION ALL
-                        SELECT NULLIF(TRIM(df.email), ' . "''" . ')
-                    ) AS raw
-                    WHERE email IS NOT NULL
-                ) AS emails
-            ) AS email_data ON TRUE
-            LEFT JOIN LATERAL (
-                SELECT
-                    json_agg(nombre_servicio ORDER BY nombre_servicio) AS servicios_json,
-                    COUNT(*) AS servicios_count
-                FROM (
-                    SELECT DISTINCT s.' + self::COL_NOM_SERV + ' AS nombre_servicio
-                    FROM ' + self::T_PIVOT + ' cs
-                    JOIN ' + self::T_SERV + ' s ON s.' + self::COL_ID_SERV + ' = cs.' + self::PIV_SERV + '
-                    WHERE cs.' + self::PIV_COOP + ' = c.' + self::COL_ID + '
-                      AND cs.' + self::PIV_ACTIVO + ' = true
-                ) AS svc_names
-            ) AS svc ON TRUE
-            WHERE (
-                :has_q = 0
-                OR (
-                    unaccent(lower(c.' + self::COL_NOMBRE + ')) LIKE unaccent(lower(:q_like))
-                    OR c.' + self::COL_RUC + ' LIKE :q_like
-                )
-            )
-            ORDER BY c.' + self::COL_NOMBRE + '
-            LIMIT :limit OFFSET :offset
-        ';
+        $sqlLines = array(
+            'SELECT',
+            '    c.' . self::COL_ID . ' AS id,',
+            '    c.' . self::COL_NOMBRE . ' AS nombre,',
+            '    c.' . self::COL_RUC . ' AS ruc,',
+            '    c.' . self::COL_TIPO . ' AS tipo_entidad,',
+            '    c.' . self::COL_SEGMENTO . ' AS id_segmento,',
+            '    seg.' . self::COL_NOM_SEG . ' AS segmento_nombre,',
+            '    COALESCE(c.' . self::COL_PROV . ', df.provincia_id) AS provincia_id,',
+            '    prov.nombre AS provincia_nombre,',
+            '    COALESCE(c.' . self::COL_CANTON . ', df.canton_id) AS canton_id,',
+            '    can.nombre AS canton_nombre,',
+            '    phone_data.telefonos_json,',
+            '    email_data.emails_json,',
+            '    svc.servicios_json,',
+            '    COALESCE(svc.servicios_count, 0) AS servicios_count',
+            'FROM ' . self::T_COOP . ' c',
+            'LEFT JOIN ' . self::T_SEG . ' seg',
+            '  ON seg.' . self::COL_ID_SEG . ' = c.' . self::COL_SEGMENTO,
+            'LEFT JOIN public.datos_facturacion df',
+            '  ON df.id_cooperativa = c.' . self::COL_ID,
+            'LEFT JOIN public.provincia prov',
+            '  ON prov.id = COALESCE(c.' . self::COL_PROV . ', df.provincia_id)',
+            'LEFT JOIN public.canton can',
+            '  ON can.id = COALESCE(c.' . self::COL_CANTON . ', df.canton_id)',
+            'LEFT JOIN LATERAL (',
+            '    SELECT json_agg(phone ORDER BY phone) AS telefonos_json',
+            '    FROM (',
+            '        SELECT DISTINCT phone',
+            '        FROM (',
+            "            SELECT NULLIF(TRIM(c." . self::COL_TELF . "), '') AS phone",
+            "            UNION ALL",
+            "            SELECT NULLIF(TRIM(c." . self::COL_TFIJ . "), '')",
+            "            UNION ALL",
+            "            SELECT NULLIF(TRIM(c." . self::COL_TMOV . "), '')",
+            "            UNION ALL",
+            "            SELECT NULLIF(TRIM(df.telefono), '')",
+            "            UNION ALL",
+            "            SELECT NULLIF(TRIM(df.celular), '')",
+            '        ) AS raw',
+            '        WHERE phone IS NOT NULL',
+            '    ) AS phones',
+            ') AS phone_data ON TRUE',
+            'LEFT JOIN LATERAL (',
+            '    SELECT json_agg(email ORDER BY email) AS emails_json',
+            '    FROM (',
+            '        SELECT DISTINCT email',
+            '        FROM (',
+            "            SELECT NULLIF(TRIM(c." . self::COL_MAIL . "), '') AS email",
+            "            UNION ALL",
+            "            SELECT NULLIF(TRIM(df.email), '')",
+            '        ) AS raw',
+            '        WHERE email IS NOT NULL',
+            '    ) AS emails',
+            ') AS email_data ON TRUE',
+            'LEFT JOIN LATERAL (',
+            '    SELECT',
+            '        json_agg(nombre_servicio ORDER BY nombre_servicio) AS servicios_json,',
+            '        COUNT(*) AS servicios_count',
+            '    FROM (',
+            '        SELECT DISTINCT s.' . self::COL_NOM_SERV . ' AS nombre_servicio',
+            '        FROM ' . self::T_PIVOT . ' cs',
+            '        JOIN ' . self::T_SERV . ' s ON s.' . self::COL_ID_SERV . ' = cs.' . self::PIV_SERV,
+            '        WHERE cs.' . self::PIV_COOP . ' = c.' . self::COL_ID,
+            '          AND cs.' . self::PIV_ACTIVO . ' = true',
+            '    ) AS svc_names',
+            ') AS svc ON TRUE',
+            'WHERE (',
+            '    :has_q = 0',
+            '    OR (',
+            '        unaccent(lower(c.' . self::COL_NOMBRE . ')) LIKE unaccent(lower(:q_like))',
+            '        OR c.' . self::COL_RUC . ' LIKE :q_like',
+            '    )',
+            ')',
+            'ORDER BY c.' . self::COL_NOMBRE,
+            'LIMIT :limit OFFSET :offset',
+        );
 
+        $sql = implode("\n", $sqlLines);
         $queryParams = $bindings;
         $queryParams[':limit']  = array($perPage, PDO::PARAM_INT);
         $queryParams[':offset'] = array($offset, PDO::PARAM_INT);

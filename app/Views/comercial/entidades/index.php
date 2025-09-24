@@ -56,6 +56,7 @@ function gatherPhones($row): array
             $phones[] = trim((string)$value);
         }
     }
+
     foreach (['telefono_fijo', 'telefono_fijo_1', 'telefono', 'telefono_movil', 'celular'] as $key) {
         if (!empty($row[$key])) {
             $phones[] = trim((string)$row[$key]);
