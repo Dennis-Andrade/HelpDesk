@@ -121,7 +121,7 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
 
     $queryString = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 
-    return '/comercial/entidades' . ($queryString !== '' ? '?' . $queryString : '');
+    return '/comercial/entidades/cards' . ($queryString !== '' ? '?' . $queryString : '');
 }
 ?>
 <section class="ent-list ent-list--cards" aria-labelledby="ent-cards-title">
@@ -133,7 +133,7 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
       </p>
     </div>
     <a class="btn btn-primary" href="/comercial/entidades/crear">Nueva entidad</a>
-    <form class="ent-search" action="/comercial/entidades" method="get">
+    <form class="ent-search" action="/comercial/entidades/cards" method="get">
       <label for="ent-search-input">Buscar por nombre o RUC</label>
       <input id="ent-search-input" type="text" name="q" value="<?= h($q) ?>" aria-describedby="ent-search-help" placeholder="Cooperativa...">
       <?php foreach ($filters as $filterKey => $filterValue): ?>
