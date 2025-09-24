@@ -50,27 +50,6 @@ final class EntidadesController
             'filters' => $filters,
         ]);
     }
-
-    public function cards(): void
-    {
-        $q        = trim($_GET['q'] ?? '');
-        $filters  = is_array($_GET) ? $_GET : [];
-        $pager    = Pagination::fromRequest($_GET, 1, 20, 0);
-        $service  = new BuscarEntidadesService();
-        $result   = $service->buscar($q, $pager->page, $pager->perPage);
-
-        view('comercial/entidades/index_cards', [
-            'layout'  => 'layout',
-            'title'   => 'Entidades financieras',
-            'items'   => $result['items'],
-            'total'   => $result['total'],
-            'page'    => $result['page'],
-            'perPage' => $result['perPage'],
-            'q'       => $q,
-            'csrf'    => csrf_token(),
-            'filters' => $filters,
-        ]);
-    }
     public function show(): void
     {
         $id = (int)($_GET['id'] ?? 0);
@@ -213,6 +192,7 @@ final class EntidadesController
         if ($id > 0) { $this->entidades->delete($id); }
         redirect('/comercial/entidades');
     }
+
     // --- Helpers JSON (privados) ---
     private function respondEntidadJson(array $payload, $status = 200): void
     {
@@ -246,6 +226,7 @@ final class EntidadesController
         if ($segmentoNombre === '') {
             $segmentoNombre = 'No especificado';
         }
+
         return [
             'nombre'         => $row['nombre'],
             'ruc'            => $row['ruc'] ?? null,

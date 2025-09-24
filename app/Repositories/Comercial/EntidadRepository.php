@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Repositories\Comercial;
 
 use App\Repositories\BaseRepository;
+use PDO;
 use RuntimeException;
 
 /**
@@ -71,8 +72,8 @@ final class EntidadRepository extends BaseRepository
         ';
 
         $bindings = array(
-            ':has_q'  => array($hasQ, \PDO::PARAM_INT),
-            ':q_like' => array($qLike, \PDO::PARAM_STR),
+            ':has_q'  => array($hasQ, PDO::PARAM_INT),
+            ':q_like' => array($qLike, PDO::PARAM_STR),
         );
 
         try {
@@ -94,39 +95,85 @@ final class EntidadRepository extends BaseRepository
 
         $sql = '
             SELECT
-              c.' . self::COL_ID . '          AS id_entidad,
-              c.' . self::COL_NOMBRE . '      AS nombre,
-              c.' . self::COL_RUC . '         AS ruc,
-              c.' . self::COL_TELF . '        AS telefono,
-              c.' . self::COL_TFIJ . '       AS telefono_fijo_1,
-              c.' . self::COL_TMOV . '        AS telefono_movil,
-              c.' . self::COL_MAIL . '        AS email,
-              c.' . self::COL_TIPO . '        AS tipo_entidad,
-              c.' . self::COL_SEGMENTO . '    AS id_segmento,
-              seg.' . self::COL_NOM_SEG . '    AS segmento_nombre,
-              c.' . self::COL_PROV . '        AS provincia_id,
-              prov.nombre                       AS provincia,
-              c.' . self::COL_CANTON . '      AS canton_id,
-              can.nombre                        AS canton,
-              c.' . self::COL_NOTAS . '        AS notas
-            FROM ' . self::T_COOP . ' c
-            LEFT JOIN ' . self::T_SEG . '       seg ON seg.' . self::COL_ID_SEG . ' = c.' . self::COL_SEGMENTO . '
-            LEFT JOIN public.provincia         prov ON prov.id = c.' . self::COL_PROV . '
-            LEFT JOIN public.canton            can  ON can.id = c.' . self::COL_CANTON . '
+                c.' + self::COL_ID + '                           AS id,
+                c.' + self::COL_NOMBRE + '                       AS nombre,
+                c.' + self::COL_RUC + '                          AS ruc,
+                c.' + self::COL_TIPO + '                         AS tipo_entidad,
+                c.' + self::COL_SEGMENTO + '                     AS id_segmento,
+                seg.' + self::COL_NOM_SEG + '                     AS segmento_nombre,
+                COALESCE(c.' + self::COL_PROV + ', df.provincia_id) AS provincia_id,
+                prov.nombre                                      AS provincia_nombre,
+                COALESCE(c.' + self::COL_CANTON + ', df.canton_id) AS canton_id,
+                can.nombre                                       AS canton_nombre,
+                phone_data.telefonos_json,
+                email_data.emails_json,
+                svc.servicios_json,
+                COALESCE(svc.servicios_count, 0)                 AS servicios_count
+            FROM ' + self::T_COOP + ' c
+            LEFT JOIN ' + self::T_SEG + ' seg
+              ON seg.' + self::COL_ID_SEG + ' = c.' + self::COL_SEGMENTO + '
+            LEFT JOIN public.datos_facturacion df
+              ON df.id_cooperativa = c.' + self::COL_ID + '
+            LEFT JOIN public.provincia prov
+              ON prov.id = COALESCE(c.' + self::COL_PROV + ', df.provincia_id)
+            LEFT JOIN public.canton can
+              ON can.id = COALESCE(c.' + self::COL_CANTON + ', df.canton_id)
+            LEFT JOIN LATERAL (
+                SELECT json_agg(phone ORDER BY phone) AS telefonos_json
+                FROM (
+                    SELECT DISTINCT phone
+                    FROM (
+                        SELECT NULLIF(TRIM(c.' + self::COL_TELF + '), ' . "''" . ') AS phone
+                        UNION ALL
+                        SELECT NULLIF(TRIM(c.' + self::COL_TFIJ + '), ' . "''" . ')
+                        UNION ALL
+                        SELECT NULLIF(TRIM(c.' + self::COL_TMOV + '), ' . "''" . ')
+                        UNION ALL
+                        SELECT NULLIF(TRIM(df.telefono), ' . "''" . ')
+                        UNION ALL
+                        SELECT NULLIF(TRIM(df.celular), ' . "''" . ')
+                    ) AS raw
+                    WHERE phone IS NOT NULL
+                ) AS phones
+            ) AS phone_data ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT json_agg(email ORDER BY email) AS emails_json
+                FROM (
+                    SELECT DISTINCT email
+                    FROM (
+                        SELECT NULLIF(TRIM(c.' + self::COL_MAIL + '), ' . "''" . ') AS email
+                        UNION ALL
+                        SELECT NULLIF(TRIM(df.email), ' . "''" . ')
+                    ) AS raw
+                    WHERE email IS NOT NULL
+                ) AS emails
+            ) AS email_data ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
+                    json_agg(nombre_servicio ORDER BY nombre_servicio) AS servicios_json,
+                    COUNT(*) AS servicios_count
+                FROM (
+                    SELECT DISTINCT s.' + self::COL_NOM_SERV + ' AS nombre_servicio
+                    FROM ' + self::T_PIVOT + ' cs
+                    JOIN ' + self::T_SERV + ' s ON s.' + self::COL_ID_SERV + ' = cs.' + self::PIV_SERV + '
+                    WHERE cs.' + self::PIV_COOP + ' = c.' + self::COL_ID + '
+                      AND cs.' + self::PIV_ACTIVO + ' = true
+                ) AS svc_names
+            ) AS svc ON TRUE
             WHERE (
                 :has_q = 0
                 OR (
-                    unaccent(lower(c.' . self::COL_NOMBRE . ')) LIKE unaccent(lower(:q_like))
-                    OR c.' . self::COL_RUC . ' LIKE :q_like
+                    unaccent(lower(c.' + self::COL_NOMBRE + ')) LIKE unaccent(lower(:q_like))
+                    OR c.' + self::COL_RUC + ' LIKE :q_like
                 )
             )
-            ORDER BY c.' . self::COL_NOMBRE . '
+            ORDER BY c.' + self::COL_NOMBRE + '
             LIMIT :limit OFFSET :offset
         ';
 
         $queryParams = $bindings;
-        $queryParams[':limit']  = array($perPage, \PDO::PARAM_INT);
-        $queryParams[':offset'] = array($offset, \PDO::PARAM_INT);
+        $queryParams[':limit']  = array($perPage, PDO::PARAM_INT);
+        $queryParams[':offset'] = array($offset, PDO::PARAM_INT);
 
         try {
             $items = $this->db->fetchAll($sql, $queryParams);
@@ -134,14 +181,7 @@ final class EntidadRepository extends BaseRepository
             throw new RuntimeException('Error al buscar entidades.', 0, $e);
         }
 
-        $servicios = $this->serviciosParaListado($items);
-
-        foreach ($items as &$item) {
-            $id = isset($item['id_entidad']) ? (int)$item['id_entidad'] : 0;
-            $item['segmento']  = isset($item['segmento_nombre']) ? (string)$item['segmento_nombre'] : '';
-            $item['servicios'] = $servicios[$id] ?? array();
-        }
-        unset($item);
+        $items = $this->hydrateListado($items);
 
         return array(
             'items'   => $items,
@@ -174,7 +214,7 @@ final class EntidadRepository extends BaseRepository
         ';
 
         try {
-            $row = $this->db->fetch($sql, array(':id' => array($id, \PDO::PARAM_INT)));
+            $row = $this->db->fetch($sql, array(':id' => array($id, PDO::PARAM_INT)));
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener la entidad.', 0, $e);
         }
@@ -186,30 +226,31 @@ final class EntidadRepository extends BaseRepository
     {
         $sql = '
         SELECT
-            c.id_cooperativa              AS id_entidad,
+            c.id_cooperativa                                        AS id_entidad,
             c.nombre,
-            c.ruc,
-            c.telefono_fijo_1,
-            c.telefono_movil,
-            c.email,
-            c.provincia_id,
-            c.canton_id,
-            p.nombre                      AS provincia,
-            ct.nombre                     AS canton,
+            COALESCE(NULLIF(c.ruc, ' . "''" . '), NULLIF(df.ruc, ' . "''" . '))         AS ruc,
+            COALESCE(NULLIF(c.telefono_fijo_1, ' . "''" . '), NULLIF(df.telefono, ' . "''" . ')) AS telefono_fijo_1,
+            COALESCE(NULLIF(c.telefono_movil, ' . "''" . '), NULLIF(df.celular, ' . "''" . '))  AS telefono_movil,
+            COALESCE(NULLIF(c.email, ' . "''" . '), NULLIF(df.email, ' . "''" . '))      AS email,
+            COALESCE(c.provincia_id, df.provincia_id)               AS provincia_id,
+            COALESCE(c.canton_id, df.canton_id)                     AS canton_id,
+            prov.nombre                                             AS provincia,
+            can.nombre                                              AS canton,
             c.tipo_entidad,
             c.id_segmento,
-            seg.nombre_segmento           AS segmento_nombre,
+            seg.nombre_segmento                                     AS segmento_nombre,
             c.notas
         FROM public.cooperativas c
-        LEFT JOIN public.provincia p ON p.id = c.provincia_id
-        LEFT JOIN public.canton   ct ON ct.id = c.canton_id
+        LEFT JOIN public.datos_facturacion df ON df.id_cooperativa = c.id_cooperativa
+        LEFT JOIN public.provincia prov ON prov.id = COALESCE(c.provincia_id, df.provincia_id)
+        LEFT JOIN public.canton    can  ON can.id = COALESCE(c.canton_id, df.canton_id)
         LEFT JOIN public.segmentos seg ON seg.id_segmento = c.id_segmento
         WHERE c.id_cooperativa = :id
         LIMIT 1
         ';
 
         try {
-            $row = $this->db->fetch($sql, array(':id' => array($id, \PDO::PARAM_INT)));
+            $row = $this->db->fetch($sql, array(':id' => array($id, PDO::PARAM_INT)));
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener el detalle de la entidad.', 0, $e);
         }
@@ -228,7 +269,7 @@ final class EntidadRepository extends BaseRepository
         ';
 
         try {
-            return $this->db->fetchAll($sql, array(':id' => array($id, \PDO::PARAM_INT)));
+            return $this->db->fetchAll($sql, array(':id' => array($id, PDO::PARAM_INT)));
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener los servicios activos.', 0, $e);
         }
@@ -288,7 +329,7 @@ final class EntidadRepository extends BaseRepository
         ';
 
         $params = $this->buildEntidadParams($d);
-        $params[':id'] = array($id, \PDO::PARAM_INT);
+        $params[':id'] = array($id, PDO::PARAM_INT);
 
         try {
             $this->db->execute($sql, $params);
@@ -302,7 +343,7 @@ final class EntidadRepository extends BaseRepository
     {
         $sql = 'DELETE FROM ' . self::T_COOP . ' WHERE ' . self::COL_ID . ' = :id';
         try {
-            $this->db->execute($sql, array(':id' => array($id, \PDO::PARAM_INT)));
+            $this->db->execute($sql, array(':id' => array($id, PDO::PARAM_INT)));
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al eliminar la entidad.', 0, $e);
         }
@@ -340,7 +381,7 @@ final class EntidadRepository extends BaseRepository
     {
         $sql = 'SELECT ' . self::PIV_SERV . ' AS id_servicio FROM ' . self::T_PIVOT . ' WHERE ' . self::PIV_COOP . ' = :id';
         try {
-            $rows = $this->db->fetchAll($sql, array(':id' => array($id, \PDO::PARAM_INT)));
+            $rows = $this->db->fetchAll($sql, array(':id' => array($id, PDO::PARAM_INT)));
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener los servicios de la entidad.', 0, $e);
         }
@@ -366,7 +407,7 @@ final class EntidadRepository extends BaseRepository
         $this->db->begin();
         try {
             $this->db->execute('DELETE FROM ' . self::T_PIVOT . ' WHERE ' . self::PIV_COOP . ' = :id', array(
-                ':id' => array($id, \PDO::PARAM_INT),
+                ':id' => array($id, PDO::PARAM_INT),
             ));
 
             if (!empty($ids)) {
@@ -376,8 +417,8 @@ final class EntidadRepository extends BaseRepository
                 ';
                 foreach ($ids as $sid) {
                     $this->db->execute($sql, array(
-                        ':c' => array($id, \PDO::PARAM_INT),
-                        ':s' => array($sid, \PDO::PARAM_INT),
+                        ':c' => array($id, PDO::PARAM_INT),
+                        ':s' => array($sid, PDO::PARAM_INT),
                     ));
                 }
             }
@@ -391,67 +432,73 @@ final class EntidadRepository extends BaseRepository
 
     /**
      * @param array<int,array<string,mixed>> $rows
-     * @return array<int,array<int,string>>
+     * @return array<int,array<string,mixed>>
      */
-    private function serviciosParaListado(array $rows): array
+    private function hydrateListado(array $rows): array
     {
-        $ids = array();
+        $hydrated = array();
+
         foreach ($rows as $row) {
-            $id = (int)($row['id_entidad'] ?? 0);
-            if ($id > 0) {
-                $ids[$id] = true;
-            }
+            $id = isset($row['id']) ? (int)$row['id'] : 0;
+
+            $telefonos = $this->decodeJsonList($row['telefonos_json'] ?? null);
+            $emails    = $this->decodeJsonList($row['emails_json'] ?? null);
+            $servicios = $this->decodeJsonList($row['servicios_json'] ?? null);
+
+            $hydrated[] = array(
+                'id'               => $id,
+                'nombre'           => isset($row['nombre']) ? (string)$row['nombre'] : '',
+                'ruc'              => isset($row['ruc']) ? (string)$row['ruc'] : null,
+                'segmento_nombre'  => isset($row['segmento_nombre']) ? (string)$row['segmento_nombre'] : null,
+                'provincia_nombre' => isset($row['provincia_nombre']) ? (string)$row['provincia_nombre'] : null,
+                'canton_nombre'    => isset($row['canton_nombre']) ? (string)$row['canton_nombre'] : null,
+                'telefonos'        => $telefonos,
+                'emails'           => $emails,
+                'servicios'        => $servicios,
+                'servicios_count'  => isset($row['servicios_count']) ? (int)$row['servicios_count'] : 0,
+                'tipo_entidad'     => isset($row['tipo_entidad']) ? (string)$row['tipo_entidad'] : null,
+                'id_segmento'      => isset($row['id_segmento']) ? (int)$row['id_segmento'] : null,
+                'provincia_id'     => isset($row['provincia_id']) && $row['provincia_id'] !== null ? (int)$row['provincia_id'] : null,
+                'canton_id'        => isset($row['canton_id']) && $row['canton_id'] !== null ? (int)$row['canton_id'] : null,
+            );
         }
 
-        if (empty($ids)) {
+        return $hydrated;
+    }
+
+    /**
+     * @param mixed $json
+     * @return array<int,string>
+     */
+    private function decodeJsonList($json): array
+    {
+        if ($json === null || $json === '') {
             return array();
         }
 
-        $placeholders = array();
-        $bindings     = array();
-        $i = 0;
-        foreach (array_keys($ids) as $id) {
-            $placeholder                 = ':id' . $i++;
-            $placeholders[]              = $placeholder;
-            $bindings[$placeholder]      = array($id, \PDO::PARAM_INT);
+        if (is_array($json)) {
+            $list = $json;
+        } else {
+            $decoded = json_decode((string)$json, true);
+            $list    = is_array($decoded) ? $decoded : array();
         }
 
-        $sql = '
-            SELECT
-                cs.' . self::PIV_COOP . '  AS id_entidad,
-                s.' . self::COL_NOM_SERV . ' AS nombre_servicio
-            FROM ' . self::T_PIVOT . ' cs
-            JOIN ' . self::T_SERV . ' s ON s.' . self::COL_ID_SERV . ' = cs.' . self::PIV_SERV . '
-            WHERE cs.' . self::PIV_COOP . ' IN (' . implode(',', $placeholders) . ')
-              AND cs.' . self::PIV_ACTIVO . ' = true
-            ORDER BY s.' . self::COL_NOM_SERV . '
-        ';
-
-        try {
-            $rows = $this->db->fetchAll($sql, $bindings);
-        } catch (\Throwable $e) {
-            throw new RuntimeException('Error al obtener los servicios del listado.', 0, $e);
-        }
-
-        $map = array();
-        foreach ($rows as $row) {
-            $id = (int)($row['id_entidad'] ?? 0);
-            if ($id < 1) {
+        $clean = array();
+        foreach ($list as $value) {
+            if (!is_scalar($value)) {
                 continue;
             }
-            $label = isset($row['nombre_servicio']) ? trim((string)$row['nombre_servicio']) : '';
-            if ($label === '') {
+            $trimmed = trim((string)$value);
+            if ($trimmed === '') {
                 continue;
             }
-            if (!isset($map[$id])) {
-                $map[$id] = array();
+            if (!in_array($trimmed, $clean, true)) {
+                $clean[] = $trimmed;
             }
-            $map[$id][] = $label;
         }
 
-        return $map;
+        return $clean;
     }
-
     /**
      * @param array<string,mixed> $d
      * @return array<string,array{0:mixed,1:int}>
@@ -459,17 +506,17 @@ final class EntidadRepository extends BaseRepository
     private function buildEntidadParams(array $d): array
     {
         $params = array(
-            ':nombre'  => array($d['nombre'], \PDO::PARAM_STR),
+            ':nombre'  => array($d['nombre'], PDO::PARAM_STR),
             ':ruc'     => $this->nullableStringParam($d['nit'] ?? ''),
             ':tfijo'   => $this->nullableStringParam($d['telefono_fijo'] ?? ''),
             ':tmov'    => $this->nullableStringParam($d['telefono_movil'] ?? ''),
             ':email'   => $this->nullableStringParam($d['email'] ?? ''),
             ':prov'    => $this->nullableIntParam($d['provincia_id'] ?? null),
             ':canton'  => $this->nullableIntParam($d['canton_id'] ?? null),
-            ':tipo'    => array($d['tipo_entidad'], \PDO::PARAM_STR),
+            ':tipo'    => array($d['tipo_entidad'], PDO::PARAM_STR),
             ':segmento'=> $this->nullableIntParam($d['id_segmento'] ?? null),
             ':notas'   => $this->nullableStringParam($d['notas'] ?? ''),
-            ':activa'  => array($this->resolveActiva($d), \PDO::PARAM_BOOL),
+            ':activa'  => array($this->resolveActiva($d), PDO::PARAM_BOOL),
         );
 
         return $params;
@@ -491,13 +538,13 @@ final class EntidadRepository extends BaseRepository
     private function nullableStringParam($value): array
     {
         if ($value === null) {
-            return array(null, \PDO::PARAM_NULL);
+            return array(null, PDO::PARAM_NULL);
         }
         $value = (string)$value;
         if ($value === '') {
-            return array(null, \PDO::PARAM_NULL);
+            return array(null, PDO::PARAM_NULL);
         }
-        return array($value, \PDO::PARAM_STR);
+        return array($value, PDO::PARAM_STR);
     }
 
     /**
@@ -507,8 +554,8 @@ final class EntidadRepository extends BaseRepository
     private function nullableIntParam($value): array
     {
         if ($value === null || $value === '') {
-            return array(null, \PDO::PARAM_NULL);
+            return array(null, PDO::PARAM_NULL);
         }
-        return array((int)$value, \PDO::PARAM_INT);
+        return array((int)$value, PDO::PARAM_INT);
     }
 }
