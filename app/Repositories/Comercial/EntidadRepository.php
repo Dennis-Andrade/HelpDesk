@@ -172,7 +172,6 @@ final class EntidadRepository extends BaseRepository
         );
 
         $sql = implode("\n", $sqlLines);
-
         $queryParams = $bindings;
         $queryParams[':limit']  = array($perPage, PDO::PARAM_INT);
         $queryParams[':offset'] = array($offset, PDO::PARAM_INT);
