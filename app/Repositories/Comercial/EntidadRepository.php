@@ -2,6 +2,9 @@
 namespace App\Repositories\Comercial;
 
 use PDO;
+use PDOException;
+use PDOStatement;
+use RuntimeException;
 use function Config\db;
 
 /**
@@ -56,21 +59,32 @@ final class EntidadRepository
         $page    = max(1, $page);
         $perPage = max(1, min(60, $perPage));
         $offset  = ($page - 1) * $perPage;
+        $q      = trim($q);
+        $qLike  = $q !== '' ? '%' . $q . '%' : null;
+        $qParam = $q !== '' ? $q : null;
 
-        $where  = '';
-        $params = [];
-        if ($q !== '') {
-            $where = " WHERE (c." . self::COL_NOMBRE . " ILIKE :q OR c." . self::COL_RUC . " ILIKE :q)";
-            $params[':q'] = '%' . $q . '%';
+        $countSql = "
+            SELECT COUNT(*)
+            FROM " . self::T_COOP . " c
+            WHERE (
+                :q IS NULL
+                OR (
+                    unaccent(lower(c." . self::COL_NOMBRE . ")) LIKE unaccent(lower(:q_like))
+                    OR c." . self::COL_RUC . " LIKE :q_like
+                )
+            )
+        ";
+
+        $stTotal = $pdo->prepare($countSql);
+        $this->bindSearchTerms($stTotal, $qParam, $qLike);
+
+        try {
+            $stTotal->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al contar entidades.', 0, $e);
         }
 
-        $sqlTotal = "SELECT COUNT(*) FROM " . self::T_COOP . " c" . $where;
-        $stTotal  = $pdo->prepare($sqlTotal);
-        foreach ($params as $name => $value) {
-            $stTotal->bindValue($name, $value, PDO::PARAM_STR);
-        }
-        $stTotal->execute();
-        $total = (int)$stTotal->fetchColumn();
+        $total = (int) $stTotal->fetchColumn();
 
         if ($total === 0) {
             return [
@@ -83,37 +97,47 @@ final class EntidadRepository
 
         $sql = "
             SELECT
-                c." . self::COL_ID . "          AS id_entidad,
-                c." . self::COL_NOMBRE . "      AS nombre,
-                c." . self::COL_RUC . "         AS ruc,
-                c." . self::COL_TELF . "        AS telefono,
-                c." . self::COL_TFIJ . "       AS telefono_fijo_1,
-                c." . self::COL_TMOV . "        AS telefono_movil,
-                c." . self::COL_MAIL . "        AS email,
-                c." . self::COL_TIPO . "        AS tipo_entidad,
-                c." . self::COL_SEGMENTO . "    AS id_segmento,
-                seg." . self::COL_NOM_SEG . "    AS segmento_nombre,
-                c." . self::COL_PROV . "        AS provincia_id,
-                prov.nombre                       AS provincia,
-                c." . self::COL_CANTON . "      AS canton_id,
-                cant.nombre                       AS canton,
-                c." . self::COL_NOTAS . "        AS notas
+              c." . self::COL_ID . "          AS id_entidad,
+              c." . self::COL_NOMBRE . "      AS nombre,
+              c." . self::COL_RUC . "         AS ruc,
+              c." . self::COL_TELF . "        AS telefono,
+              c." . self::COL_TFIJ . "       AS telefono_fijo_1,
+              c." . self::COL_TMOV . "        AS telefono_movil,
+              c." . self::COL_MAIL . "        AS email,
+              c." . self::COL_TIPO . "        AS tipo_entidad,
+              c." . self::COL_SEGMENTO . "    AS id_segmento,
+              seg." . self::COL_NOM_SEG . "    AS segmento_nombre,
+              c." . self::COL_PROV . "        AS provincia_id,
+              prov.nombre                       AS provincia,
+              c." . self::COL_CANTON . "      AS canton_id,
+              can.nombre                        AS canton,
+              c." . self::COL_NOTAS . "        AS notas
             FROM " . self::T_COOP . " c
-            LEFT JOIN " . self::T_SEG . " seg ON seg." . self::COL_ID_SEG . " = c." . self::COL_SEGMENTO . "
-            LEFT JOIN public.provincias prov ON prov.id = c." . self::COL_PROV . "
-            LEFT JOIN public.cantones   cant ON cant.id = c." . self::COL_CANTON . "
-            " . $where . "
+            LEFT JOIN " . self::T_SEG . "       seg ON seg." . self::COL_ID_SEG . " = c." . self::COL_SEGMENTO . "
+            LEFT JOIN public.provincia         prov ON prov.id = c." . self::COL_PROV . "
+            LEFT JOIN public.canton            can  ON can.id = c." . self::COL_CANTON . "
+            WHERE (
+                :q IS NULL
+                OR (
+                    unaccent(lower(c." . self::COL_NOMBRE . ")) LIKE unaccent(lower(:q_like))
+                    OR c." . self::COL_RUC . " LIKE :q_like
+                )
+            )
             ORDER BY c." . self::COL_NOMBRE . " ASC
             LIMIT :limit OFFSET :offset
         ";
 
         $st = $pdo->prepare($sql);
-        foreach ($params as $name => $value) {
-            $st->bindValue($name, $value, PDO::PARAM_STR);
-        }
+        $this->bindSearchTerms($st, $qParam, $qLike);
         $st->bindValue(':limit', $perPage, PDO::PARAM_INT);
         $st->bindValue(':offset', $offset, PDO::PARAM_INT);
-        $st->execute();
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al buscar entidades.', 0, $e);
+        }
+
         $items = $st->fetchAll(PDO::FETCH_ASSOC);
 
         if (empty($items)) {
@@ -166,7 +190,13 @@ final class EntidadRepository
         ";
         $st = db()->prepare($sql);
         $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al obtener la entidad.', 0, $e);
+        }
+
         $r = $st->fetch(PDO::FETCH_ASSOC);
         return $r ?: null;
     }
@@ -190,14 +220,21 @@ final class EntidadRepository
             seg.nombre_segmento           AS segmento_nombre,
             c.notas
         FROM public.cooperativas c
-        LEFT JOIN public.provincias p ON p.id = c.provincia_id
-        LEFT JOIN public.cantones   ct ON ct.id = c.canton_id
+        LEFT JOIN public.provincia p ON p.id = c.provincia_id
+        LEFT JOIN public.canton   ct ON ct.id = c.canton_id
         LEFT JOIN public.segmentos seg ON seg.id_segmento = c.id_segmento
         WHERE c.id_cooperativa = :id
         LIMIT 1
         ";
         $st = db()->prepare($sql);
-        $st->execute([':id'=>$id]);
+        $st->bindValue(':id', $id, PDO::PARAM_INT);
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al obtener el detalle de la entidad.', 0, $e);
+        }
+
         $r = $st->fetch(PDO::FETCH_ASSOC);
         return $r ?: null;
     }
@@ -212,7 +249,14 @@ final class EntidadRepository
         ORDER BY s.nombre_servicio
         ";
         $st = db()->prepare($sql);
-        $st->execute([':id'=>$id]);
+        $st->bindValue(':id', $id, PDO::PARAM_INT);
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al obtener los servicios activos.', 0, $e);
+        }
+
         return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
@@ -264,8 +308,13 @@ final class EntidadRepository
         $activa = (bool)($d['activa'] ?? (($d['estado'] ?? 'activo') === 'activo'));
         $st->bindValue(':activa', $activa, PDO::PARAM_BOOL);
 
-        $st->execute();
-        return (int)$st->fetchColumn();
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al crear la entidad.', 0, $e);
+        }
+
+        return (int) $st->fetchColumn();
     }
 
     /** Actualizar */
@@ -313,15 +362,25 @@ final class EntidadRepository
         $st->bindValue(':activa', $activa, PDO::PARAM_BOOL);
 
         $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al actualizar la entidad.', 0, $e);
+        }
     }
 
     /** Eliminar */
     public function delete(int $id): void
     {
-        $st = db()->prepare("DELETE FROM ".self::T_COOP." WHERE ".self::COL_ID." = :id");
+        $st = db()->prepare("DELETE FROM " . self::T_COOP . " WHERE " . self::COL_ID . " = :id");
         $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al eliminar la entidad.', 0, $e);
+        }
     }
 
     /** Catálogo de servicios activos */
@@ -331,7 +390,13 @@ final class EntidadRepository
                 FROM " . self::T_SERV . "
                 WHERE " . self::COL_SERV_ACTIVO . " = true
                 ORDER BY " . self::COL_ID_SERV;
-        $st = db()->query($sql);
+        $st = db()->prepare($sql);
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al obtener los servicios.', 0, $e);
+        }
         return $st->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -341,7 +406,14 @@ final class EntidadRepository
         $sql = "SELECT " . self::COL_ID_SEG . " AS id_segmento, " . self::COL_NOM_SEG . " AS nombre_segmento
                 FROM " . self::T_SEG . "
                 ORDER BY " . self::COL_ID_SEG;
-        $st = db()->query($sql);
+        $st = db()->prepare($sql);
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al obtener los segmentos.', 0, $e);
+        }
+
         return $st->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -351,7 +423,13 @@ final class EntidadRepository
         $sql = "SELECT " . self::PIV_SERV . " FROM " . self::T_PIVOT . " WHERE " . self::PIV_COOP . " = :id";
         $st  = db()->prepare($sql);
         $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
+
+        try {
+            $st->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al obtener los servicios de la entidad.', 0, $e);
+        }
+
         return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
     }
 
@@ -397,7 +475,13 @@ final class EntidadRepository
         foreach ($bindings as $placeholder => $value) {
             $stmt->bindValue($placeholder, $value, PDO::PARAM_INT);
         }
-        $stmt->execute();
+
+        try {
+            $stmt->execute();
+        } catch (PDOException $e) {
+            throw new RuntimeException('Error al obtener los servicios del listado.', 0, $e);
+        }
+
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
         $map = [];
@@ -417,6 +501,18 @@ final class EntidadRepository
         }
 
         return $map;
+    }
+
+    private function bindSearchTerms(PDOStatement $stmt, ?string $qParam, ?string $qLike): void
+    {
+        if ($qParam === null || $qLike === null) {
+            $stmt->bindValue(':q', null, PDO::PARAM_NULL);
+            $stmt->bindValue(':q_like', null, PDO::PARAM_NULL);
+            return;
+        }
+
+        $stmt->bindValue(':q', $qParam, PDO::PARAM_STR);
+        $stmt->bindValue(':q_like', $qLike, PDO::PARAM_STR);
     }
 
     /** Reemplazar relación servicios (Matrix=1 exclusivo) */
@@ -450,6 +546,9 @@ final class EntidadRepository
             }
 
             $pdo->commit();
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            throw new RuntimeException('Error al actualizar los servicios de la entidad.', 0, $e);
         } catch (\Throwable $e) {
             $pdo->rollBack();
             throw $e;
