@@ -44,12 +44,31 @@ final class EntidadesController
     public function show(): void
     {
         $id = (int)($_GET['id'] ?? 0);
-        $this->respondEntidadJson($id);
+        $this->showJson($id);
     }
 
     public function showJson($id): void
     {
-        $this->respondEntidadJson((int)$id);
+        $id = (int) $id;
+
+        if ($id < 1) {
+            $this->respondEntidadJson(['error' => 'ID inválido'], 400);
+            return;
+        }
+
+        try {
+            $data = $this->loadEntidadDetalle($id);
+            if ($data === null) {
+                $this->respondEntidadJson(['error' => 'No se pudo obtener la entidad'], 404);
+                return;
+            }
+
+            $this->respondEntidadJson(['data' => $data], 200);
+            return;
+        } catch (\Throwable $e) {
+            $this->respondEntidadJson(['error' => 'Error interno'], 500);
+            return;
+        }
     }
 
     public function createForm(): void
@@ -360,6 +379,45 @@ final class EntidadesController
             http_response_code(500);
             echo json_encode(['error' => 'No se pudo obtener la entidad'], JSON_UNESCAPED_UNICODE);
         }
+    }
+
+    private function loadEntidadDetalle(int $id): ?array
+    {
+        $repo = new EntidadRepository();
+        $row  = $repo->findDetalles($id);
+        if (!$row) {
+            return null;
+        }
+
+        $servicios = $repo->serviciosActivos($id);
+
+        $provincia = trim((string)($row['provincia'] ?? ''));
+        $canton    = trim((string)($row['canton'] ?? ''));
+        $ubicacion = trim($provincia . (($provincia !== '' && $canton !== '') ? ' - ' : '') . $canton);
+        if ($ubicacion === '') {
+            $ubicacion = 'No especificado';
+        }
+
+        return [
+            'nombre'         => $row['nombre'],
+            'ruc'            => $row['ruc'] ?? null,
+            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
+            'telefono_movil' => $row['telefono_movil'] ?? null,
+            'email'          => $row['email'] ?? null,
+            'tipo'           => $row['tipo_entidad'] ?? null,
+            'segmento'       => $row['id_segmento'] ? ('Segmento ' . (int)$row['id_segmento']) : 'No especificado',
+            'ubicacion'      => $ubicacion,
+            'notas'          => $row['notas'] ?? null,
+            'servicios'      => $servicios,
+        ];
+    }
+
+    private function respondEntidadJson(array $data, int $status = 200): void
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE);
+        exit;
     }
 
     private function loadEntidadDetalle(int $id): ?array
