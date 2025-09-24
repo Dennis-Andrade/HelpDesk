@@ -31,7 +31,6 @@ final class AgendaRepository extends BaseRepository
         $page    = max(1, $page);
         $perPage = max(1, min(100, $perPage));
         $offset  = ($page - 1) * $perPage;
-
         $conditions = array();
         $params     = array();
 
@@ -60,7 +59,6 @@ final class AgendaRepository extends BaseRepository
         }
 
         $whereSql = $conditions ? ' WHERE ' . implode(' AND ', $conditions) : '';
-
         $sqlCount = 'SELECT COUNT(*) AS total FROM ' . self::TABLE . ' ae'
             . ' JOIN ' . self::TABLE_COOPS . ' c ON c.' . self::COL_COOP_ID . ' = ae.' . self::COL_COOP_ID
             . $whereSql;
@@ -211,7 +209,6 @@ final class AgendaRepository extends BaseRepository
             . ' ' . self::COL_ESTADO . ' = :estado,'
             . ' ' . self::COL_UPDATED_AT . ' = NOW()'
             . ' WHERE ' . self::COL_ID . ' = :id';
-
         try {
             $this->db->execute($sql, array(
                 ':cooperativa' => array((int)$data['id_cooperativa'], \PDO::PARAM_INT),
