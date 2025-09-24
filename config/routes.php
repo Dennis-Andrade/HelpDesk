@@ -30,23 +30,22 @@ $router->get('/contabilidad/dashboard',  [ContabDashboard::class,      'index'],
 $router->get('/sistemas/dashboard',      [SistemasDashboard::class,    'index'], ['middleware'=>['auth','role:sistemas,administrador']]);
 $router->get('/cumplimiento/dashboard',  [CumplimientoDashboard::class,'index'], ['middleware'=>['auth','role:cumplimiento,administrador']]);
 $router->get('/administrador/dashboard', [AdminDashboard::class,       'index'], ['middleware'=>['auth','role:administrador']]);
-$router->get('/comercial/entidades/ver', [EntidadesController::class, 'show'], ['middleware'=>['auth','role:comercial,administrador']]);
 $router->get(
     '/comercial/entidades/cards',
-    [EntidadesController::class, 'cards'],
+    function () {
+        header('Location: /comercial/entidades', true, 301);
+        exit;
+    },
     ['middleware'=>['auth','role:comercial']]
 );
+$router->get('/comercial/entidades/ver', [EntidadesController::class, 'show'], ['middleware'=>['auth','role:comercial,administrador']]);
 $router->get('/comercial/entidades/{id}/show', [EntidadesController::class, 'showJson'], ['middleware'=>['auth','role:comercial']]);
 
 // ---------- Comercial → Entidades (CRUD, auth + role) ----------
-// Compat: redirige listado viejo a cards
 $router->get(
     '/comercial/entidades',
-    function () {
-        header('Location: /comercial/entidades/cards', true, 301);
-        exit;
-    },
-    ['middleware'=>['auth','role:comercial,administrador']]
+    [EntidadesController::class, 'cards'],
+    ['middleware'=>['auth','role:comercial']]
 );
 $router->get('/comercial/entidades/crear',     [EntidadesController::class, 'createForm'], ['middleware'=>['auth','role:comercial,administrador']]);
 $router->post('/comercial/entidades/crear',    [EntidadesController::class, 'create'],     ['middleware'=>['auth','role:comercial,administrador']]);
