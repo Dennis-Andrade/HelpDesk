@@ -13,11 +13,11 @@ final class EntidadRepository extends BaseRepository
     private const VIEW_CARDS = 'public.v_cooperativas_cards';
 
     /**
-     * @return array{items:array<int,array<string,mixed>>, total:int}
+     * @return array{items:array<int,array<string,mixed>>, total:int, perPage:int, page:int, limit:int, offset:int}
      */
-    public function search(?string $q = null, int $limit = 12, int $offset = 0): array
+    public function search(?string $q = null, int $limit = 20, int $offset = 0): array
     {
-        $limit = $limit > 0 ? $limit : 12;
+        $limit = $limit > 0 ? $limit : 20;
         $offset = $offset >= 0 ? $offset : 0;
 
         $term = $q !== null ? trim($q) : null;
@@ -33,6 +33,14 @@ final class EntidadRepository extends BaseRepository
             ':offset' => array($offset, PDO::PARAM_INT),
         );
 
+        $sql = 'SELECT id, nombre, ruc, telefono, email, provincia, canton, segmento, servicios_text, activa, total
+                FROM public.f_cooperativas_cards(:q, :limit, :offset)';
+
+        $params = array(
+            ':q'      => $term === null ? array(null, PDO::PARAM_NULL) : array($term, PDO::PARAM_STR),
+            ':limit'  => array($limit, PDO::PARAM_INT),
+            ':offset' => array($offset, PDO::PARAM_INT),
+        );
         try {
             $rows = $this->db->fetchAll($sql, $params);
         } catch (\Throwable $e) {
@@ -44,9 +52,15 @@ final class EntidadRepository extends BaseRepository
             $total = (int)($rows[0]['total'] ?? 0);
         }
 
+        $page = $limit > 0 ? (int)floor($offset / $limit) + 1 : 1;
+
         return array(
-            'items' => $rows,
-            'total' => $total,
+            'items'   => $rows,
+            'total'   => $total,
+            'perPage' => $limit,
+            'page'    => $page,
+            'limit'   => $limit,
+            'offset'  => $offset,
         );
     }
 

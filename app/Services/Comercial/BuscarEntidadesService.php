@@ -41,14 +41,35 @@ final class BuscarEntidadesService
 
         $result = $this->repository->search($term, $perPage, $offset);
 
+        if (isset($result['perPage'])) {
+            $repoPerPage = (int)$result['perPage'];
+            if ($repoPerPage > 0) {
+                $perPage = $repoPerPage;
+            }
+        }
+        if (isset($result['page'])) {
+            $page = max(1, (int)$result['page']);
+        }
+
         $total = (int)($result['total'] ?? 0);
+        $itemsRaw = $result['items'];
 
         if ($total > 0 && $offset >= $total) {
             $page   = (int)ceil($total / $perPage);
             $page   = $page > 0 ? $page : 1;
             $offset = ($page - 1) * $perPage;
             $result = $this->repository->search($term, $perPage, $offset);
-            $total  = (int)($result['total'] ?? $total);
+            if (isset($result['perPage'])) {
+                $repoPerPage = (int)$result['perPage'];
+                if ($repoPerPage > 0) {
+                    $perPage = $repoPerPage;
+                }
+            }
+            if (isset($result['page'])) {
+                $page = max(1, (int)$result['page']);
+            }
+            $total    = (int)($result['total'] ?? $total);
+            $itemsRaw = $result['items'];
         }
 
         if ($total === 0) {
@@ -57,7 +78,7 @@ final class BuscarEntidadesService
 
         $items = array_map(function (array $row): array {
             return $this->mapEntidad($row);
-        }, $result['items']);
+        }, $itemsRaw);
 
         return array(
             'items'   => $items,
