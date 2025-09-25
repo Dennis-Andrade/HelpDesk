@@ -4,7 +4,9 @@ declare(strict_types=1);
 namespace App\Repositories\Comercial;
 
 use App\Repositories\BaseRepository;
+use App\Support\Logger;
 use PDO;
+use PDOException;
 use RuntimeException;
 
 /**
@@ -19,7 +21,6 @@ final class EntidadRepository extends BaseRepository
     private const COL_ID            = 'id_cooperativa';
     private const COL_NOMBRE        = 'nombre';
     private const COL_RUC           = 'ruc';
-    private const COL_TELF          = 'telefono';
     private const COL_TFIJ          = 'telefono_fijo_1';
     private const COL_TMOV          = 'telefono_movil';
     private const COL_MAIL          = 'email';
@@ -78,6 +79,8 @@ final class EntidadRepository extends BaseRepository
 
         try {
             $countRow = $this->db->fetch($countSql, $bindings);
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al contar entidades.', __METHOD__ . '::count');
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al contar entidades.', 0, $e);
         }
@@ -123,9 +126,7 @@ final class EntidadRepository extends BaseRepository
             '    FROM (',
             '        SELECT DISTINCT phone',
             '        FROM (',
-            "            SELECT NULLIF(TRIM(c." . self::COL_TELF . "), '') AS phone",
-            "            UNION ALL",
-            "            SELECT NULLIF(TRIM(c." . self::COL_TFIJ . "), '')",
+            "            SELECT NULLIF(TRIM(c." . self::COL_TFIJ . "), '') AS phone",
             "            UNION ALL",
             "            SELECT NULLIF(TRIM(c." . self::COL_TMOV . "), '')",
             '        ) AS raw',
@@ -173,6 +174,8 @@ final class EntidadRepository extends BaseRepository
 
         try {
             $items = $this->db->fetchAll($sql, $queryParams);
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al buscar entidades.', __METHOD__);
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al buscar entidades.', 0, $e);
         }
@@ -189,33 +192,43 @@ final class EntidadRepository extends BaseRepository
 
     public function findById(int $id): ?array
     {
-        $sql = '
-            SELECT
-                ' . self::COL_ID . '    AS id_cooperativa,
-                ' . self::COL_NOMBRE . '     AS nombre,
-                ' . self::COL_RUC . '        AS nit,
-                ' . self::COL_TFIJ . '      AS telefono_fijo_1,
-                ' . self::COL_TMOV . '       AS telefono_movil,
-                ' . self::COL_MAIL . '      AS email,
-                ' . self::COL_PROV . '       AS provincia_id,
-                ' . self::COL_CANTON . '     AS canton_id,
-                ' . self::COL_TIPO . '       AS tipo_entidad,
-                ' . self::COL_SEGMENTO . '   AS id_segmento,
-                ' . self::COL_NOTAS . '      AS notas,
-                ' . self::COL_ACTV . '     AS activa,
-                CASE WHEN ' . self::COL_ACTV . ' THEN \'activo\' ELSE \'inactivo\' END AS estado
-            FROM ' . self::T_COOP . '
-            WHERE ' . self::COL_ID . ' = :id
-            LIMIT 1
-        ';
+        $sqlLines = array(
+            'SELECT',
+            '    c.' . self::COL_ID . '           AS id,',
+            '    c.' . self::COL_NOMBRE . '       AS nombre,',
+            '    c.' . self::COL_RUC . '          AS ruc,',
+            '    c.' . self::COL_TFIJ . '         AS telefono_fijo_1,',
+            '    c.' . self::COL_TMOV . '         AS telefono_movil,',
+            '    c.' . self::COL_MAIL . '         AS email,',
+            '    c.' . self::COL_PROV . '         AS provincia_id,',
+            '    c.' . self::COL_CANTON . '       AS canton_id,',
+            '    c.' . self::COL_TIPO . '         AS tipo_entidad,',
+            '    c.' . self::COL_SEGMENTO . '     AS id_segmento,',
+            '    c.' . self::COL_NOTAS . '        AS notas,',
+            '    c.' . self::COL_ACTV . '         AS activa,',
+            '    c.' . self::COL_SERV_ACTIVO . '  AS servicio_activo',
+            'FROM ' . self::T_COOP . ' c',
+            'WHERE c.' . self::COL_ID . ' = :id',
+            'LIMIT 1',
+        );
+
+        $sql = implode("\n", $sqlLines);
 
         try {
             $row = $this->db->fetch($sql, array(':id' => array($id, PDO::PARAM_INT)));
-        } catch (\Throwable $e) {
-            throw new RuntimeException('Error al obtener la entidad.', 0, $e);
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al obtener la entidad.', __METHOD__);
         }
 
-        return $row ?: null;
+        if (!$row) {
+            return null;
+        }
+
+        $dto = $this->mapRowToDto($row);
+        $dto['servicios'] = $this->serviciosDeEntidad($id);
+        $dto['nit'] = $dto['ruc'];
+
+        return $dto;
     }
 
     public function findDetalles(int $id): ?array
@@ -247,6 +260,8 @@ final class EntidadRepository extends BaseRepository
 
         try {
             $row = $this->db->fetch($sql, array(':id' => array($id, PDO::PARAM_INT)));
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al obtener el detalle de la entidad.', __METHOD__);
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener el detalle de la entidad.', 0, $e);
         }
@@ -266,58 +281,73 @@ final class EntidadRepository extends BaseRepository
 
         try {
             return $this->db->fetchAll($sql, array(':id' => array($id, PDO::PARAM_INT)));
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al obtener los servicios activos.', __METHOD__);
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener los servicios activos.', 0, $e);
         }
     }
 
     /** Crear y devolver el id nuevo */
-    public function create(array $d): int
+    public function create(array $dto): int
     {
-        $sql = '
-            INSERT INTO ' . self::T_COOP . '
-                (
-                    ' . self::COL_NOMBRE . ',
-                    ' . self::COL_RUC . ',
-                    ' . self::COL_MAIL . ',
-                    ' . self::COL_PROV . ',
-                    ' . self::COL_CANTON . ',
-                    ' . self::COL_SEGMENTO . ',
-                    ' . self::COL_NOTAS . ',
-                    ' . self::COL_TIPO . '
-                )
-            VALUES
-                (
-                    :nombre,
-                    :ruc,
-                    :email,
-                    :provincia_id,
-                    :canton_id,
-                    :segmento_id,
-                    :notas,
-                    :tipo_entidad
-                )
-            RETURNING ' . self::COL_ID . ' AS id
-        ';
+        $data = $this->normalizeDto($dto);
+
+        $sqlLines = array(
+            'INSERT INTO ' . self::T_COOP,
+            '    (',
+            '        ' . self::COL_NOMBRE . ',',
+            '        ' . self::COL_RUC . ',',
+            '        ' . self::COL_TFIJ . ',',
+            '        ' . self::COL_TMOV . ',',
+            '        ' . self::COL_MAIL . ',',
+            '        ' . self::COL_PROV . ',',
+            '        ' . self::COL_CANTON . ',',
+            '        ' . self::COL_TIPO . ',',
+            '        ' . self::COL_SEGMENTO . ',',
+            '        ' . self::COL_NOTAS . ',',
+            '        ' . self::COL_ACTV . ',',
+            '        ' . self::COL_SERV_ACTIVO,
+            '    )',
+            'VALUES',
+            '    (',
+            '        :nombre,',
+            '        :ruc,',
+            '        :telefono_fijo_1,',
+            '        :telefono_movil,',
+            '        :email,',
+            '        :provincia_id,',
+            '        :canton_id,',
+            '        :tipo_entidad,',
+            '        :id_segmento,',
+            '        :notas,',
+            '        :activa,',
+            '        :servicio_activo',
+            '    )',
+            'RETURNING ' . self::COL_ID . ' AS id',
+        );
+
+        $sql = implode("\n", $sqlLines);
 
         $params = array(
-            ':nombre'       => array($d['nombre'], PDO::PARAM_STR),
-            ':ruc'          => $this->nullableStringParam($d['ruc'] ?? $d['nit'] ?? ''),
-            ':email'        => $this->nullableStringParam($d['email'] ?? ''),
-            ':provincia_id' => $this->nullableIntParam($d['provincia_id'] ?? null),
-            ':canton_id'    => $this->nullableIntParam($d['canton_id'] ?? null),
-            ':segmento_id'  => $this->nullableIntParam($d['id_segmento'] ?? $d['segmento_id'] ?? null),
-            ':notas'        => $this->nullableStringParam($d['notas'] ?? ''),
-            ':tipo_entidad' => array(
-                isset($d['tipo_entidad']) && $d['tipo_entidad'] !== '' ? (string)$d['tipo_entidad'] : 'cooperativa',
-                PDO::PARAM_STR
-            ),
+            ':nombre'          => array($data['nombre'], PDO::PARAM_STR),
+            ':ruc'             => $this->nullableStringParam($data['ruc']),
+            ':telefono_fijo_1' => $this->nullableStringParam($data['telefono_fijo_1']),
+            ':telefono_movil'  => $this->nullableStringParam($data['telefono_movil']),
+            ':email'           => $this->nullableStringParam($data['email']),
+            ':provincia_id'    => $this->nullableIntParam($data['provincia_id']),
+            ':canton_id'       => $this->nullableIntParam($data['canton_id']),
+            ':tipo_entidad'    => array($data['tipo_entidad'], PDO::PARAM_STR),
+            ':id_segmento'     => $this->nullableIntParam($data['id_segmento']),
+            ':notas'           => $this->nullableStringParam($data['notas']),
+            ':activa'          => array($data['activa'], PDO::PARAM_BOOL),
+            ':servicio_activo' => array($data['servicio_activo'], PDO::PARAM_BOOL),
         );
 
         try {
             $rows = $this->db->execute($sql, $params);
-        } catch (\Throwable $e) {
-            throw new RuntimeException('Error al crear la entidad.', 0, $e);
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al crear la entidad.', __METHOD__);
         }
 
         $row = is_array($rows) && isset($rows[0]) ? $rows[0] : null;
@@ -329,32 +359,53 @@ final class EntidadRepository extends BaseRepository
     }
 
     /** Actualizar */
-    public function update(int $id, array $d): void
+    public function update(int $id, array $dto): bool
     {
-        $sql = '
-            UPDATE ' . self::T_COOP . ' SET
-                ' . self::COL_NOMBRE . '   = :nombre,
-                ' . self::COL_RUC . '      = :ruc,
-                ' . self::COL_TFIJ . '    = :tfijo,
-                ' . self::COL_TMOV . '     = :tmov,
-                ' . self::COL_MAIL . '    = :email,
-                ' . self::COL_PROV . '     = :prov,
-                ' . self::COL_CANTON . '   = :canton,
-                ' . self::COL_TIPO . '     = :tipo,
-                ' . self::COL_SEGMENTO . ' = :segmento,
-                ' . self::COL_NOTAS . '    = :notas,
-                ' . self::COL_ACTV . '   = :activa
-            WHERE ' . self::COL_ID . ' = :id
-        ';
+        $data = $this->normalizeDto($dto);
 
-        $params = $this->buildEntidadParams($d);
-        $params[':id'] = array($id, PDO::PARAM_INT);
+        $sqlLines = array(
+            'UPDATE ' . self::T_COOP,
+            'SET',
+            '    ' . self::COL_NOMBRE . '       = :nombre,',
+            '    ' . self::COL_RUC . '          = :ruc,',
+            '    ' . self::COL_TFIJ . '         = :telefono_fijo_1,',
+            '    ' . self::COL_TMOV . '         = :telefono_movil,',
+            '    ' . self::COL_MAIL . '         = :email,',
+            '    ' . self::COL_PROV . '         = :provincia_id,',
+            '    ' . self::COL_CANTON . '       = :canton_id,',
+            '    ' . self::COL_TIPO . '         = :tipo_entidad,',
+            '    ' . self::COL_SEGMENTO . '     = :id_segmento,',
+            '    ' . self::COL_NOTAS . '        = :notas,',
+            '    ' . self::COL_ACTV . '         = :activa,',
+            '    ' . self::COL_SERV_ACTIVO . '  = :servicio_activo',
+            'WHERE ' . self::COL_ID . ' = :id',
+        );
+
+        $sql = implode("\n", $sqlLines);
+
+        $params = array(
+            ':nombre'          => array($data['nombre'], PDO::PARAM_STR),
+            ':ruc'             => $this->nullableStringParam($data['ruc']),
+            ':telefono_fijo_1' => $this->nullableStringParam($data['telefono_fijo_1']),
+            ':telefono_movil'  => $this->nullableStringParam($data['telefono_movil']),
+            ':email'           => $this->nullableStringParam($data['email']),
+            ':provincia_id'    => $this->nullableIntParam($data['provincia_id']),
+            ':canton_id'       => $this->nullableIntParam($data['canton_id']),
+            ':tipo_entidad'    => array($data['tipo_entidad'], PDO::PARAM_STR),
+            ':id_segmento'     => $this->nullableIntParam($data['id_segmento']),
+            ':notas'           => $this->nullableStringParam($data['notas']),
+            ':activa'          => array($data['activa'], PDO::PARAM_BOOL),
+            ':servicio_activo' => array($data['servicio_activo'], PDO::PARAM_BOOL),
+            ':id'              => array($id, PDO::PARAM_INT),
+        );
 
         try {
             $this->db->execute($sql, $params);
-        } catch (\Throwable $e) {
-            throw new RuntimeException('Error al actualizar la entidad.', 0, $e);
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al actualizar la entidad.', __METHOD__);
         }
+
+        return true;
     }
 
     /** Eliminar */
@@ -363,8 +414,8 @@ final class EntidadRepository extends BaseRepository
         $sql = 'DELETE FROM ' . self::T_COOP . ' WHERE ' . self::COL_ID . ' = :id';
         try {
             $this->db->execute($sql, array(':id' => array($id, PDO::PARAM_INT)));
-        } catch (\Throwable $e) {
-            throw new RuntimeException('Error al eliminar la entidad.', 0, $e);
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al eliminar la entidad.', __METHOD__);
         }
     }
 
@@ -377,6 +428,8 @@ final class EntidadRepository extends BaseRepository
                 . ' ORDER BY ' . self::COL_ID_SERV;
         try {
             return $this->db->fetchAll($sql);
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al obtener los servicios.', __METHOD__);
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener los servicios.', 0, $e);
         }
@@ -390,6 +443,8 @@ final class EntidadRepository extends BaseRepository
                 . ' ORDER BY ' . self::COL_ID_SEG;
         try {
             return $this->db->fetchAll($sql);
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al obtener los segmentos.', __METHOD__);
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener los segmentos.', 0, $e);
         }
@@ -401,6 +456,8 @@ final class EntidadRepository extends BaseRepository
         $sql = 'SELECT ' . self::PIV_SERV . ' AS id_servicio FROM ' . self::T_PIVOT . ' WHERE ' . self::PIV_COOP . ' = :id';
         try {
             $rows = $this->db->fetchAll($sql, array(':id' => array($id, PDO::PARAM_INT)));
+        } catch (PDOException $e) {
+            throw $this->wrapPdoException($e, 'Error al obtener los servicios de la entidad.', __METHOD__);
         } catch (\Throwable $e) {
             throw new RuntimeException('Error al obtener los servicios de la entidad.', 0, $e);
         }
@@ -411,17 +468,14 @@ final class EntidadRepository extends BaseRepository
                 $ids[] = (int)$row['id_servicio'];
             }
         }
-        return $ids;
+
+        return $this->normalizeServicios($ids, false);
     }
 
     /** Reemplazar relación servicios (Matrix=1 exclusivo) */
     public function replaceServicios(int $id, array $ids): void
     {
-        $ids = array_values(array_unique(array_map('intval', $ids)));
-
-        if (in_array(1, $ids, true)) {
-            $ids = array(1);
-        }
+        $ids = $this->normalizeServicios($ids, true);
 
         $this->db->begin();
         try {
@@ -442,7 +496,18 @@ final class EntidadRepository extends BaseRepository
                 }
             }
 
+            $this->db->execute(
+                'UPDATE ' . self::T_COOP . ' SET ' . self::COL_SERV_ACTIVO . ' = :activo WHERE ' . self::COL_ID . ' = :id',
+                array(
+                    ':activo' => array(!empty($ids), PDO::PARAM_BOOL),
+                    ':id'     => array($id, PDO::PARAM_INT),
+                )
+            );
+
             $this->db->commit();
+        } catch (PDOException $e) {
+            $this->db->rollBack();
+            throw $this->wrapPdoException($e, 'Error al actualizar los servicios de la entidad.', __METHOD__);
         } catch (\Throwable $e) {
             $this->db->rollBack();
             throw new RuntimeException('Error al actualizar los servicios de la entidad.', 0, $e);
@@ -519,35 +584,186 @@ final class EntidadRepository extends BaseRepository
         return $clean;
     }
     /**
-     * @param array<string,mixed> $d
-     * @return array<string,array{0:mixed,1:int}>
+     * @param array<string,mixed> $dto
+     * @return array<string,mixed>
      */
-    private function buildEntidadParams(array $d): array
+    private function normalizeDto(array $dto): array
     {
-        $params = array(
-            ':nombre'  => array($d['nombre'], PDO::PARAM_STR),
-            ':ruc'     => $this->nullableStringParam($d['nit'] ?? ''),
-            ':tfijo'   => $this->nullableStringParam($d['telefono_fijo'] ?? ''),
-            ':tmov'    => $this->nullableStringParam($d['telefono_movil'] ?? ''),
-            ':email'   => $this->nullableStringParam($d['email'] ?? ''),
-            ':prov'    => $this->nullableIntParam($d['provincia_id'] ?? null),
-            ':canton'  => $this->nullableIntParam($d['canton_id'] ?? null),
-            ':tipo'    => array($d['tipo_entidad'], PDO::PARAM_STR),
-            ':segmento'=> $this->nullableIntParam($d['id_segmento'] ?? null),
-            ':notas'   => $this->nullableStringParam($d['notas'] ?? ''),
-            ':activa'  => array($this->resolveActiva($d), PDO::PARAM_BOOL),
-        );
+        $nombre = trim((string)($dto['nombre'] ?? ''));
+        if ($nombre === '') {
+            throw new RuntimeException('El nombre es obligatorio');
+        }
 
-        return $params;
+        $tipoEntidad = isset($dto['tipo_entidad']) ? (string)$dto['tipo_entidad'] : 'cooperativa';
+        $tipoEntidad = $this->sanitizeTipoEntidad($tipoEntidad);
+
+        $segmento = $this->intOrNull($dto['id_segmento'] ?? null);
+        if ($tipoEntidad !== 'cooperativa') {
+            $segmento = null;
+        }
+
+        $servicios = $this->normalizeServicios($dto['servicios'] ?? array(), false);
+
+        $email = $this->stringOrNull($dto['email'] ?? null);
+        if ($email !== null) {
+            $email = strtolower($email);
+        }
+
+        $activa = array_key_exists('activa', $dto) ? (bool)$dto['activa'] : true;
+        $servicioActivo = array_key_exists('servicio_activo', $dto)
+            ? (bool)$dto['servicio_activo']
+            : !empty($servicios);
+
+        return array(
+            'nombre'          => $nombre,
+            'ruc'             => $this->digitsOrNull($dto['ruc'] ?? null),
+            'telefono'        => $this->digitsOrNull($dto['telefono'] ?? null),
+            'telefono_fijo_1' => $this->digitsOrNull($dto['telefono_fijo_1'] ?? null),
+            'telefono_movil'  => $this->digitsOrNull($dto['telefono_movil'] ?? null),
+            'email'           => $email,
+            'provincia_id'    => $this->intOrNull($dto['provincia_id'] ?? null),
+            'canton_id'       => $this->intOrNull($dto['canton_id'] ?? null),
+            'tipo_entidad'    => $tipoEntidad,
+            'id_segmento'     => $segmento,
+            'notas'           => $this->stringOrNull($dto['notas'] ?? null),
+            'servicios'       => $servicios,
+            'activa'          => $activa,
+            'servicio_activo' => $servicioActivo,
+        );
     }
 
-    private function resolveActiva(array $d): bool
+    /**
+     * @param array<string,mixed> $row
+     * @return array<string,mixed>
+     */
+    private function mapRowToDto(array $row): array
     {
-        if (array_key_exists('activa', $d)) {
-            return (bool)$d['activa'];
+        $idValue = $row['id'] ?? $row[self::COL_ID] ?? null;
+
+        return array(
+            'id'              => $idValue !== null ? (int)$idValue : null,
+            'nombre'          => isset($row['nombre']) ? (string)$row['nombre'] : '',
+            'ruc'             => $this->stringOrNull($row['ruc'] ?? null),
+            'telefono'        => $this->stringOrNull($row['telefono'] ?? null),
+            'telefono_fijo_1' => $this->stringOrNull($row['telefono_fijo_1'] ?? null),
+            'telefono_movil'  => $this->stringOrNull($row['telefono_movil'] ?? null),
+            'email'           => $this->stringOrNull($row['email'] ?? null),
+            'provincia_id'    => $this->intOrNull($row['provincia_id'] ?? null),
+            'canton_id'       => $this->intOrNull($row['canton_id'] ?? null),
+            'tipo_entidad'    => isset($row['tipo_entidad']) ? (string)$row['tipo_entidad'] : null,
+            'id_segmento'     => $this->intOrNull($row['id_segmento'] ?? null),
+            'notas'           => $this->stringOrNull($row['notas'] ?? null),
+            'activa'          => isset($row['activa']) ? (bool)$row['activa'] : true,
+            'servicio_activo' => isset($row['servicio_activo']) ? (bool)$row['servicio_activo'] : false,
+        );
+    }
+
+    /**
+     * @param array<mixed> $ids
+     * @return array<int,int>
+     */
+    private function normalizeServicios($ids, bool $validateCatalog): array
+    {
+        if (!is_array($ids)) {
+            $ids = array();
         }
-        $estado = isset($d['estado']) ? (string)$d['estado'] : 'activo';
-        return $estado === 'activo';
+
+        $clean = array_values(array_unique(array_map(static function ($value): int {
+            return (int)$value;
+        }, array_filter($ids, static function ($value): bool {
+            return is_numeric($value) || is_int($value);
+        }))));
+
+        $clean = array_values(array_filter($clean, static function (int $value): bool {
+            return $value > 0;
+        }));
+
+        if (in_array(1, $clean, true)) {
+            $clean = array(1);
+        }
+
+        if ($validateCatalog && !empty($clean)) {
+            $catalog = $this->servicios();
+            $valid = array();
+            foreach ($catalog as $servicio) {
+                $sid = null;
+                if (isset($servicio['id_servicio'])) {
+                    $sid = (int)$servicio['id_servicio'];
+                } elseif (isset($servicio['id'])) {
+                    $sid = (int)$servicio['id'];
+                }
+                if ($sid !== null && $sid > 0) {
+                    $valid[$sid] = true;
+                }
+            }
+
+            $clean = array_values(array_filter($clean, static function (int $value) use ($valid): bool {
+                return isset($valid[$value]);
+            }));
+        }
+
+        return $clean;
+    }
+
+    private function sanitizeTipoEntidad(string $tipo): string
+    {
+        $tipo = trim($tipo);
+        $permitidos = array('cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores');
+        if ($tipo === '' || !in_array($tipo, $permitidos, true)) {
+            return 'cooperativa';
+        }
+        return $tipo;
+    }
+
+    private function wrapPdoException(PDOException $e, string $message, string $context): RuntimeException
+    {
+        Logger::error($e, $context);
+        return new RuntimeException($message, 0, $e);
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function digitsOrNull($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $digits = preg_replace('/\D+/', '', (string)$value);
+        return $digits === '' ? null : $digits;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function stringOrNull($value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        $trimmed = trim((string)$value);
+        return $trimmed === '' ? null : $trimmed;
+    }
+
+    /**
+     * @param mixed $value
+     */
+    private function intOrNull($value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+        if ($value === '' || $value === false) {
+            return null;
+        }
+        if (is_int($value)) {
+            return $value > 0 ? $value : null;
+        }
+        if (is_numeric($value)) {
+            $int = (int)$value;
+            return $int > 0 ? $int : null;
+        }
+        return null;
     }
 
     /**
@@ -559,7 +775,7 @@ final class EntidadRepository extends BaseRepository
         if ($value === null) {
             return array(null, PDO::PARAM_NULL);
         }
-        $value = (string)$value;
+        $value = trim((string)$value);
         if ($value === '') {
             return array(null, PDO::PARAM_NULL);
         }
