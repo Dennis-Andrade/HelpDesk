@@ -1,377 +1,401 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Repositories\Comercial;
 
+use App\Repositories\BaseRepository;
 use PDO;
-use function Config\db;
+use RuntimeException;
 
-/**
- * Repositorio de Cooperativas (Comercial).
- * - Bindea tipos correctamente (STR/NULL, INT/NULL, BOOL)
- * - Provee helpers de segmentos, servicios y pivot de relación
- * - SELECT con alias que el formulario espera (ruc AS nit, estado)
- */
-final class EntidadRepository
+final class EntidadRepository extends BaseRepository
 {
-    /** === ESQUEMA / MAPEOS (ajusta si tu DB usa otros nombres) ===================== */
-    private const T_COOP            = 'public.cooperativas';
-    private const COL_ID            = 'id_cooperativa';      // PK cooperativas
-    private const COL_NOMBRE        = 'nombre';
-    private const COL_RUC           = 'ruc';
-    private const COL_TELF          = 'telefono';  
-    private const COL_TFIJ          = 'telefono_fijo_1';  // (si existe en tu schema)
-    private const COL_TMOV          = 'telefono_movil';
-    private const COL_MAIL          = 'email';
-    private const COL_ACTV          = 'activa';
-    private const COL_PROV          = 'provincia_id';
-    private const COL_CANTON        = 'canton_id';
-    private const COL_TIPO          = 'tipo_entidad';
-    private const COL_SEGMENTO      = 'id_segmento';
-    private const COL_NOTAS         = 'notas';
+    private const TABLE = 'public.cooperativas';
+    private const PK = 'id_cooperativa';
+    private const VIEW_CARDS = 'public.v_cooperativas_cards';
+    private const FUNC_CARDS = 'public.f_cooperativas_cards';
+    private const TBL_SERVICIOS = 'public.cooperativa_servicio';
+    private const COL_SERVICIO_COOP = 'id_cooperativa';
+    private const COL_SERVICIO_ID = 'id_servicio';
+    private const COL_SERVICIO_ACTIVO = 'activo';
 
-    private const T_SERV            = 'public.servicios';
-    private const COL_ID_SERV       = 'id_servicio';
-    private const COL_NOM_SERV      = 'nombre_servicio';
-    private const COL_SERV_ACTIVO   = 'activo';
-
-    private const T_SEG             = 'public.segmentos';
-    private const COL_ID_SEG        = 'id_segmento';
-    private const COL_NOM_SEG       = 'nombre_segmento';
-
-    private const T_PIVOT           = 'public.cooperativa_servicio';
-    private const PIV_COOP          = 'id_cooperativa';
-    private const PIV_SERV          = 'id_servicio';
-    private const PIV_ACTIVO        = 'activo';
-
-    /** ================================================================================= */
-    /** Búsqueda paginada */
-    /** ================================================================================= */
     /**
-     * Búsqueda paginada
-     * @return array{items:array, total:int, page:int, perPage:int}
+     * @return array{items:array<int,array<string,mixed>>, total:int, perPage:int, page:int, limit:int, offset:int}
      */
-    public function search(string $q, int $page, int $perPage): array
+    public function search(?string $q = null, int $limit = 20, int $offset = 0): array
     {
-        $pdo = db();
+        $limit = $limit > 0 ? $limit : 20;
+        $offset = $offset >= 0 ? $offset : 0;
 
-        // Normalizamos límites
-        $page    = max(1, $page);
-        $perPage = max(1, min(100, $perPage)); // por seguridad
-        $offset  = ($page - 1) * $perPage;
-
-        // WHERE opcional
-        $where  = '';
-        $params = [];
-        if ($q !== '') {
-            // si tienes extensión unaccent, puedes usar unaccent() aquí también
-            $where = " WHERE " . self::COL_NOMBRE. " ILIKE :q OR " . self::COL_RUC. " ILIKE :q ";
-            $params[':q'] = '%' . $q . '%';
+        $term = $q !== null ? trim($q) : null;
+        if ($term === '') {
+            $term = null;
         }
 
-        // Total
-        $sqlTotal = "SELECT COUNT(*) FROM " . self::T_COOP . $where;
-        $stTot = $pdo->prepare($sqlTotal);
-        foreach ($params as $k => $v) {
-            $stTot->bindValue($k, $v, PDO::PARAM_STR);
-        }
-        $stTot->execute();
-        $total = (int)$stTot->fetchColumn();
+        $sql = 'SELECT id, nombre, ruc, telefono, email, provincia, canton, segmento, servicios_text, activa, total
+                FROM ' . self::FUNC_CARDS . '(:q, :limit, :offset)';
 
-        // Items
-        // Teléfonos y estado "defensivos": si no existen columnas fijas, caemos a telefono
-        $sql = "
-            SELECT
-                " . self::COL_ID . "   AS id,
-                " . self::COL_NOMBRE . " AS nombre,
-                " . self::COL_RUC . "  AS nit,
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_schema = 'public' AND table_name = 'cooperativas' AND column_name = '" . self::COL_TFIJ . "'
-                    ) THEN " . self::COL_TFIJ . "
-                    ELSE " . self::COL_TELF . "
-                END AS telefono_fijo,
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_schema = 'public' AND table_name = 'cooperativas' AND column_name = '" . self::COL_TMOV . "'
-                    ) THEN " . self::COL_TMOV . "
-                    ELSE NULL
-                END AS telefono_movil,
-                " . self::COL_MAIL . " AS email,
-                CASE
-                    WHEN EXISTS (
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_schema = 'public' AND table_name = 'cooperativas' AND column_name = '" . self::COL_ACTV . "'
-                    ) THEN (CASE WHEN " . self::COL_ACTV . " IS TRUE THEN 'activo' ELSE 'inactivo' END)
-                    ELSE 'inactivo'
-                END AS estado
-            FROM " . self::T_COOP . $where . "
-            ORDER BY " . self::COL_ID . " ASC
-            LIMIT :limit OFFSET :offset
-        ";
-        
-        $st = $pdo->prepare($sql);
-        foreach ($params as $k => $v) {
-            $st->bindValue($k, $v, PDO::PARAM_STR);
-        }
-        $st->bindValue(':limit',  $perPage, PDO::PARAM_INT);
-        $st->bindValue(':offset', $offset,  PDO::PARAM_INT);
-        $st->execute();
-        $items = $st->fetchAll();
+        $params = array(
+            ':q'      => $term === null ? array(null, PDO::PARAM_NULL) : array($term, PDO::PARAM_STR),
+            ':limit'  => array($limit, PDO::PARAM_INT),
+            ':offset' => array($offset, PDO::PARAM_INT),
+        );
 
-        return [
-            'items'   => $items,
+        try {
+            $rows = $this->db->fetchAll($sql, $params);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener el listado de entidades.', 0, $e);
+        }
+
+        $total = 0;
+        if (!empty($rows)) {
+            $total = (int)($rows[0]['total'] ?? 0);
+        }
+
+        $page = $limit > 0 ? (int)floor($offset / $limit) + 1 : 1;
+
+        return array(
+            'items'   => $rows,
             'total'   => $total,
+            'perPage' => $limit,
             'page'    => $page,
-            'perPage' => $perPage,
-        ];
+            'limit'   => $limit,
+            'offset'  => $offset,
+        );
     }
 
-    /** Datos para editar */
+    public function findCardById(int $id): ?array
+    {
+        $sql = 'SELECT id, nombre, ruc, telefono, email, provincia, canton, segmento, servicios_text
+                FROM ' . self::VIEW_CARDS . ' WHERE id = :id LIMIT 1';
+
+        try {
+            $row = $this->db->fetch($sql, array(':id' => array($id, PDO::PARAM_INT)));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener la entidad solicitada.', 0, $e);
+        }
+
+        return $row ?: null;
+    }
+
     public function findById(int $id): ?array
     {
-        $sql = "
-            SELECT
-                ".self::COL_ID."    AS id_cooperativa,
-                ".self::COL_NOMBRE."     AS nombre,
-                ".self::COL_RUC."        AS nit,
-                ".self::COL_TFIJ."      AS telefono_fijo_1,
-                ".self::COL_TMOV."       AS telefono_movil,
-                ".self::COL_MAIL."      AS email,
-                ".self::COL_PROV."       AS provincia_id,
-                ".self::COL_CANTON."     AS canton_id,
-                ".self::COL_TIPO."       AS tipo_entidad,
-                ".self::COL_SEGMENTO."   AS id_segmento,
-                ".self::COL_NOTAS."      AS notas,
-                ".self::COL_ACTV."     AS activa,
-                CASE WHEN ".self::COL_ACTV." THEN 'activo' ELSE 'inactivo' END AS estado
-            FROM ".self::T_COOP."
-            WHERE ".self::COL_ID." = :id
-            LIMIT 1
-        ";
-        $st = db()->prepare($sql);
-        $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
-        $r = $st->fetch(PDO::FETCH_ASSOC);
-        return $r ?: null;
+        $sql = <<<'SQL'
+SELECT
+    c.id_cooperativa   AS id,
+    c.nombre,
+    c.ruc,
+    c.telefono_fijo_1,
+    c.telefono_movil,
+    c.email,
+    c.provincia_id,
+    c.canton_id,
+    c.tipo_entidad,
+    c.id_segmento,
+    c.notas,
+    c.activa,
+    c.servicio_activo,
+    prov.nombre        AS provincia_nombre,
+    cant.nombre        AS canton_nombre
+FROM public.cooperativas c
+LEFT JOIN public.provincias prov ON prov.id_provincia = c.provincia_id
+LEFT JOIN public.cantones   cant ON cant.id_canton = c.canton_id
+WHERE c.id_cooperativa = :id
+LIMIT 1
+SQL;
+
+        try {
+            $row = $this->db->fetch($sql, array(':id' => array($id, PDO::PARAM_INT)));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener la entidad para edición.', 0, $e);
+        }
+
+        if ($row === null) {
+            return null;
+        }
+
+        $row['servicios'] = $this->serviciosDeEntidad($id);
+        $row['nit'] = $row['ruc'] ?? '';
+        $row['telefono_fijo'] = $row['telefono_fijo_1'] ?? '';
+        $row['segmento'] = isset($row['id_segmento']) && $row['id_segmento'] !== null ? (string)$row['id_segmento'] : '';
+
+        return $row;
     }
 
-    public function findDetalles(int $id): ?array
+    public function create(array $data): int
     {
-        $sql = "
-        SELECT
-            c.id_cooperativa              AS id_entidad,
-            c.nombre,
-            c.ruc,
-            c.telefono_fijo_1,
-            c.telefono_movil,
-            c.email,
-            c.provincia_id,
-            c.canton_id,
-            p.nombre                      AS provincia,
-            ct.nombre                     AS canton,
-            c.tipo_entidad,
-            c.id_segmento,
-            c.notas
-        FROM public.cooperativas c
-        LEFT JOIN public.provincias p ON p.id = c.provincia_id
-        LEFT JOIN public.cantones   ct ON ct.id = c.canton_id
-        WHERE c.id_cooperativa = :id
-        LIMIT 1
-        ";
-        $st = db()->prepare($sql);
-        $st->execute([':id'=>$id]);
-        $r = $st->fetch(PDO::FETCH_ASSOC);
-        return $r ?: null;
+        $payload = $this->mapEntidadParams($data);
+
+        $sql = 'INSERT INTO ' . self::TABLE . ' (
+                    nombre,
+                    ruc,
+                    telefono_fijo_1,
+                    telefono_movil,
+                    email,
+                    provincia_id,
+                    canton_id,
+                    tipo_entidad,
+                    id_segmento,
+                    notas,
+                    activa,
+                    servicio_activo
+                ) VALUES (
+                    :nombre,
+                    :ruc,
+                    :telefono_fijo,
+                    :telefono_movil,
+                    :email,
+                    :provincia_id,
+                    :canton_id,
+                    :tipo_entidad,
+                    :id_segmento,
+                    :notas,
+                    :activa,
+                    :servicio_activo
+                ) RETURNING id_cooperativa AS id';
+
+        $params = array(
+            ':nombre'         => array($payload['nombre'], PDO::PARAM_STR),
+            ':ruc'            => $this->paramStringOrNull($payload['nit']),
+            ':telefono_fijo'  => $this->paramStringOrNull($payload['telefono_fijo']),
+            ':telefono_movil' => $this->paramStringOrNull($payload['telefono_movil']),
+            ':email'          => $this->paramStringOrNull($payload['email']),
+            ':provincia_id'   => $this->paramIntOrNull($payload['provincia_id']),
+            ':canton_id'      => $this->paramIntOrNull($payload['canton_id']),
+            ':tipo_entidad'   => array($payload['tipo_entidad'], PDO::PARAM_STR),
+            ':id_segmento'    => $this->paramIntOrNull($payload['id_segmento']),
+            ':notas'          => $this->paramStringOrNull($payload['notas']),
+            ':activa'         => array($payload['activa'], PDO::PARAM_BOOL),
+            ':servicio_activo'=> $this->paramBoolOrNull($payload['servicio_activo']),
+        );
+
+        $this->db->begin();
+        try {
+            $rows = $this->db->execute($sql, $params);
+            if (!is_array($rows) || !isset($rows[0]['id'])) {
+                throw new RuntimeException('INSERT cooperativas no devolvió id');
+            }
+            $id = (int)$rows[0]['id'];
+            $this->replaceServiciosInternal($id, $payload['servicios']);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw new RuntimeException('No se pudo registrar la entidad.', 0, $e);
+        }
+
+        return $id;
     }
 
-    public function serviciosActivos(int $id): array
+    public function update(int $id, array $data): void
     {
-        $sql = "
-        SELECT s.id_servicio, s.nombre_servicio
-        FROM public.cooperativa_servicio cs
-        JOIN public.servicios s ON s.id_servicio = cs.id_servicio
-        WHERE cs.id_cooperativa = :id AND cs.activo = true
-        ORDER BY s.nombre_servicio
-        ";
-        $st = db()->prepare($sql);
-        $st->execute([':id'=>$id]);
-        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $payload = $this->mapEntidadParams($data);
+
+        $sql = 'UPDATE ' . self::TABLE . ' SET
+                    nombre = :nombre,
+                    ruc = :ruc,
+                    telefono_fijo_1 = :telefono_fijo,
+                    telefono_movil = :telefono_movil,
+                    email = :email,
+                    provincia_id = :provincia_id,
+                    canton_id = :canton_id,
+                    tipo_entidad = :tipo_entidad,
+                    id_segmento = :id_segmento,
+                    notas = :notas,
+                    activa = :activa,
+                    servicio_activo = :servicio_activo
+                WHERE ' . self::PK . ' = :id';
+
+        $params = array(
+            ':id'             => array($id, PDO::PARAM_INT),
+            ':nombre'         => array($payload['nombre'], PDO::PARAM_STR),
+            ':ruc'            => $this->paramStringOrNull($payload['nit']),
+            ':telefono_fijo'  => $this->paramStringOrNull($payload['telefono_fijo']),
+            ':telefono_movil' => $this->paramStringOrNull($payload['telefono_movil']),
+            ':email'          => $this->paramStringOrNull($payload['email']),
+            ':provincia_id'   => $this->paramIntOrNull($payload['provincia_id']),
+            ':canton_id'      => $this->paramIntOrNull($payload['canton_id']),
+            ':tipo_entidad'   => array($payload['tipo_entidad'], PDO::PARAM_STR),
+            ':id_segmento'    => $this->paramIntOrNull($payload['id_segmento']),
+            ':notas'          => $this->paramStringOrNull($payload['notas']),
+            ':activa'         => array($payload['activa'], PDO::PARAM_BOOL),
+            ':servicio_activo'=> $this->paramBoolOrNull($payload['servicio_activo']),
+        );
+
+        $this->db->begin();
+        try {
+            $this->db->execute($sql, $params);
+            $this->replaceServiciosInternal($id, $payload['servicios']);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollBack();
+            throw new RuntimeException('No se pudo actualizar la entidad.', 0, $e);
+        }
     }
 
-
-    /** Crear y devolver el id nuevo */
-    public function create(array $d): int
-    {
-        $sql = "
-            INSERT INTO ".self::T_COOP."
-                ( ".self::COL_NOMBRE.",
-                  ".self::COL_RUC.",
-                  ".self::COL_TFIJ.",
-                  ".self::COL_TMOV.",
-                  ".self::COL_MAIL.",
-                  ".self::COL_PROV.",
-                  ".self::COL_CANTON.",
-                  ".self::COL_TIPO.",
-                  ".self::COL_SEGMENTO.",
-                  ".self::COL_NOTAS.",
-                  ".self::COL_ACTV."
-                )
-            VALUES
-                ( :nombre, :ruc, :tfijo, :tmov, :email, :prov, :canton, :tipo, :segmento, :notas, :activa )
-            RETURNING ".self::COL_ID."
-        ";
-        $st = db()->prepare($sql);
-
-        // STR o NULL
-        $st->bindValue(':nombre', $d['nombre']);
-        $st->bindValue(':ruc',     $d['nit']            !== '' ? $d['nit']            : null, $d['nit']            !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $st->bindValue(':tfijo',   $d['telefono_fijo']  !== '' ? $d['telefono_fijo']  : null, $d['telefono_fijo']  !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $st->bindValue(':tmov',    $d['telefono_movil'] !== '' ? $d['telefono_movil'] : null, $d['telefono_movil'] !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $st->bindValue(':email',   $d['email']          !== '' ? $d['email']          : null, $d['email']          !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-
-        // INT o NULL
-        $st->bindValue(':prov',   $d['provincia_id'], $d['provincia_id'] !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-        $st->bindValue(':canton', $d['canton_id'],    $d['canton_id']    !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-
-        // STR
-        $st->bindValue(':tipo', $d['tipo_entidad']);
-
-        // INT o NULL
-        $st->bindValue(':segmento', $d['id_segmento'], $d['id_segmento'] !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-
-        // STR o NULL
-        $st->bindValue(':notas', $d['notas'] !== '' ? $d['notas'] : null, $d['notas'] !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-
-        // BOOL real
-        $activa = (bool)($d['activa'] ?? (($d['estado'] ?? 'activo') === 'activo'));
-        $st->bindValue(':activa', $activa, PDO::PARAM_BOOL);
-
-        $st->execute();
-        return (int)$st->fetchColumn();
-    }
-
-    /** Actualizar */
-    public function update(int $id, array $d): void
-    {
-        $sql = "
-            UPDATE ".self::T_COOP." SET
-                ".self::COL_NOMBRE."   = :nombre,
-                ".self::COL_RUC."      = :ruc,
-                ".self::COL_TFIJ."    = :tfijo,
-                ".self::COL_TMOV."     = :tmov,
-                ".self::COL_MAIL."    = :email,
-                ".self::COL_PROV."     = :prov,
-                ".self::COL_CANTON."   = :canton,
-                ".self::COL_TIPO."     = :tipo,
-                ".self::COL_SEGMENTO." = :segmento,
-                ".self::COL_NOTAS."    = :notas,
-                ".self::COL_ACTV."   = :activa
-            WHERE ".self::COL_ID." = :id
-        ";
-        $st = db()->prepare($sql);
-
-        // STR o NULL
-        $st->bindValue(':nombre', $d['nombre']);
-        $st->bindValue(':ruc',     $d['nit']            !== '' ? $d['nit']            : null, $d['nit']            !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $st->bindValue(':tfijo',   $d['telefono_fijo']  !== '' ? $d['telefono_fijo']  : null, $d['telefono_fijo']  !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $st->bindValue(':tmov',    $d['telefono_movil'] !== '' ? $d['telefono_movil'] : null, $d['telefono_movil'] !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-        $st->bindValue(':email',   $d['email']          !== '' ? $d['email']          : null, $d['email']          !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-
-        // INT o NULL
-        $st->bindValue(':prov',   $d['provincia_id'], $d['provincia_id'] !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-        $st->bindValue(':canton', $d['canton_id'],    $d['canton_id']    !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-
-        // STR
-        $st->bindValue(':tipo', $d['tipo_entidad']);
-
-        // INT o NULL
-        $st->bindValue(':segmento', $d['id_segmento'], $d['id_segmento'] !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-
-        // STR o NULL
-        $st->bindValue(':notas', $d['notas'] !== '' ? $d['notas'] : null, $d['notas'] !== '' ? PDO::PARAM_STR : PDO::PARAM_NULL);
-
-        // BOOL real
-        $activa = (bool)($d['activa'] ?? (($d['estado'] ?? 'activo') === 'activo'));
-        $st->bindValue(':activa', $activa, PDO::PARAM_BOOL);
-
-        $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
-    }
-
-    /** Eliminar */
     public function delete(int $id): void
     {
-        $st = db()->prepare("DELETE FROM ".self::T_COOP." WHERE ".self::COL_ID." = :id");
-        $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
-    }
+        $sql = 'DELETE FROM ' . self::TABLE . ' WHERE ' . self::PK . ' = :id';
 
-    /** Catálogo de servicios activos */
-    public function servicios(): array
-    {
-        $sql = "SELECT ".self::COL_ID_SERV." AS id_servicio, ".self::COL_NOM_SERV." AS nombre_servicio
-                FROM ".self::T_SERV."
-                WHERE ".self::COL_SERV_ACTIVO." = true
-                ORDER BY ".self::COL_ID_SERV;
-        $st = db()->query($sql);
-        return $st->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    /** Catálogo de segmentos (1..5) */
-    public function segmentos(): array
-    {
-        $sql = "SELECT ".self::COL_ID_SEG." AS id_segmento, ".self::COL_NOM_SEG." AS nombre_segmento
-                FROM ".self::T_SEG."
-                ORDER BY ".self::COL_ID_SEG;
-        $st = db()->query($sql);
-        return $st->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    /** IDs de servicios asignados a una entidad */
-    public function serviciosDeEntidad(int $id): array
-    {
-        $sql = "SELECT ".self::PIV_SERV." FROM ".self::T_PIVOT." WHERE ".self::PIV_COOP." = :id";
-        $st  = db()->prepare($sql);
-        $st->bindValue(':id', $id, PDO::PARAM_INT);
-        $st->execute();
-        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
-    }
-
-    /** Reemplazar relación servicios (Matrix=1 exclusivo) */
-    public function replaceServicios(int $id, array $ids): void
-    {
-        // Limpia y única
-        $ids = array_values(array_unique(array_map('intval', $ids)));
-
-        // Regla: si Matrix (1) está, es exclusivo
-        if (in_array(1, $ids, true)) {
-            $ids = [1];
-        }
-
-        $pdo = db();
-        $pdo->beginTransaction();
+        $this->db->begin();
         try {
-            $del = $pdo->prepare("DELETE FROM ".self::T_PIVOT." WHERE ".self::PIV_COOP." = :id");
-            $del->bindValue(':id', $id, PDO::PARAM_INT);
-            $del->execute();
-
-            if (!empty($ids)) {
-                $ins = $pdo->prepare("
-                    INSERT INTO ".self::T_PIVOT." (".self::PIV_COOP.", ".self::PIV_SERV.", ".self::PIV_ACTIVO.")
-                    VALUES (:c, :s, true)
-                ");
-                foreach ($ids as $sid) {
-                    $ins->bindValue(':c', $id,  PDO::PARAM_INT);
-                    $ins->bindValue(':s', $sid, PDO::PARAM_INT);
-                    $ins->execute();
-                }
-            }
-
-            $pdo->commit();
+            $this->db->execute('DELETE FROM ' . self::TBL_SERVICIOS . ' WHERE ' . self::COL_SERVICIO_COOP . ' = :id', array(':id' => array($id, PDO::PARAM_INT)));
+            $this->db->execute($sql, array(':id' => array($id, PDO::PARAM_INT)));
+            $this->db->commit();
         } catch (\Throwable $e) {
-            $pdo->rollBack();
-            throw $e;
+            $this->db->rollBack();
+            throw new RuntimeException('No se pudo eliminar la entidad.', 0, $e);
         }
+    }
+
+    /**
+     * @return array<int,int>
+     */
+    private function serviciosDeEntidad(int $id): array
+    {
+        $sql = 'SELECT ' . self::COL_SERVICIO_ID . ' FROM ' . self::TBL_SERVICIOS . ' WHERE ' . self::COL_SERVICIO_COOP . ' = :id';
+        try {
+            $rows = $this->db->fetchAll($sql, array(':id' => array($id, PDO::PARAM_INT)));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudieron obtener los servicios asignados.', 0, $e);
+        }
+
+        $ids = array();
+        foreach ($rows as $row) {
+            if (isset($row[self::COL_SERVICIO_ID])) {
+                $ids[] = (int)$row[self::COL_SERVICIO_ID];
+            } elseif (isset($row[0])) {
+                $ids[] = (int)$row[0];
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function mapEntidadParams(array $data): array
+    {
+        $digits = static function ($value): string {
+            return preg_replace('/\D+/', '', (string)$value);
+        };
+
+        $intOrNull = static function ($value): ?int {
+            if ($value === null || $value === '') {
+                return null;
+            }
+            if (is_int($value)) {
+                return $value;
+            }
+            if (is_numeric($value)) {
+                return (int)$value;
+            }
+            return null;
+        };
+
+        $tipo = trim((string)($data['tipo_entidad'] ?? $data['tipo'] ?? ''));
+        $permitidos = array('cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahorros', 'casa_valores');
+        if ($tipo === '' || !in_array($tipo, $permitidos, true)) {
+            $tipo = 'cooperativa';
+        }
+
+        $segmentoRaw = $data['id_segmento'] ?? $data['segmento'] ?? null;
+        $segmentoId = $intOrNull($segmentoRaw);
+
+        $telefonos = array(
+            $digits($data['telefono_fijo'] ?? $data['telefono'] ?? $data['telefono_principal'] ?? ''),
+            $digits($data['telefono_movil'] ?? $data['celular'] ?? ''),
+        );
+
+        $correo = trim((string)($data['email'] ?? ''));
+
+        $servicios = $data['servicios'] ?? array();
+        if (!is_array($servicios)) {
+            $servicios = array();
+        }
+        $servicios = array_filter(array_map(static function ($value) {
+            if (is_int($value)) {
+                return $value > 0 ? $value : null;
+            }
+            if (is_numeric($value)) {
+                $int = (int)$value;
+                return $int > 0 ? $int : null;
+            }
+            return null;
+        }, $servicios));
+        $servicios = array_values(array_unique($servicios));
+
+        return array(
+            'nombre'          => trim((string)($data['nombre'] ?? '')),
+            'nit'             => $digits($data['nit'] ?? $data['ruc'] ?? ''),
+            'telefono_fijo'   => $telefonos[0] !== '' ? $telefonos[0] : null,
+            'telefono_movil'  => $telefonos[1] !== '' ? $telefonos[1] : null,
+            'email'           => $correo !== '' ? $correo : null,
+            'provincia_id'    => $intOrNull($data['provincia_id'] ?? null),
+            'canton_id'       => $intOrNull($data['canton_id'] ?? null),
+            'tipo_entidad'    => $tipo,
+            'id_segmento'     => $segmentoId,
+            'notas'           => trim((string)($data['notas'] ?? '')),
+            'servicios'       => $servicios,
+            'activa'          => isset($data['activa']) ? (bool)$data['activa'] : true,
+            'servicio_activo' => isset($data['servicio_activo']) ? (bool)$data['servicio_activo'] : null,
+        );
+    }
+
+    private function replaceServiciosInternal(int $id, array $servicios): void
+    {
+        $ids = array();
+        foreach ($servicios as $sid) {
+            $sid = (int)$sid;
+            if ($sid > 0 && !in_array($sid, $ids, true)) {
+                $ids[] = $sid;
+            }
+        }
+
+        if (in_array(1, $ids, true)) {
+            $ids = array(1);
+        }
+
+        $this->db->execute('DELETE FROM ' . self::TBL_SERVICIOS . ' WHERE ' . self::COL_SERVICIO_COOP . ' = :id', array(
+            ':id' => array($id, PDO::PARAM_INT),
+        ));
+
+        foreach ($ids as $sid) {
+            $this->db->execute(
+                'INSERT INTO ' . self::TBL_SERVICIOS . ' (' . self::COL_SERVICIO_COOP . ', ' . self::COL_SERVICIO_ID . ', ' . self::COL_SERVICIO_ACTIVO . ')
+                 VALUES (:coop, :serv, true)',
+                array(
+                    ':coop' => array($id, PDO::PARAM_INT),
+                    ':serv' => array($sid, PDO::PARAM_INT),
+                )
+            );
+        }
+    }
+
+    private function paramStringOrNull(?string $value): array
+    {
+        if ($value === null || $value === '') {
+            return array(null, PDO::PARAM_NULL);
+        }
+
+        return array($value, PDO::PARAM_STR);
+    }
+
+    private function paramIntOrNull(?int $value): array
+    {
+        if ($value === null) {
+            return array(null, PDO::PARAM_NULL);
+        }
+
+        return array($value, PDO::PARAM_INT);
+    }
+
+    private function paramBoolOrNull(?bool $value): array
+    {
+        if ($value === null) {
+            return array(null, PDO::PARAM_NULL);
+        }
+
+        return array($value, PDO::PARAM_BOOL);
     }
 }

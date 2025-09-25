@@ -1,86 +1,167 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Services\Shared;
+
+use DateTimeImmutable;
+use DateTimeInterface;
 
 final class ValidationService
 {
     /**
      * Valida y normaliza los datos de la Entidad (cooperativa).
      * - nombre: obligatorio
-     * - ruc: opcional, SOLO dígitos, 10 a 13 caracteres si se proporciona
-     * - telefono_fijo: opcional, SOLO dígitos, exactamente 7 si se proporciona
-     * - telefono_movil: opcional, SOLO dígitos, exactamente 10 si se proporciona
-     * - email: opcional, formato email si se proporciona
-     * - provincia_id, canton_id, tipo_entidad, id_segmento: opcionales, enteros o null
-     * - servicios: opcional, array de enteros
+     * - nit/ruc: opcional, 10 a 13 dígitos
+     * - telefono_fijo: opcional, 7 dígitos
+     * - telefono_movil: opcional, 10 dígitos
+     * - email: opcional, formato válido
+     * - provincia_id, canton_id, id_segmento: enteros o null
+     * - tipo_entidad: cooperativa/mutualista/sujeto_no_financiero/caja_ahorros/casa_valores
+     * - servicios: array de enteros positivos
      *
      * @return array{ok:bool, errors:array<string,string>, data:array<string,mixed>}
      */
     public function validarEntidad(array $in): array
     {
-        // Helpers
-        $digits = static fn($s) => preg_replace('/\D+/', '', (string)$s);
-        $intOrNull = static function($v) {
-            if ($v === '' || $v === null) return null;
-            if (is_numeric($v)) return (int)$v;
+        $digits = static function ($value): string {
+            return preg_replace('/\D+/', '', (string)$value);
+        };
+
+        $intOrNull = static function ($value): ?int {
+            if ($value === null || $value === '') {
+                return null;
+            }
+            if (is_int($value)) {
+                return $value;
+            }
+            if (is_numeric($value)) {
+                return (int)$value;
+            }
             return null;
         };
 
-        // Normalización
-        $data = [
+        $tipoRaw = trim((string)($in['tipo_entidad'] ?? $in['tipo'] ?? ''));
+        $tiposPermitidos = array('cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahorros', 'casa_valores');
+        $tipo = $tipoRaw !== '' && in_array($tipoRaw, $tiposPermitidos, true) ? $tipoRaw : 'cooperativa';
+
+        $segmentoRaw = $in['id_segmento'] ?? $in['segmento'] ?? null;
+        $segmentoId = $intOrNull($segmentoRaw);
+
+        $telefonoFijo = $digits($in['telefono_fijo'] ?? $in['telefono'] ?? $in['telefono_principal'] ?? '');
+        $telefonoMovil = $digits($in['telefono_movil'] ?? $in['celular'] ?? '');
+
+        $servicios = $in['servicios'] ?? array();
+        if (!is_array($servicios)) {
+            $servicios = array();
+        }
+        $servicios = array_values(array_unique(array_filter(array_map(static function ($value) {
+            if (is_int($value)) {
+                return $value > 0 ? $value : null;
+            }
+            if (is_numeric($value)) {
+                $num = (int)$value;
+                return $num > 0 ? $num : null;
+            }
+            return null;
+        }, $servicios))));
+
+        $data = array(
             'nombre'          => trim((string)($in['nombre'] ?? '')),
-            'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'
-            'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
-            'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
+            'nit'             => $digits($in['nit'] ?? $in['ruc'] ?? ''),
+            'ruc'             => $digits($in['ruc'] ?? $in['nit'] ?? ''),
+            'telefono_fijo'   => $telefonoFijo,
+            'telefono_movil'  => $telefonoMovil,
             'email'           => trim((string)($in['email'] ?? '')),
             'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
             'canton_id'       => $intOrNull($in['canton_id'] ?? null),
-            'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
-            'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
+            'tipo_entidad'    => $tipo,
+            'id_segmento'     => $segmentoId,
+            'segmento'        => $segmentoId !== null ? (string)$segmentoId : '',
             'notas'           => trim((string)($in['notas'] ?? '')),
-        ];
+            'servicios'       => $servicios,
+            'activa'          => isset($in['activa']) ? (bool)$in['activa'] : true,
+            'servicio_activo' => isset($in['servicio_activo']) ? (bool)$in['servicio_activo'] : null,
+        );
 
-        // servicios[] (opcional)
-        $serv = $in['servicios'] ?? [];
-        if (!is_array($serv)) $serv = [];
-        $data['servicios'] = array_values(array_unique(array_map(
-            static fn($x) => (int)$x,
-            array_filter($serv, static fn($x) => is_numeric($x))
-        )));
+        // Compatibilidad con formularios existentes
+        $data['telefono'] = $data['telefono_fijo'] !== '' ? $data['telefono_fijo'] : $data['telefono_movil'];
 
-        // Validación
-        $e = [];
+        $errors = array();
 
         if ($data['nombre'] === '') {
-            $e['nombre'] = 'El nombre es obligatorio';
+            $errors['nombre'] = 'El nombre es obligatorio';
         }
 
-        // ruc: si viene, 10-13 dígitos
-        if ($data['ruc'] !== '' && (strlen($data['ruc']) < 10 || strlen($data['ruc']) > 13)) {
-            $e['ruc'] = 'La cédula/RUC debe tener entre 10 y 13 dígitos';
+        if ($data['nit'] !== '' && (strlen($data['nit']) < 10 || strlen($data['nit']) > 13)) {
+            $errors['ruc'] = 'La cédula/RUC debe tener entre 10 y 13 dígitos';
         }
 
-        // fijo: si viene, 7 dígitos
         if ($data['telefono_fijo'] !== '' && strlen($data['telefono_fijo']) !== 7) {
-            $e['telefono_fijo'] = 'El teléfono fijo debe tener 7 dígitos';
+            $errors['telefono_fijo'] = 'El teléfono fijo debe tener 7 dígitos';
         }
 
-        // móvil: si viene, 10 dígitos
         if ($data['telefono_movil'] !== '' && strlen($data['telefono_movil']) !== 10) {
-            $e['telefono_movil'] = 'El celular debe tener 10 dígitos';
+            $errors['telefono_movil'] = 'El celular debe tener 10 dígitos';
         }
 
-        // email: si viene, formato válido
         if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $e['email'] = 'Email inválido';
+            $errors['email'] = 'Email inválido';
         }
 
-        // tipo_entidad: valores permitidos
-        $permitidos = ['cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores'];
-        if ($data['tipo_entidad'] === '' || !in_array($data['tipo_entidad'], $permitidos, true)) {
-            // por defecto dejamos "cooperativa"
-            $data['tipo_entidad'] = 'cooperativa';
+        if ($segmentoRaw !== null && $segmentoRaw !== '' && $segmentoId === null) {
+            $errors['segmento'] = 'El segmento debe ser un número entero';
         }
 
-        return ['ok' => empty($e), 'errors' => $e, 'data' => $data];
+        return array('ok' => empty($errors), 'errors' => $errors, 'data' => $data);
+    }
+
+    public function stringLength(string $value, int $min, int $max): bool
+    {
+        $length = mb_strlen($value);
+        return $length >= $min && $length <= $max;
+    }
+
+    public function regex(string $value, string $pattern): bool
+    {
+        return (bool)preg_match($pattern, $value);
+    }
+
+    public function dateTimeValid(string $value, string $format = DateTimeInterface::ATOM): bool
+    {
+        $dt = DateTimeImmutable::createFromFormat($format, $value);
+        if ($dt === false) {
+            return false;
+        }
+
+        return $dt->format($format) === $value;
+    }
+
+    public function dateTimeFuture(string $value, string $format = DateTimeInterface::ATOM): bool
+    {
+        if (!$this->dateTimeValid($value, $format)) {
+            return false;
+        }
+
+        $dt = DateTimeImmutable::createFromFormat($format, $value);
+        if ($dt === false) {
+            return false;
+        }
+
+        return $dt > new DateTimeImmutable();
+    }
+
+    public function digits(string $value, int $minLength, int $maxLength): bool
+    {
+        if ($value === '') {
+            return false;
+        }
+
+        if (!preg_match('/^\d+$/', $value)) {
+            return false;
+        }
+
+        $length = strlen($value);
+
+        return $length >= $minLength && $length <= $maxLength;
     }
 }
