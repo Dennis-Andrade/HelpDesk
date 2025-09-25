@@ -18,7 +18,7 @@ final class BuscarEntidadesService
     /**
      * @return array{items:array, total:int, page:int, perPage:int}
      */
-    public function buscar(string $q, int $page, int $perPage = 15): array
+    public function buscar(string $q, int $page, int $perPage = 10): array
     {
         $term = trim($q);
         if ($term !== '' && !$this->validator->stringLength($term, 3, 120)) {
@@ -30,7 +30,7 @@ final class BuscarEntidadesService
         }
 
         if ($perPage < 1) {
-            $perPage = 15;
+            $perPage = 10;
         } elseif ($perPage > 60) {
             $perPage = 60;
         }

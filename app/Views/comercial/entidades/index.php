@@ -197,7 +197,9 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
         <li class="ent-cards-grid__item" role="listitem">
           <article class="ent-card" aria-labelledby="ent-card-title-<?= h((string)$entityId) ?>">
             <header class="ent-card-head">
-              <div class="ent-card-icon" aria-hidden="true">🏦</div>
+              <div class="ent-card-icon" aria-hidden="true">
+                <span class="material-symbols-outlined" aria-hidden="true">account_balance</span>
+              </div>
               <h2 id="ent-card-title-<?= h((string)$entityId) ?>" class="ent-card-title"><?= h($cardTitle) ?></h2>
               <span class="ent-badge" aria-label="Servicios activos">
                 <?= h((string)$serviceCount) ?> servicios
@@ -298,7 +300,9 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
     <div tabindex="0" data-modal-sentinel="start"></div>
     <button type="button" class="ent-modal__close" aria-label="Cerrar" data-close-modal>&times;</button>
     <div class="ent-modal__header">
-      <div class="ent-card-icon" aria-hidden="true">🏦</div>
+      <div class="ent-card-icon" aria-hidden="true">
+        <span class="material-symbols-outlined" aria-hidden="true">account_balance</span>
+      </div>
       <div>
         <h2 id="ent-card-modal-title" class="ent-card-title">Entidad</h2>
         <p id="ent-card-modal-subtitle" class="ent-card-subtitle">—</p>

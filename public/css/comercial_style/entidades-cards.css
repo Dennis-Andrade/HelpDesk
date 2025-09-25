@@ -21,8 +21,14 @@
   margin:18px 0 0;
   padding:0;
   display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
-  gap:20px;
+  grid-template-columns:repeat(2, minmax(360px, 1fr));
+  gap:18px;
+}
+
+@media (max-width:900px){
+  .ent-cards-grid{
+    grid-template-columns:1fr;
+  }
 }
 .ent-cards-grid__item{ list-style:none; }
 
@@ -107,4 +113,51 @@
   .ent-search{ width:100%; flex-direction:column; align-items:stretch; }
   .ent-search button{ width:100%; }
   .ent-card-actions{ flex-direction:column; align-items:stretch; }
+}
+.ent-card-head{
+  display:flex;
+  align-items:center;
+  gap:.75rem;
+  background:var(--color-primary, #1e40af);
+  color:#fff;
+  border-top-left-radius:16px;
+  border-top-right-radius:16px;
+  padding:.85rem 1rem;
+  border-bottom:none;
+}
+
+.ent-card-head .ent-card-title{
+  color:#fff;
+}
+
+.ent-card-icon{
+  display:inline-grid;
+  place-items:center;
+  width:40px;
+  height:40px;
+  border-radius:10px;
+  background:rgba(255,255,255,.15);
+}
+
+.ent-card-icon .material-symbols-outlined{
+  font-size:24px;
+  line-height:1;
+  color:#fff;
+}
+
+.ent-modal__header{
+  background:var(--color-primary, #1e40af);
+  color:#fff;
+  border-bottom:none;
+}
+
+.ent-modal__header .ent-card-title,
+.ent-modal__header .ent-card-subtitle,
+.ent-modal__header .ent-badge{
+  color:#fff;
+}
+
+.ent-modal__header .ent-badge{
+  background:rgba(255,255,255,.2);
+  border-color:rgba(255,255,255,.35);
 }
