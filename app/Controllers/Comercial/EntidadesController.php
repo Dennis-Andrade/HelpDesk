@@ -145,7 +145,6 @@ final class EntidadesController
             echo 'No se pudo guardar la entidad';
             return;
         }
-
         redirect('/comercial/entidades?created=1');
     }
 
