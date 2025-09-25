@@ -37,7 +37,23 @@ final class BuscarEntidadesService
             $perPage = 60;
         }
 
-        $result = $this->repository->search($term, $perPage, $page);
+        $offset = ($page - 1) * $perPage;
+
+        $result = $this->repository->search($term, $perPage, $offset);
+
+        $total = (int)($result['total'] ?? 0);
+
+        if ($total > 0 && $offset >= $total) {
+            $page   = (int)ceil($total / $perPage);
+            $page   = $page > 0 ? $page : 1;
+            $offset = ($page - 1) * $perPage;
+            $result = $this->repository->search($term, $perPage, $offset);
+            $total  = (int)($result['total'] ?? $total);
+        }
+
+        if ($total === 0) {
+            $page = 1;
+        }
 
         $items = array_map(function (array $row): array {
             return $this->mapEntidad($row);
@@ -45,9 +61,9 @@ final class BuscarEntidadesService
 
         return array(
             'items'   => $items,
-            'total'   => (int)($result['total'] ?? 0),
-            'page'    => (int)($result['page'] ?? $page),
-            'perPage' => (int)($result['perPage'] ?? $perPage),
+            'total'   => $total,
+            'page'    => $page,
+            'perPage' => $perPage,
         );
     }
 
