@@ -65,3 +65,30 @@ function db(): \PDO
 {
     return Cnxn::pdo();
 }
+
+/**
+ * Conexión singleton usando pg_* para LISTEN/NOTIFY u operaciones nativas.
+ *
+ * @return resource
+ */
+function pg()
+{
+    static $pg = null;
+    if ($pg !== null) {
+        return $pg;
+    }
+
+    $host = getenv('PGHOST')     ?: '127.0.0.1';
+    $port = getenv('PGPORT')     ?: '5433';
+    $db   = getenv('PGDATABASE') ?: 'helpdesk';
+    $user = getenv('PGUSER')     ?: 'postgres';
+    $pass = getenv('PGPASSWORD') ?: '091914092bc';
+
+    $connStr = sprintf('host=%s port=%s dbname=%s user=%s password=%s', $host, $port, $db, $user, $pass);
+    $pg = \pg_connect($connStr);
+    if (!$pg) {
+        throw new \RuntimeException('No se pudo conectar con pg_*');
+    }
+
+    return $pg;
+}

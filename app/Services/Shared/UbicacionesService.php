@@ -29,6 +29,6 @@ final class UbicacionesService
     public function cantones(int $provinciaId): array
     {
         if ($provinciaId <= 0) return [];
-        return $this->repo->cantonesPorProvincia($provinciaId);
+        return $this->repo->cantones($provinciaId);
     }
 }
