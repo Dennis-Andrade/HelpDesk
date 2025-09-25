@@ -24,7 +24,6 @@ final class EntidadRepository extends BaseRepository
         if ($term === '') {
             $term = null;
         }
-
         $sql = 'SELECT id, nombre, ruc, telefono, email, provincia, canton, segmento, servicios_text, activa, total
                 FROM public.f_cooperativas_cards(:q, :limit, :offset)';
 
@@ -34,6 +33,14 @@ final class EntidadRepository extends BaseRepository
             ':offset' => array($offset, PDO::PARAM_INT),
         );
 
+        $sql = 'SELECT id, nombre, ruc, telefono, email, provincia, canton, segmento, servicios_text, activa, total
+                FROM public.f_cooperativas_cards(:q, :limit, :offset)';
+
+        $params = array(
+            ':q'      => $term === null ? array(null, PDO::PARAM_NULL) : array($term, PDO::PARAM_STR),
+            ':limit'  => array($limit, PDO::PARAM_INT),
+            ':offset' => array($offset, PDO::PARAM_INT),
+        );
         try {
             $rows = $this->db->fetchAll($sql, $params);
         } catch (\Throwable $e) {
