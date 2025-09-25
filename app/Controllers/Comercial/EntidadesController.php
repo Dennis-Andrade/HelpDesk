@@ -37,9 +37,7 @@ final class EntidadesController
         $q       = trim((string)($filters['q'] ?? ''));
         $pager   = Pagination::fromRequest($filters, 1, 10, 0);
         $result  = $this->buscarEntidades->buscar($q, $pager->page, $pager->perPage);
-
         $success = isset($_GET['ok']) && $_GET['ok'] !== '';
-
         return view('comercial/entidades/index', [
             'layout'  => 'layout',
             'title'   => 'Entidades financieras',
