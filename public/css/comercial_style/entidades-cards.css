@@ -17,14 +17,16 @@
 }
 
 .ent-toast{
-  background:#ecfdf3;
-  color:#05603a;
-  border:1px solid #abefc6;
-  border-radius:12px;
+  position:fixed;
+  top:16px;
+  right:16px;
+  z-index:9999;
   padding:.75rem 1rem;
-  margin:0 0 16px;
-  font-weight:600;
-  box-shadow:0 6px 18px rgba(4,120,87,.12);
+  background:var(--color-secondary-dark, #1f2937);
+  color:#fff;
+  border-radius:.5rem;
+  box-shadow:0 8px 24px rgba(0,0,0,.2);
+  font-weight:700;
 }
 
 .ent-cards-grid{

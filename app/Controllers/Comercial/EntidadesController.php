@@ -7,6 +7,7 @@ use App\Services\Shared\Breadcrumbs;
 use App\Services\Shared\Pagination;
 use App\Services\Shared\ValidationService;
 use App\Services\Shared\UbicacionesService;
+use App\Support\Logger;
 use function \view;
 use function \redirect;
 use function \csrf_token;
@@ -37,7 +38,14 @@ final class EntidadesController
         $q       = trim((string)($filters['q'] ?? ''));
         $pager   = Pagination::fromRequest($filters, 1, 10, 0);
         $result  = $this->buscarEntidades->buscar($q, $pager->page, $pager->perPage);
-        $success = isset($_GET['ok']) && $_GET['ok'] !== '';
+
+        $toastMessage = null;
+        if (isset($_GET['created']) && $_GET['created'] === '1') {
+            $toastMessage = 'Entidad creada correctamente';
+        } elseif (isset($_GET['ok']) && $_GET['ok'] === '1') {
+            $toastMessage = 'Cambios guardados';
+        }
+
         return view('comercial/entidades/index', [
             'layout'  => 'layout',
             'title'   => 'Entidades financieras',
@@ -48,7 +56,7 @@ final class EntidadesController
             'q'       => $q,
             'csrf'    => csrf_token(),
             'filters' => $filters,
-            'success' => $success,
+            'toastMessage' => $toastMessage,
         ]);
     }
     public function show(): void
@@ -130,15 +138,14 @@ final class EntidadesController
         }
 
         try {
-            $id = $repo->create($res['data']);
-            $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
+            $repo->create($res['data']);
         } catch (\Throwable $e) {
+            Logger::error($e, 'EntidadesController::create');
             http_response_code(500);
             echo 'No se pudo guardar la entidad';
             return;
         }
-
-        redirect('/comercial/entidades?ok=1');
+        redirect('/comercial/entidades?created=1');
     }
 
     public function editForm(): void

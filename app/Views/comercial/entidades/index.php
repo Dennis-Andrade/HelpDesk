@@ -7,6 +7,7 @@ use App\Services\Shared\Pagination;
 /** @var string $q     Búsqueda actual */
 /** @var string $csrf  Token CSRF */
 /** @var array $filters Filtros activos */
+/** @var string|null $toastMessage Mensaje de éxito */
 
 function h($value): string
 {
@@ -113,7 +114,7 @@ function primaryEmail($row): ?string
     return $email === '' ? null : $email;
 }
 
-$success = !empty($success);
+$toastMessage = isset($toastMessage) && $toastMessage !== '' ? (string)$toastMessage : null;
 $filters = isset($filters) && is_array($filters) ? $filters : [];
 if ($q !== '') {
     $filters['q'] = $q;
@@ -157,8 +158,8 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
 }
 ?>
 <section class="ent-list ent-list--cards" aria-labelledby="ent-cards-title">
-  <?php if ($success): ?>
-    <div class="ent-toast" role="status" aria-live="polite">Cambios guardados.</div>
+  <?php if ($toastMessage !== null): ?>
+    <div id="ent-toast" class="ent-toast" role="status" aria-live="polite"><?= h($toastMessage) ?></div>
   <?php endif; ?>
   <header class="ent-toolbar" role="search">
     <div class="ent-toolbar__lead">
@@ -335,3 +336,18 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
 </div>
 
 <script src="/js/entidades_cards.js" defer></script>
+<?php if ($toastMessage !== null): ?>
+<script>
+(function(){
+  var toast = document.getElementById('ent-toast');
+  if(!toast){return;}
+  setTimeout(function(){
+    toast.style.transition = 'opacity .4s ease';
+    toast.style.opacity = '0';
+    setTimeout(function(){
+      if(toast.parentNode){ toast.parentNode.removeChild(toast); }
+    }, 400);
+  }, 10000);
+})();
+</script>
+<?php endif; ?>

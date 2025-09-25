@@ -276,24 +276,43 @@ final class EntidadRepository extends BaseRepository
     {
         $sql = '
             INSERT INTO ' . self::T_COOP . '
-                ( ' . self::COL_NOMBRE . ',
-                  ' . self::COL_RUC . ',
-                  ' . self::COL_TFIJ . ',
-                  ' . self::COL_TMOV . ',
-                  ' . self::COL_MAIL . ',
-                  ' . self::COL_PROV . ',
-                  ' . self::COL_CANTON . ',
-                  ' . self::COL_TIPO . ',
-                  ' . self::COL_SEGMENTO . ',
-                  ' . self::COL_NOTAS . ',
-                  ' . self::COL_ACTV . '
+                (
+                    ' . self::COL_NOMBRE . ',
+                    ' . self::COL_RUC . ',
+                    ' . self::COL_MAIL . ',
+                    ' . self::COL_PROV . ',
+                    ' . self::COL_CANTON . ',
+                    ' . self::COL_SEGMENTO . ',
+                    ' . self::COL_NOTAS . ',
+                    ' . self::COL_TIPO . '
                 )
             VALUES
-                ( :nombre, :ruc, :tfijo, :tmov, :email, :prov, :canton, :tipo, :segmento, :notas, :activa )
+                (
+                    :nombre,
+                    :ruc,
+                    :email,
+                    :provincia_id,
+                    :canton_id,
+                    :segmento_id,
+                    :notas,
+                    :tipo_entidad
+                )
             RETURNING ' . self::COL_ID . ' AS id
         ';
 
-        $params = $this->buildEntidadParams($d);
+        $params = array(
+            ':nombre'       => array($d['nombre'], PDO::PARAM_STR),
+            ':ruc'          => $this->nullableStringParam($d['ruc'] ?? $d['nit'] ?? ''),
+            ':email'        => $this->nullableStringParam($d['email'] ?? ''),
+            ':provincia_id' => $this->nullableIntParam($d['provincia_id'] ?? null),
+            ':canton_id'    => $this->nullableIntParam($d['canton_id'] ?? null),
+            ':segmento_id'  => $this->nullableIntParam($d['id_segmento'] ?? $d['segmento_id'] ?? null),
+            ':notas'        => $this->nullableStringParam($d['notas'] ?? ''),
+            ':tipo_entidad' => array(
+                isset($d['tipo_entidad']) && $d['tipo_entidad'] !== '' ? (string)$d['tipo_entidad'] : 'cooperativa',
+                PDO::PARAM_STR
+            ),
+        );
 
         try {
             $rows = $this->db->execute($sql, $params);
@@ -302,7 +321,11 @@ final class EntidadRepository extends BaseRepository
         }
 
         $row = is_array($rows) && isset($rows[0]) ? $rows[0] : null;
-        return $row && isset($row['id']) ? (int)$row['id'] : 0;
+        if (!$row || !isset($row['id'])) {
+            throw new RuntimeException('INSERT cooperativas no devolvió id');
+        }
+
+        return (int)$row['id'];
     }
 
     /** Actualizar */
