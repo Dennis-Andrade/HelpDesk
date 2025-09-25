@@ -1,5 +1,10 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Services\Shared;
+
+use DateTimeImmutable;
+use DateTimeInterface;
 
 final class ValidationService
 {
@@ -17,70 +22,98 @@ final class ValidationService
      */
     public function validarEntidad(array $in): array
     {
-        // Helpers
-        $digits = static fn($s) => preg_replace('/\D+/', '', (string)$s);
-        $intOrNull = static function($v) {
-            if ($v === '' || $v === null) return null;
-            if (is_numeric($v)) return (int)$v;
-            return null;
+        $digits = static fn($value): string => preg_replace('/\D+/', '', (string)$value);
+        $intOrNull = static function ($value) {
+            if ($value === null || $value === '') {
+                return null;
+            }
+            if (!is_numeric($value)) {
+                return null;
+            }
+            return (int)$value;
         };
 
-        // Normalización
-        $data = [
-            'nombre'          => trim((string)($in['nombre'] ?? '')),
-            'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'
-            'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
-            'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
-            'email'           => trim((string)($in['email'] ?? '')),
-            'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
-            'canton_id'       => $intOrNull($in['canton_id'] ?? null),
-            'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
-            'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
-            'notas'           => trim((string)($in['notas'] ?? '')),
-        ];
+        $telefono = trim((string)($in['telefono'] ?? $in['telefono_principal'] ?? ''));
 
-        // servicios[] (opcional)
-        $serv = $in['servicios'] ?? [];
-        if (!is_array($serv)) $serv = [];
-        $data['servicios'] = array_values(array_unique(array_map(
-            static fn($x) => (int)$x,
-            array_filter($serv, static fn($x) => is_numeric($x))
-        )));
+        $data = array(
+            'nombre'       => trim((string)($in['nombre'] ?? '')),
+            'ruc'          => $digits($in['ruc'] ?? $in['nit'] ?? ''),
+            'telefono'     => $telefono,
+            'email'        => trim((string)($in['email'] ?? '')),
+            'provincia_id' => $intOrNull($in['provincia_id'] ?? null),
+            'canton_id'    => $intOrNull($in['canton_id'] ?? null),
+            'segmento'     => trim((string)($in['segmento'] ?? '')),
+        );
+        $data['nit'] = $data['ruc'];
 
-        // Validación
-        $e = [];
+        $errors = array();
 
         if ($data['nombre'] === '') {
-            $e['nombre'] = 'El nombre es obligatorio';
+            $errors['nombre'] = 'El nombre es obligatorio';
         }
 
-        // ruc: si viene, 10-13 dígitos
         if ($data['ruc'] !== '' && (strlen($data['ruc']) < 10 || strlen($data['ruc']) > 13)) {
-            $e['ruc'] = 'La cédula/RUC debe tener entre 10 y 13 dígitos';
+            $errors['ruc'] = 'La cédula/RUC debe tener entre 10 y 13 dígitos';
         }
 
-        // fijo: si viene, 7 dígitos
-        if ($data['telefono_fijo'] !== '' && strlen($data['telefono_fijo']) !== 7) {
-            $e['telefono_fijo'] = 'El teléfono fijo debe tener 7 dígitos';
+        if ($data['telefono'] !== '' && !preg_match('/^[0-9+\-\s]{6,20}$/', $data['telefono'])) {
+            $errors['telefono'] = 'El teléfono debe tener entre 6 y 20 caracteres numéricos';
         }
 
-        // móvil: si viene, 10 dígitos
-        if ($data['telefono_movil'] !== '' && strlen($data['telefono_movil']) !== 10) {
-            $e['telefono_movil'] = 'El celular debe tener 10 dígitos';
-        }
-
-        // email: si viene, formato válido
         if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $e['email'] = 'Email inválido';
+            $errors['email'] = 'Email inválido';
         }
 
-        // tipo_entidad: valores permitidos
-        $permitidos = ['cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores'];
-        if ($data['tipo_entidad'] === '' || !in_array($data['tipo_entidad'], $permitidos, true)) {
-            // por defecto dejamos "cooperativa"
-            $data['tipo_entidad'] = 'cooperativa';
+        return array('ok' => empty($errors), 'errors' => $errors, 'data' => $data);
+    }
+
+    public function stringLength(string $value, int $min, int $max): bool
+    {
+        $length = mb_strlen($value);
+        return $length >= $min && $length <= $max;
+    }
+
+    public function regex(string $value, string $pattern): bool
+    {
+        return (bool)preg_match($pattern, $value);
+    }
+
+    public function dateTimeValid(string $value, string $format = DateTimeInterface::ATOM): bool
+    {
+        $dt = DateTimeImmutable::createFromFormat($format, $value);
+        if ($dt === false) {
+            return false;
         }
 
-        return ['ok' => empty($e), 'errors' => $e, 'data' => $data];
+        return $dt->format($format) === $value;
+    }
+
+    public function dateTimeFuture(string $value, string $format = DateTimeInterface::ATOM): bool
+    {
+        if (!$this->dateTimeValid($value, $format)) {
+            return false;
+        }
+
+        $dt = DateTimeImmutable::createFromFormat($format, $value);
+        if ($dt === false) {
+            return false;
+        }
+
+        return $dt > new DateTimeImmutable();
+    }
+
+    public function digits(string $value, int $minLength, int $maxLength): bool
+    {
+        if ($value === '') {
+            return false;
+        }
+
+        if (!preg_match('/^\d+$/', $value)) {
+            return false;
+        }
+
+        $length = strlen($value);
+
+        return $length >= $minLength && $length <= $maxLength;
     }
 }
