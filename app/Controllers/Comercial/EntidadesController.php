@@ -37,7 +37,7 @@ final class EntidadesController
         $q       = trim((string)($filters['q'] ?? ''));
         $pager   = Pagination::fromRequest($filters, 1, 10, 0);
         $result  = $this->buscarEntidades->buscar($q, $pager->page, $pager->perPage);
-
+        $success = isset($_GET['ok']) && $_GET['ok'] !== '';
         return view('comercial/entidades/index', [
             'layout'  => 'layout',
             'title'   => 'Entidades financieras',
@@ -48,6 +48,7 @@ final class EntidadesController
             'q'       => $q,
             'csrf'    => csrf_token(),
             'filters' => $filters,
+            'success' => $success,
         ]);
     }
     public function show(): void
@@ -89,12 +90,16 @@ final class EntidadesController
         ]);
 
         $provincias = $this->ubicaciones->provincias();
+        $repo        = $this->entidades;
 
         view('comercial/entidades/create', [
             'title'      => 'Nueva Entidad',
             'crumbs'     => $crumbs,
             'csrf'       => csrf_token(),
             'provincias' => $provincias, // <<<<<
+            'action'     => '/comercial/entidades',
+            'segmentos'  => $repo->segmentos(),
+            'servicios'  => $repo->servicios(),
         ]);
     }
 
@@ -106,24 +111,34 @@ final class EntidadesController
         $res  = $this->validator->validarEntidad($_POST);
 
         if (!$res['ok']) {
+            http_response_code(400);
             $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Crear']];
             view('comercial/entidades/create', [
                 'title'=>'Nueva Cooperativa',
                 'crumbs'=>$crumbs,
                 'csrf'=>csrf_token(),
                 'provincias'=>$this->ubicaciones->provincias(),
+                'cantones'=>$this->ubicaciones->cantones((int)($res['data']['provincia_id'] ?? 0)),
                 'segmentos'=>$repo->segmentos(),
                 'servicios'=>$repo->servicios(),
                 'tipos'=>['cooperativa','mutualista','sujeto obligado no financiero','caja de ahorros','casa de valores'],
                 'errors'=>$res['errors'],
-                'old'=>$res['data']
+                'old'=>$res['data'],
+                'action'=>'/comercial/entidades',
             ]);
             return;
         }
 
-        $id = $repo->create($res['data']);
-        $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
-        redirect('/comercial/entidades');
+        try {
+            $id = $repo->create($res['data']);
+            $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo 'No se pudo guardar la entidad';
+            return;
+        }
+
+        redirect('/comercial/entidades?ok=1');
     }
 
     public function editForm(): void
@@ -142,6 +157,7 @@ final class EntidadesController
         ]);
 
         $provincias = $this->ubicaciones->provincias();
+        $cantones   = $this->ubicaciones->cantones((int)($row['provincia_id'] ?? 0));
 
         view('comercial/entidades/edit', [
             'title'      => 'Editar Entidad',
@@ -149,20 +165,27 @@ final class EntidadesController
             'item'       => $row,
             'csrf'       => csrf_token(),
             'provincias' => $provincias, // <<<<<
+            'action'     => '/comercial/entidades/' . $id,
+            'cantones'   => $cantones,
+            'segmentos'  => $repo->segmentos(),
+            'servicios'  => $repo->servicios(),
         ]);
     }
 
-
-    public function update(): void
+    public function update($id): void
     {
         if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id < 1) { redirect('/comercial/entidades'); }
+        $id = (int)$id;
+        if ($id < 1) {
+            $id = (int)($_POST['id'] ?? 0);
+        }
+        if ($id < 1) { redirect('/comercial/entidades'); return; }
 
         $repo = $this->entidades;
         $res  = $this->validator->validarEntidad($_POST);
 
         if (!$res['ok']) {
+            http_response_code(400);
             $row = array_merge((array)$repo->findById($id), $res['data']);
             $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Editar']];
             view('comercial/entidades/edit', [
@@ -171,18 +194,27 @@ final class EntidadesController
                 'item'=>$row,
                 'csrf'=>csrf_token(),
                 'provincias'=>$this->ubicaciones->provincias(),
+                'cantones'=>$this->ubicaciones->cantones((int)($row['provincia_id'] ?? $res['data']['provincia_id'] ?? 0)),
                 'segmentos'=>$repo->segmentos(),
                 'servicios'=>$repo->servicios(),
                 'tipos'=>['cooperativa','mutualista','sujeto obligado no financiero','caja de ahorros','casa de valores'],
                 'errors'=>$res['errors'],
-                'sel'=>array_map('intval',(array)($_POST['servicios'] ?? []))
+                'sel'=>array_map('intval',(array)($_POST['servicios'] ?? [])),
+                'action'=>'/comercial/entidades/' . $id,
             ]);
             return;
         }
 
-        $repo->update($id, $res['data']);
-        $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
-        redirect('/comercial/entidades');
+        try {
+            $repo->update($id, $res['data']);
+            $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
+        } catch (\Throwable $e) {
+            http_response_code(500);
+            echo 'No se pudo actualizar la entidad';
+            return;
+        }
+
+        redirect('/comercial/entidades?ok=1');
     }
 
     public function delete(): void

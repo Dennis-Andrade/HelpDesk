@@ -16,6 +16,17 @@
   color:#9aa3b2;
 }
 
+.ent-toast{
+  background:#ecfdf3;
+  color:#05603a;
+  border:1px solid #abefc6;
+  border-radius:12px;
+  padding:.75rem 1rem;
+  margin:0 0 16px;
+  font-weight:600;
+  box-shadow:0 6px 18px rgba(4,120,87,.12);
+}
+
 .ent-cards-grid{
   list-style:none;
   margin:18px 0 0;
@@ -118,7 +129,7 @@
   display:flex;
   align-items:center;
   gap:.75rem;
-  background: var(--color-secondary-dark);
+  background:var(--color-primary, #1e40af);
   color:#fff;
   border-top-left-radius:16px;
   border-top-right-radius:16px;

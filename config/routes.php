@@ -48,9 +48,9 @@ $router->get(
     ['middleware'=>['auth','role:comercial']]
 );
 $router->get('/comercial/entidades/crear',     [EntidadesController::class, 'createForm'], ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/entidades/crear',    [EntidadesController::class, 'create'],     ['middleware'=>['auth','role:comercial,administrador']]);
+$router->post('/comercial/entidades',          [EntidadesController::class, 'create'],     ['middleware'=>['auth','role:comercial,administrador']]);
 $router->get('/comercial/entidades/editar',    [EntidadesController::class, 'editForm'],   ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/entidades/editar',   [EntidadesController::class, 'update'],     ['middleware'=>['auth','role:comercial,administrador']]);
+$router->post('/comercial/entidades/{id}',     [EntidadesController::class, 'update'],     ['middleware'=>['auth','role:comercial,administrador']]);
 $router->post('/comercial/entidades/eliminar', [EntidadesController::class, 'delete'],     ['middleware'=>['auth','role:comercial,administrador']]);
 
 // 
