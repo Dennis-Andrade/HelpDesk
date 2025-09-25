@@ -13,13 +13,40 @@ $segmentosData = is_array($segmentos ?? null) ? $segmentos : [];
 $provSel = (int)($item['provincia_id'] ?? $old['provincia_id'] ?? 0);
 $cantSel = (int)($item['canton_id'] ?? $old['canton_id'] ?? 0);
 
-$val = static function (string $key, $default = '') use ($old, $item) {
+$aliases = [
+    'nit'            => 'ruc',
+    'telefono_fijo'  => 'telefono_fijo_1',
+    'telefono_fijo_1'=> 'telefono_fijo_1',
+    'telefono_movil' => 'telefono_movil',
+    'provincia_id'   => 'provincia_id',
+    'canton_id'      => 'canton_id',
+    'id_segmento'    => 'id_segmento',
+    'servicios'      => 'servicios',
+    'notas'          => 'notas',
+    'nombre'         => 'nombre',
+    'email'          => 'email',
+    'tipo_entidad'   => 'tipo_entidad',
+];
+
+$val = static function (string $key, $default = '') use ($old, $item, $aliases) {
     if (array_key_exists($key, $old)) {
         return $old[$key];
     }
 
     if (array_key_exists($key, $item)) {
         return $item[$key];
+    }
+
+    if (isset($aliases[$key])) {
+        $alias = $aliases[$key];
+        if ($alias !== $key) {
+            if (array_key_exists($alias, $old)) {
+                return $old[$alias];
+            }
+            if (array_key_exists($alias, $item)) {
+                return $item[$alias];
+            }
+        }
     }
 
     return $default;
@@ -30,6 +57,9 @@ if (!is_array($servSel)) {
     $servSel = [];
 }
 $servSel = array_map('intval', $servSel);
+if (empty($servSel) && isset($sel) && is_array($sel)) {
+    $servSel = array_map('intval', $sel);
+}
 
 $segmentoActual = (string)$val('id_segmento', '');
 $segmentOptions = ['' => '-- N/A --'];

@@ -138,7 +138,8 @@ final class EntidadesController
         }
 
         try {
-            $repo->create($res['data']);
+            $id = $repo->create($res['data']);
+            $repo->replaceServicios($id, $res['data']['servicios'] ?? array());
         } catch (\Throwable $e) {
             Logger::error($e, 'EntidadesController::create');
             http_response_code(500);
