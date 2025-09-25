@@ -24,7 +24,6 @@ final class EntidadRepository extends BaseRepository
         if ($term === '') {
             $term = null;
         }
-
         $sql = 'SELECT id, nombre, ruc, telefono, email, provincia, canton, segmento, servicios_text, activa, total
                 FROM public.f_cooperativas_cards(:q, :limit, :offset)';
 
