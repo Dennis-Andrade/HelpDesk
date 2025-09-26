@@ -5,6 +5,26 @@ $errors = is_array($errors ?? null) ? $errors : [];
 $item   = is_array($item ?? null) ? $item : [];
 $old    = is_array($old ?? null) ? $old : [];
 
+$aliases = [
+    'nit'             => ['ruc'],
+    'ruc'             => ['nit'],
+    'telefono_fijo'   => ['telefono_fijo_1'],
+    'telefono_fijo_1' => ['telefono_fijo'],
+    'telefono_movil'  => [],
+    'id_segmento'     => ['segmento_id'],
+    'servicios'       => [],
+];
+
+$error = static function (string $key) use ($errors, $aliases) {
+    $keys = array_merge([$key], $aliases[$key] ?? []);
+    foreach ($keys as $alias) {
+        if (isset($errors[$alias])) {
+            return $errors[$alias];
+        }
+    }
+    return null;
+};
+
 $provincias = is_array($provincias ?? null) ? $provincias : [];
 $cantones   = is_array($cantones ?? null) ? $cantones : [];
 $servicios  = is_array($servicios ?? null) ? $servicios : [];
@@ -13,13 +33,17 @@ $segmentosData = is_array($segmentos ?? null) ? $segmentos : [];
 $provSel = (int)($item['provincia_id'] ?? $old['provincia_id'] ?? 0);
 $cantSel = (int)($item['canton_id'] ?? $old['canton_id'] ?? 0);
 
-$val = static function (string $key, $default = '') use ($old, $item) {
-    if (array_key_exists($key, $old)) {
-        return $old[$key];
+$val = static function (string $key, $default = '') use ($old, $item, $aliases) {
+    $keys = array_merge([$key], $aliases[$key] ?? []);
+    foreach ($keys as $alias) {
+        if (array_key_exists($alias, $old)) {
+            return $old[$alias];
+        }
     }
-
-    if (array_key_exists($key, $item)) {
-        return $item[$key];
+    foreach ($keys as $alias) {
+        if (array_key_exists($alias, $item)) {
+            return $item[$alias];
+        }
     }
 
     return $default;
@@ -54,13 +78,13 @@ if (!empty($segmentosData)) {
     ];
 }
 
-$tipoActual = (string)($item['tipo_entidad'] ?? $old['tipo_entidad'] ?? 'cooperativa');
+$tipoActual = (string)$val('tipo_entidad', 'cooperativa');
 $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahorros', 'casa_valores'];
 ?>
 
 <div class="ent-form__grid grid grid-2">
   <label class="col-span-2">
-    Nombre * <?= isset($errors['nombre']) ? '<small class="text-error">' . $errors['nombre'] . '</small>' : '' ?>
+    Nombre * <?= ($error('nombre') !== null) ? '<small class="text-error">' . $error('nombre') . '</small>' : '' ?>
     <input
       type="text"
       name="nombre"
@@ -70,7 +94,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
   </label>
 
   <label>
-    Cédula / RUC (10–13) <?= isset($errors['ruc']) ? '<small class="text-error">' . $errors['ruc'] . '</small>' : '' ?>
+    Cédula / RUC (10–13) <?= ($error('ruc') !== null) ? '<small class="text-error">' . $error('ruc') . '</small>' : '' ?>
     <input
       type="text"
       name="nit"
@@ -84,7 +108,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
   </label>
 
   <label>
-    Teléfono fijo <?= isset($errors['telefono_fijo']) ? '<small class="text-error">' . $errors['telefono_fijo'] . '</small>' : '' ?>
+    Teléfono fijo <?= ($error('telefono_fijo') !== null) ? '<small class="text-error">' . $error('telefono_fijo') . '</small>' : '' ?>
     <input
       type="text"
       name="telefono_fijo"
@@ -98,7 +122,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
   </label>
 
   <label class="col-span-2">
-    Celular <?= isset($errors['telefono_movil']) ? '<small class="text-error">' . $errors['telefono_movil'] . '</small>' : '' ?>
+    Celular <?= ($error('telefono_movil') !== null) ? '<small class="text-error">' . $error('telefono_movil') . '</small>' : '' ?>
     <input
       type="text"
       name="telefono_movil"
@@ -112,7 +136,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
   </label>
 
   <label class="col-span-2">
-    Email <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
+    Email <?= ($error('email') !== null) ? '<small class="text-error">' . $error('email') . '</small>' : '' ?>
     <input
       type="email"
       name="email"
@@ -152,7 +176,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
     </label>
 
     <label class="col-span-2">
-      Tipo de entidad
+      Tipo de entidad <?= ($error('tipo_entidad') !== null) ? '<small class="text-error">' . $error('tipo_entidad') . '</small>' : '' ?>
       <select id="tipo_entidad" name="tipo_entidad" class="select">
         <?php foreach ($tiposEntidad as $tipo): ?>
           <option value="<?= htmlspecialchars($tipo, ENT_QUOTES, 'UTF-8') ?>" <?= $tipo === $tipoActual ? 'selected' : '' ?>>
@@ -164,7 +188,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
   </div>
 
   <label class="col-span-2">
-    Segmento (solo cooperativa)
+    Segmento (solo cooperativa) <?= ($error('id_segmento') !== null) ? '<small class="text-error">' . $error('id_segmento') . '</small>' : '' ?>
     <select name="id_segmento">
       <?php foreach ($segmentOptions as $valor => $label): ?>
         <option value="<?= htmlspecialchars($valor, ENT_QUOTES, 'UTF-8') ?>" <?= $segmentoActual === (string)$valor ? 'selected' : '' ?>>

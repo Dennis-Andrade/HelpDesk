@@ -22,73 +22,78 @@ final class ValidationService
      */
     public function validarEntidad(array $in): array
     {
-        // Helpers
-        $digits = static fn($s) => preg_replace('/\D+/', '', (string)$s);
-        $intOrNull = static function($v) {
-            if ($v === '' || $v === null) return null;
-            if (is_numeric($v)) return (int)$v;
-            return null;
+        $digits = static function ($value): ?string {
+            $value = preg_replace('/\D+/', '', (string)$value);
+            return $value === '' ? null : $value;
+        };
+        $strOrNull = static function ($value): ?string {
+            $value = trim((string)$value);
+            return $value === '' ? null : $value;
+        };
+        $intOrNull = static function ($value): ?int {
+            $value = trim((string)$value);
+            return $value === '' ? null : (int)$value;
         };
 
-        // Normalización
+        $tipo = $in['tipo_entidad'] ?? 'cooperativa';
         $data = [
+            'id'              => null,
             'nombre'          => trim((string)($in['nombre'] ?? '')),
-            'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'
-            'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
-            'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
-            'email'           => trim((string)($in['email'] ?? '')),
-            'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
-            'canton_id'       => $intOrNull($in['canton_id'] ?? null),
-            'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
-            'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
-            'notas'           => trim((string)($in['notas'] ?? '')),
+            'ruc'             => $digits($in['ruc'] ?? $in['nit'] ?? null),
+            'telefono'        => null,
+            'telefono_fijo_1' => $digits($in['telefono_fijo_1'] ?? $in['telefono_fijo'] ?? null),
+            'telefono_movil'  => $digits($in['telefono_movil'] ?? null),
+            'email'           => $strOrNull($in['email'] ?? null),
+            'provincia_id'    => $intOrNull($in['provincia_id'] ?? ''),
+            'canton_id'       => $intOrNull($in['canton_id'] ?? ''),
+            'tipo_entidad'    => $strOrNull($tipo),
+            'id_segmento'     => $tipo === 'cooperativa' ? $intOrNull($in['id_segmento'] ?? '') : null,
+            'notas'           => $strOrNull($in['notas'] ?? null),
+            'servicios'       => [],
         ];
-        // Alias para compatibilidad con repositorios que esperan 'nit'.
-        $data['nit'] = $data['ruc'];
 
-        // servicios[] (opcional)
-        $serv = $in['servicios'] ?? [];
-        if (!is_array($serv)) $serv = [];
-        $data['servicios'] = array_values(array_unique(array_map(
-            static fn($x) => (int)$x,
-            array_filter($serv, static fn($x) => is_numeric($x))
-        )));
+        $servicios = array_values(array_unique(array_map('intval', (array)($in['servicios'] ?? []))));
+        if (in_array(1, $servicios, true)) {
+            $servicios = [1];
+        }
+        $data['servicios'] = $servicios;
 
-        // Validación
-        $e = [];
-
+        $errors = [];
         if ($data['nombre'] === '') {
-            $e['nombre'] = 'El nombre es obligatorio';
+            $errors['nombre'] = 'El nombre es obligatorio';
         }
 
-        // ruc: si viene, 10-13 dígitos
-        if ($data['ruc'] !== '' && (strlen($data['ruc']) < 10 || strlen($data['ruc']) > 13)) {
-            $e['ruc'] = 'La cédula/RUC debe tener entre 10 y 13 dígitos';
+        if ($data['email'] !== null && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Email inválido';
         }
 
-        // fijo: si viene, 7 dígitos
-        if ($data['telefono_fijo'] !== '' && strlen($data['telefono_fijo']) !== 7) {
-            $e['telefono_fijo'] = 'El teléfono fijo debe tener 7 dígitos';
+        if ($data['ruc'] !== null) {
+            $len = strlen($data['ruc']);
+            if ($len < 10 || $len > 13) {
+                $errors['ruc'] = 'La cédula/RUC debe tener entre 10 y 13 dígitos';
+            }
         }
 
-        // móvil: si viene, 10 dígitos
-        if ($data['telefono_movil'] !== '' && strlen($data['telefono_movil']) !== 10) {
-            $e['telefono_movil'] = 'El celular debe tener 10 dígitos';
+        if ($data['telefono_fijo_1'] !== null && strlen($data['telefono_fijo_1']) !== 7) {
+            $errors['telefono_fijo_1'] = 'El teléfono fijo debe tener 7 dígitos';
         }
 
-        // email: si viene, formato válido
-        if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $e['email'] = 'Email inválido';
+        if ($data['telefono_movil'] !== null && strlen($data['telefono_movil']) !== 10) {
+            $errors['telefono_movil'] = 'El celular debe tener 10 dígitos';
         }
 
-        // tipo_entidad: valores permitidos
         $permitidos = ['cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores'];
-        if ($data['tipo_entidad'] === '' || !in_array($data['tipo_entidad'], $permitidos, true)) {
-            // por defecto dejamos "cooperativa"
-            $data['tipo_entidad'] = 'cooperativa';
+        if ($data['tipo_entidad'] === null || !in_array($data['tipo_entidad'], $permitidos, true)) {
+            $errors['tipo_entidad'] = 'Tipo de entidad inválido';
         }
 
-        return ['ok' => empty($e), 'errors' => $e, 'data' => $data];
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        } elseif ($data['id_segmento'] === null) {
+            $errors['id_segmento'] = 'Debe seleccionar un segmento';
+        }
+
+        return ['ok' => empty($errors), 'errors' => $errors, 'data' => $data];
     }
 
     public function stringLength(string $value, int $min, int $max): bool
