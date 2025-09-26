@@ -15,7 +15,8 @@ final class ActualizarEntidadService
     {
         $v = $this->val->validarEntidad($input);
         if (!$v['ok']) return ['ok'=>false, 'errors'=>$v['errors'], 'data'=>$v['data']];
-        $ok = $this->repo->update($id, $v['data']);
-        return ['ok'=>$ok];
+        $this->repo->update($id, $v['data']);
+        $this->repo->replaceServicios($id, $v['data']['servicios']);
+        return ['ok'=>true];
     }
 }

@@ -16,6 +16,7 @@ final class CrearEntidadService
         $v = $this->val->validarEntidad($input);
         if (!$v['ok']) return ['ok'=>false, 'errors'=>$v['errors'], 'data'=>$v['data']];
         $id = $this->repo->create($v['data']);
+        $this->repo->replaceServicios($id, $v['data']['servicios']);
         return ['ok'=>true, 'id'=>$id];
     }
 }

@@ -8,6 +8,8 @@ use App\Services\Shared\Pagination;
 use App\Services\Shared\ValidationService;
 use App\Services\Shared\UbicacionesService;
 use App\Support\Logger;
+use PDOException;
+use function Config\db;
 use function \view;
 use function \redirect;
 use function \csrf_token;
@@ -26,10 +28,110 @@ final class EntidadesController
         ?ValidationService $validator = null,
         ?UbicacionesService $ubicaciones = null
     ) {
-        $this->entidades       = $entidades ?? new EntidadRepository();
+        $repo                  = $entidades ?? new EntidadRepository(db());
+        $this->entidades       = $repo;
         $this->validator       = $validator ?? new ValidationService();
         $this->ubicaciones     = $ubicaciones ?? new UbicacionesService();
-        $this->buscarEntidades = $buscarEntidades ?? new BuscarEntidadesService($this->entidades, $this->validator);
+        $this->buscarEntidades = $buscarEntidades ?? new BuscarEntidadesService($repo, $this->validator);
+    }
+
+    private function strOrNull($v)
+    {
+        $v = trim((string)$v);
+        return $v === '' ? null : $v;
+    }
+
+    private function intOrNull($v)
+    {
+        $v = trim((string)$v);
+        return $v === '' ? null : (int)$v;
+    }
+
+    private function digitsOrNull($v)
+    {
+        $v = trim((string)$v);
+        if ($v === '') {
+            return null;
+        }
+        $digits = preg_replace('/\D+/', '', $v);
+        return $digits === '' ? null : $digits;
+    }
+
+    private function intsFromArray($a)
+    {
+        return array_values(array_unique(array_map('intval', (array)$a)));
+    }
+
+    private function makeDto(array $in): array
+    {
+        $tipo = $in['tipo_entidad'] ?? 'cooperativa';
+        $dto  = [
+            'id'              => null,
+            'nombre'          => trim((string)($in['nombre'] ?? '')),
+            'ruc'             => isset($in['ruc']) ? $this->digitsOrNull($in['ruc'])
+                                  : (isset($in['nit']) ? $this->digitsOrNull($in['nit']) : null),
+            'telefono'        => null,
+            'telefono_fijo_1' => isset($in['telefono_fijo_1']) ? $this->digitsOrNull($in['telefono_fijo_1'])
+                                  : (isset($in['telefono_fijo']) ? $this->digitsOrNull($in['telefono_fijo']) : null),
+            'telefono_movil'  => $this->digitsOrNull($in['telefono_movil'] ?? ''),
+            'email'           => $this->strOrNull($in['email'] ?? ''),
+            'provincia_id'    => $this->intOrNull($in['provincia_id'] ?? ''),
+            'canton_id'       => $this->intOrNull($in['canton_id'] ?? ''),
+            'tipo_entidad'    => $this->strOrNull($tipo),
+            'id_segmento'     => $tipo === 'cooperativa'
+                                   ? $this->intOrNull($in['id_segmento'] ?? '')
+                                   : null,
+            'notas'           => $this->strOrNull($in['notas'] ?? ''),
+            'servicios'       => $this->intsFromArray($in['servicios'] ?? []),
+        ];
+        if (in_array(1, $dto['servicios'], true)) {
+            $dto['servicios'] = [1];
+        }
+        return $dto;
+    }
+
+    /**
+     * @return array{errors:array<string,string>, data:array<string,mixed>}
+     */
+    private function validateDto(array $dto): array
+    {
+        $errors = [];
+
+        if ($dto['nombre'] === '') {
+            $errors['nombre'] = 'El nombre es obligatorio';
+        }
+
+        if ($dto['email'] !== null && !filter_var($dto['email'], FILTER_VALIDATE_EMAIL)) {
+            $errors['email'] = 'Email inválido';
+        }
+
+        if ($dto['ruc'] !== null) {
+            $len = strlen($dto['ruc']);
+            if ($len < 10 || $len > 13) {
+                $errors['ruc'] = 'La cédula/RUC debe tener entre 10 y 13 dígitos';
+            }
+        }
+
+        if ($dto['telefono_fijo_1'] !== null && strlen($dto['telefono_fijo_1']) !== 7) {
+            $errors['telefono_fijo_1'] = 'El teléfono fijo debe tener 7 dígitos';
+        }
+
+        if ($dto['telefono_movil'] !== null && strlen($dto['telefono_movil']) !== 10) {
+            $errors['telefono_movil'] = 'El celular debe tener 10 dígitos';
+        }
+
+        $permitidos = ['cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores'];
+        if ($dto['tipo_entidad'] === null || !in_array($dto['tipo_entidad'], $permitidos, true)) {
+            $errors['tipo_entidad'] = 'Tipo de entidad inválido';
+        }
+
+        if ($dto['tipo_entidad'] !== 'cooperativa') {
+            $dto['id_segmento'] = null;
+        } elseif ($dto['id_segmento'] === null) {
+            $errors['id_segmento'] = 'Debe seleccionar un segmento';
+        }
+
+        return ['errors' => $errors, 'data' => $dto];
     }
 
     public function index()
@@ -115,36 +217,38 @@ final class EntidadesController
     {
         if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
 
-        $repo = $this->entidades;
-        $res  = $this->validator->validarEntidad($_POST);
-
-        if (!$res['ok']) {
+        $dto    = $this->makeDto($_POST);
+        $result = $this->validateDto($dto);
+        if ($result['errors'] !== []) {
             http_response_code(400);
             $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Crear']];
+            $repo   = $this->entidades;
             view('comercial/entidades/create', [
-                'title'=>'Nueva Cooperativa',
-                'crumbs'=>$crumbs,
-                'csrf'=>csrf_token(),
-                'provincias'=>$this->ubicaciones->provincias(),
-                'cantones'=>$this->ubicaciones->cantones((int)($res['data']['provincia_id'] ?? 0)),
-                'segmentos'=>$repo->segmentos(),
-                'servicios'=>$repo->servicios(),
-                'tipos'=>['cooperativa','mutualista','sujeto obligado no financiero','caja de ahorros','casa de valores'],
-                'errors'=>$res['errors'],
-                'old'=>$res['data'],
-                'action'=>'/comercial/entidades',
+                'title'      => 'Nueva Cooperativa',
+                'crumbs'     => $crumbs,
+                'csrf'       => csrf_token(),
+                'provincias' => $this->ubicaciones->provincias(),
+                'cantones'   => $this->ubicaciones->cantones((int)($dto['provincia_id'] ?? 0)),
+                'segmentos'  => $repo->segmentos(),
+                'servicios'  => $repo->servicios(),
+                'errors'     => $result['errors'],
+                'old'        => $result['data'],
+                'action'     => '/comercial/entidades',
             ]);
             return;
         }
 
         try {
-            $repo->create($res['data']);
-        } catch (\Throwable $e) {
+            $repo = $this->entidades;
+            $id   = $repo->create($result['data']);
+            $repo->replaceServicios($id, $result['data']['servicios']);
+        } catch (PDOException $e) {
             Logger::error($e, 'EntidadesController::create');
             http_response_code(500);
             echo 'No se pudo guardar la entidad';
             return;
         }
+
         redirect('/comercial/entidades?created=1');
     }
 
@@ -156,6 +260,7 @@ final class EntidadesController
         $repo = $this->entidades;
         $row  = $repo->findById($id);
         if (!$row) { redirect('/comercial/entidades'); }
+        $row['servicios'] = $repo->serviciosDeEntidad($id);
 
         $crumbs = Breadcrumbs::make([
             ['href'=>'/comercial', 'label'=>'Comercial'],
@@ -183,45 +288,47 @@ final class EntidadesController
     {
         if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
         $id = (int)$id;
-        if ($id < 1) {
-            $id = (int)($_POST['id'] ?? 0);
-        }
         if ($id < 1) { redirect('/comercial/entidades'); return; }
 
-        $repo = $this->entidades;
-        $res  = $this->validator->validarEntidad($_POST);
+        $dto           = $this->makeDto($_POST);
+        $dto['id']     = $id;
+        $result        = $this->validateDto($dto);
+        $result['data']['id'] = $id;
 
-        if (!$res['ok']) {
+        if ($result['errors'] !== []) {
             http_response_code(400);
-            $row = array_merge((array)$repo->findById($id), $res['data']);
+            $repo   = $this->entidades;
+            $stored = $repo->findById($id) ?? [];
+            $stored['servicios'] = $repo->serviciosDeEntidad($id);
             $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Editar']];
             view('comercial/entidades/edit', [
-                'title'=>'Editar Cooperativa',
-                'crumbs'=>$crumbs,
-                'item'=>$row,
-                'csrf'=>csrf_token(),
-                'provincias'=>$this->ubicaciones->provincias(),
-                'cantones'=>$this->ubicaciones->cantones((int)($row['provincia_id'] ?? $res['data']['provincia_id'] ?? 0)),
-                'segmentos'=>$repo->segmentos(),
-                'servicios'=>$repo->servicios(),
-                'tipos'=>['cooperativa','mutualista','sujeto obligado no financiero','caja de ahorros','casa de valores'],
-                'errors'=>$res['errors'],
-                'sel'=>array_map('intval',(array)($_POST['servicios'] ?? [])),
-                'action'=>'/comercial/entidades/' . $id,
+                'title'      => 'Editar Cooperativa',
+                'crumbs'     => $crumbs,
+                'item'       => $stored,
+                'csrf'       => csrf_token(),
+                'provincias' => $this->ubicaciones->provincias(),
+                'cantones'   => $this->ubicaciones->cantones((int)($result['data']['provincia_id'] ?? $stored['provincia_id'] ?? 0)),
+                'segmentos'  => $repo->segmentos(),
+                'servicios'  => $repo->servicios(),
+                'errors'     => $result['errors'],
+                'old'        => $result['data'],
+                'action'     => '/comercial/entidades/' . $id,
             ]);
             return;
         }
 
         try {
-            $repo->update($id, $res['data']);
-            $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
-        } catch (\Throwable $e) {
+            $repo = $this->entidades;
+            $repo->update($id, $result['data']);
+            $repo->replaceServicios($id, $result['data']['servicios']);
+        } catch (PDOException $e) {
+            Logger::error($e, 'EntidadesController::update');
             http_response_code(500);
-            echo 'No se pudo actualizar la entidad';
+            echo 'No se pudo guardar la entidad';
             return;
         }
 
-        redirect('/comercial/entidades?ok=1');
+        redirect('/comercial/entidades/' . $id . '/edit?ok=1');
     }
 
     public function delete(): void
