@@ -192,6 +192,8 @@ final class EntidadRepository extends BaseRepository
         $sql = '
             SELECT
                 ' . self::COL_ID . '    AS id_cooperativa,
+                ' . self::COL_ID . '    AS id,
+                ' . self::COL_ID . '    AS id_entidad,
                 ' . self::COL_NOMBRE . '     AS nombre,
                 ' . self::COL_RUC . '        AS nit,
                 ' . self::COL_TFIJ . '      AS telefono_fijo_1,
