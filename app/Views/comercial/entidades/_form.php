@@ -9,6 +9,7 @@ $provincias = is_array($provincias ?? null) ? $provincias : [];
 $cantones   = is_array($cantones ?? null) ? $cantones : [];
 $servicios  = is_array($servicios ?? null) ? $servicios : [];
 $segmentosData = is_array($segmentos ?? null) ? $segmentos : [];
+$isCreate = !empty($isCreate);
 
 $provSel = (int)($item['provincia_id'] ?? $old['provincia_id'] ?? 0);
 $cantSel = (int)($item['canton_id'] ?? $old['canton_id'] ?? 0);
@@ -36,8 +37,8 @@ $segmentOptions = ['' => '-- N/A --'];
 if (!empty($segmentosData)) {
     $segmentOptions = ['' => '-- N/A --'];
     foreach ($segmentosData as $segmento) {
-        $sid = (string)($segmento['id_segmento'] ?? $segmento['id'] ?? '');
-        $sname = (string)($segmento['nombre_segmento'] ?? $segmento['nombre'] ?? '');
+        $sid = (string)($segmento['id'] ?? $segmento['id_segmento'] ?? '');
+        $sname = (string)($segmento['nombre'] ?? $segmento['nombre_segmento'] ?? '');
         if ($sid === '') {
             continue;
         }
@@ -73,28 +74,28 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
     Cédula / RUC (10–13) <?= isset($errors['ruc']) ? '<small class="text-error">' . $errors['ruc'] . '</small>' : '' ?>
     <input
       type="text"
-      name="nit"
+      name="ruc"
       inputmode="numeric"
       pattern="^\d{10,13}$"
       minlength="10"
       maxlength="13"
       title="Solo números, entre 10 y 13 dígitos"
       placeholder="Ej.: 1712345678 o 1790012345001"
-      value="<?= htmlspecialchars((string)$val('nit', $val('ruc')), ENT_QUOTES, 'UTF-8') ?>">
+      value="<?= htmlspecialchars((string)$val('ruc', $val('nit')), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 
   <label>
-    Teléfono fijo <?= isset($errors['telefono_fijo']) ? '<small class="text-error">' . $errors['telefono_fijo'] . '</small>' : '' ?>
+    Teléfono fijo <?= isset($errors['telefono_fijo_1']) ? '<small class="text-error">' . $errors['telefono_fijo_1'] . '</small>' : '' ?>
     <input
       type="text"
-      name="telefono_fijo"
+      name="telefono_fijo_1"
       inputmode="numeric"
       pattern="^\d{7}$"
       minlength="7"
       maxlength="7"
       title="Solo números, 7 dígitos"
       placeholder="Ej.: 022345678"
-      value="<?= htmlspecialchars((string)$val('telefono_fijo'), ENT_QUOTES, 'UTF-8') ?>">
+      value="<?= htmlspecialchars((string)$val('telefono_fijo_1', $val('telefono_fijo')), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 
   <label class="col-span-2">
@@ -195,83 +196,40 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
     Notas
     <textarea name="notas" rows="5" placeholder="Observaciones..."><?= htmlspecialchars((string)$val('notas'), ENT_QUOTES, 'UTF-8') ?></textarea>
   </label>
+
+  <?php if ($isCreate): ?>
+    <input type="hidden" name="telefono" value="">
+  <?php endif; ?>
 </div>
 
 <script>
-(function () {
-  var script = document.currentScript || null;
-  if (!script) {
-    return;
-  }
-
-  var form = script.closest('form');
-  if (!form) {
-    return;
-  }
-
-  var onlyDigits = function (event) {
-    var element = event.target;
-    var max = element.getAttribute('maxlength');
-    var value = element.value.replace(/\D+/g, '');
-
-    if (max && /^\d+$/.test(max)) {
-      value = value.slice(0, parseInt(max, 10));
+(function(){
+  const provinciaSelect = document.getElementById('provincia_id');
+  const cantonSelect = document.getElementById('canton_id');
+  if (!provinciaSelect || !cantonSelect) return;
+  provinciaSelect.addEventListener('change', function(){
+    const pid = this.value;
+    const url = this.getAttribute('data-cantones-url');
+    if (!pid || !url) {
+      cantonSelect.innerHTML = '<option value="">-- Seleccione --</option>';
+      return;
     }
-
-    if (element.value !== value) {
-      var pos = element.selectionStart;
-      element.value = value;
-      if (pos !== null && pos !== undefined) {
-        var caret = Math.min(pos - 1, element.value.length);
-        element.setSelectionRange(caret, caret);
-      }
-    }
-  };
-
-  var selectors = [
-    'input[name="nit"]',
-    'input[name="telefono_fijo"]',
-    'input[name="telefono_movil"]'
-  ];
-
-  var inputs = form.querySelectorAll(selectors.join(','));
-  inputs.forEach(function (element) {
-    element.setAttribute('inputmode', 'numeric');
-    element.setAttribute('autocomplete', 'off');
-
-    element.addEventListener('input', onlyDigits);
-    element.addEventListener('paste', function (event) {
-      event.preventDefault();
-      var text = (event.clipboardData || window.clipboardData).getData('text') || '';
-      var clean = text.replace(/\D+/g, '');
-      if (document.execCommand) {
-        document.execCommand('insertText', false, clean);
-      } else {
-        var start = element.selectionStart || 0;
-        var end = element.selectionEnd || 0;
-        var current = element.value;
-        element.value = current.slice(0, start) + clean + current.slice(end);
-      }
-    });
-  });
-
-  var allowed = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab', 'Home', 'End'];
-  inputs.forEach(function (element) {
-    element.addEventListener('keydown', function (event) {
-      if (allowed.indexOf(event.key) !== -1) {
-        return;
-      }
-
-      if ((event.ctrlKey || event.metaKey) && ['a', 'c', 'v', 'x'].indexOf(event.key.toLowerCase()) !== -1) {
-        return;
-      }
-
-      if (/^\d$/.test(event.key)) {
-        return;
-      }
-
-      event.preventDefault();
-    });
+    fetch(url + '?provincia_id=' + encodeURIComponent(pid))
+      .then(function(resp){ return resp.ok ? resp.json() : []; })
+      .then(function(data){
+        cantonSelect.innerHTML = '<option value="">-- Seleccione --</option>';
+        if (!Array.isArray(data)) return;
+        data.forEach(function(canton){
+          if (!canton || typeof canton.id === 'undefined') return;
+          var option = document.createElement('option');
+          option.value = canton.id;
+          option.textContent = canton.nombre || ('Cantón ' + canton.id);
+          cantonSelect.appendChild(option);
+        });
+      })
+      .catch(function(){
+        cantonSelect.innerHTML = '<option value="">-- Seleccione --</option>';
+      });
   });
 })();
 </script>

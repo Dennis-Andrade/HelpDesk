@@ -1,35 +1,91 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Controllers\Comercial;
 
+use App\Repositories\Comercial\EntidadQueryRepository;
 use App\Repositories\Comercial\EntidadRepository;
 use App\Services\Comercial\BuscarEntidadesService;
 use App\Services\Shared\Breadcrumbs;
 use App\Services\Shared\Pagination;
-use App\Services\Shared\ValidationService;
 use App\Services\Shared\UbicacionesService;
 use App\Support\Logger;
-use function \view;
-use function \redirect;
-use function \csrf_token;
-use function \csrf_verify;
+use Config\Cnxn;
+use function csrf_token;
+use function csrf_verify;
+use function redirect;
+use function view;
 
 final class EntidadesController
 {
     private BuscarEntidadesService $buscarEntidades;
-    private EntidadRepository $entidades;
-    private ValidationService $validator;
+    private EntidadRepository $repo;
+    private EntidadQueryRepository $queryRepo;
     private UbicacionesService $ubicaciones;
 
     public function __construct(
         ?BuscarEntidadesService $buscarEntidades = null,
-        ?EntidadRepository $entidades = null,
-        ?ValidationService $validator = null,
+        ?EntidadRepository $repo = null,
+        ?EntidadQueryRepository $queryRepo = null,
         ?UbicacionesService $ubicaciones = null
     ) {
-        $this->entidades       = $entidades ?? new EntidadRepository();
-        $this->validator       = $validator ?? new ValidationService();
-        $this->ubicaciones     = $ubicaciones ?? new UbicacionesService();
-        $this->buscarEntidades = $buscarEntidades ?? new BuscarEntidadesService($this->entidades, $this->validator);
+        $pdo = Cnxn::pdo();
+        $this->repo           = $repo ?? new EntidadRepository($pdo);
+        $this->queryRepo      = $queryRepo ?? new EntidadQueryRepository($pdo);
+        $this->ubicaciones    = $ubicaciones ?? new UbicacionesService();
+        $this->buscarEntidades = $buscarEntidades ?? new BuscarEntidadesService($this->queryRepo);
+    }
+
+    private function strOrNull($v)
+    {
+        $v = trim((string)$v);
+        return $v === '' ? null : $v;
+    }
+
+    private function intOrNull($v)
+    {
+        $v = trim((string)$v);
+        return $v === '' ? null : (int)$v;
+    }
+
+    private function digitsOrNull($v)
+    {
+        $v = trim((string)$v);
+        if ($v === '') {
+            return null;
+        }
+        $digits = preg_replace('/\D+/', '', $v);
+        return $digits === '' ? null : $digits;
+    }
+
+    private function intsFromArray($a)
+    {
+        return array_values(array_unique(array_map('intval', (array)$a)));
+    }
+
+    private function normalize(array $in): array
+    {
+        $tipo = $in['tipo_entidad'] ?? 'cooperativa';
+        $data = [
+            'nombre'          => trim((string)($in['nombre'] ?? '')),
+            'ruc'             => isset($in['ruc']) ? $this->digitsOrNull($in['ruc'])
+                                 : (isset($in['nit']) ? $this->digitsOrNull($in['nit']) : null),
+            'telefono'        => null,
+            'telefono_fijo_1' => isset($in['telefono_fijo_1']) ? $this->digitsOrNull($in['telefono_fijo_1'])
+                                 : (isset($in['telefono_fijo']) ? $this->digitsOrNull($in['telefono_fijo']) : null),
+            'telefono_movil'  => $this->digitsOrNull($in['telefono_movil'] ?? ''),
+            'email'           => $this->strOrNull($in['email'] ?? ''),
+            'provincia_id'    => $this->intOrNull($in['provincia_id'] ?? ''),
+            'canton_id'       => $this->intOrNull($in['canton_id'] ?? ''),
+            'tipo_entidad'    => $this->strOrNull($tipo),
+            'id_segmento'     => $tipo === 'cooperativa' ? $this->intOrNull($in['id_segmento'] ?? '') : null,
+            'notas'           => $this->strOrNull($in['notas'] ?? ''),
+            'servicios'       => $this->intsFromArray($in['servicios'] ?? []),
+        ];
+        if (in_array(1, $data['servicios'], true)) {
+            $data['servicios'] = [1];
+        }
+        return $data;
     }
 
     public function index()
@@ -59,15 +115,16 @@ final class EntidadesController
             'toastMessage' => $toastMessage,
         ]);
     }
+
     public function show(): void
     {
         $id = (int)($_GET['id'] ?? 0);
-        $this->showJson($id);
+        $this->showJson(['id' => $id]);
     }
 
-    public function showJson($id): void
+    public function showJson($params): void
     {
-        $id = (int) $id;
+        $id = is_array($params) ? (int)($params['id'] ?? 0) : (int)$params;
 
         if ($id < 1) {
             $this->respondEntidadJson(['error' => 'ID inválido'], 400);
@@ -82,85 +139,80 @@ final class EntidadesController
             }
 
             $this->respondEntidadJson(['data' => $data], 200);
-            return;
         } catch (\Throwable $e) {
             $this->respondEntidadJson(['error' => 'Error interno'], 500);
-            return;
         }
     }
 
     public function createForm(): void
     {
         $crumbs = Breadcrumbs::make([
-            ['href'=>'/comercial', 'label'=>'Comercial'],
-            ['href'=>'/comercial/entidades', 'label'=>'Entidades'],
-            ['label'=>'Crear']
+            ['href' => '/comercial', 'label' => 'Comercial'],
+            ['href' => '/comercial/entidades', 'label' => 'Entidades'],
+            ['label' => 'Crear'],
         ]);
 
         $provincias = $this->ubicaciones->provincias();
-        $repo        = $this->entidades;
 
         view('comercial/entidades/create', [
             'title'      => 'Nueva Entidad',
             'crumbs'     => $crumbs,
             'csrf'       => csrf_token(),
-            'provincias' => $provincias, // <<<<<
+            'provincias' => $provincias,
+            'segmentos'  => $this->queryRepo->segmentos(),
+            'servicios'  => $this->queryRepo->servicios(),
             'action'     => '/comercial/entidades',
-            'segmentos'  => $repo->segmentos(),
-            'servicios'  => $repo->servicios(),
+            'isCreate'   => true,
         ]);
     }
 
-    public function create(): void
+    public function create()
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
-
-        $repo = $this->entidades;
-        $res  = $this->validator->validarEntidad($_POST);
-
-        if (!$res['ok']) {
-            http_response_code(400);
-            $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Crear']];
-            view('comercial/entidades/create', [
-                'title'=>'Nueva Cooperativa',
-                'crumbs'=>$crumbs,
-                'csrf'=>csrf_token(),
-                'provincias'=>$this->ubicaciones->provincias(),
-                'cantones'=>$this->ubicaciones->cantones((int)($res['data']['provincia_id'] ?? 0)),
-                'segmentos'=>$repo->segmentos(),
-                'servicios'=>$repo->servicios(),
-                'tipos'=>['cooperativa','mutualista','sujeto obligado no financiero','caja de ahorros','casa de valores'],
-                'errors'=>$res['errors'],
-                'old'=>$res['data'],
-                'action'=>'/comercial/entidades',
-            ]);
+        if (empty($_POST['_csrf']) || !csrf_verify($_POST['_csrf'])) {
+            http_response_code(419);
+            echo 'CSRF inválido';
             return;
         }
-
         try {
-            $repo->create($res['data']);
-        } catch (\Throwable $e) {
-            Logger::error($e, 'EntidadesController::create');
+            $d = $this->normalize($_POST);
+            if ($d['nombre'] === '') {
+                throw new \InvalidArgumentException('Nombre requerido');
+            }
+            if ($d['ruc'] !== null && (strlen($d['ruc']) < 10 || strlen($d['ruc']) > 13)) {
+                throw new \InvalidArgumentException('RUC inválido');
+            }
+
+            $this->repo->create($d);
+            header('Location: /comercial/entidades?created=1');
+            exit;
+        } catch (\PDOException $e) {
             http_response_code(500);
             echo 'No se pudo guardar la entidad';
-            return;
+            error_log('[CREATE] ' . $e->getCode() . ' ' . ($e->errorInfo[2] ?? $e->getMessage()));
+        } catch (\Throwable $e) {
+            http_response_code(400);
+            echo $e->getMessage();
         }
-        redirect('/comercial/entidades?created=1');
     }
 
-    public function editForm(): void
+    public function editForm($params = []): void
     {
-        $id = (int)($_GET['id'] ?? 0);
-        if ($id < 1) { redirect('/comercial/entidades'); }
+        $id = isset($params['id']) ? (int)$params['id'] : (int)($_GET['id'] ?? 0);
+        if ($id < 1) {
+            redirect('/comercial/entidades');
+            return;
+        }
 
-        $repo = $this->entidades;
-        $row  = $repo->findById($id);
-        if (!$row) { redirect('/comercial/entidades'); }
+        $row = $this->queryRepo->findForEdit($id);
+        if (!$row) {
+            redirect('/comercial/entidades');
+            return;
+        }
 
         $crumbs = Breadcrumbs::make([
-            ['href'=>'/comercial', 'label'=>'Comercial'],
-            ['href'=>'/comercial/entidades', 'label'=>'Entidades'],
-            ['label'=>'Editar']
+            ['href' => '/comercial', 'label' => 'Comercial'],
+            ['href' => '/comercial/entidades', 'label' => 'Entidades'],
+            ['label' => 'Editar'],
         ]);
 
         $provincias = $this->ubicaciones->provincias();
@@ -171,71 +223,74 @@ final class EntidadesController
             'crumbs'     => $crumbs,
             'item'       => $row,
             'csrf'       => csrf_token(),
-            'provincias' => $provincias, // <<<<<
-            'action'     => '/comercial/entidades/' . $id,
+            'provincias' => $provincias,
             'cantones'   => $cantones,
-            'segmentos'  => $repo->segmentos(),
-            'servicios'  => $repo->servicios(),
+            'segmentos'  => $this->queryRepo->segmentos(),
+            'servicios'  => $this->queryRepo->servicios(),
+            'action'     => '/comercial/entidades/' . $id,
+            'isCreate'   => false,
         ]);
     }
 
-    public function update($id): void
+    public function update($params)
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
-        $id = (int)$id;
+        if (empty($_POST['_csrf']) || !csrf_verify($_POST['_csrf'])) {
+            http_response_code(419);
+            echo 'CSRF inválido';
+            return;
+        }
+        $id = is_array($params) ? (int)($params['id'] ?? 0) : (int)$params;
         if ($id < 1) {
             $id = (int)($_POST['id'] ?? 0);
         }
-        if ($id < 1) { redirect('/comercial/entidades'); return; }
-
-        $repo = $this->entidades;
-        $res  = $this->validator->validarEntidad($_POST);
-
-        if (!$res['ok']) {
-            http_response_code(400);
-            $row = array_merge((array)$repo->findById($id), $res['data']);
-            $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Editar']];
-            view('comercial/entidades/edit', [
-                'title'=>'Editar Cooperativa',
-                'crumbs'=>$crumbs,
-                'item'=>$row,
-                'csrf'=>csrf_token(),
-                'provincias'=>$this->ubicaciones->provincias(),
-                'cantones'=>$this->ubicaciones->cantones((int)($row['provincia_id'] ?? $res['data']['provincia_id'] ?? 0)),
-                'segmentos'=>$repo->segmentos(),
-                'servicios'=>$repo->servicios(),
-                'tipos'=>['cooperativa','mutualista','sujeto obligado no financiero','caja de ahorros','casa de valores'],
-                'errors'=>$res['errors'],
-                'sel'=>array_map('intval',(array)($_POST['servicios'] ?? [])),
-                'action'=>'/comercial/entidades/' . $id,
-            ]);
+        if ($id < 1) {
+            redirect('/comercial/entidades');
             return;
         }
 
         try {
-            $repo->update($id, $res['data']);
-            $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
-        } catch (\Throwable $e) {
-            http_response_code(500);
-            echo 'No se pudo actualizar la entidad';
-            return;
-        }
+            $d = $this->normalize($_POST);
+            if ($d['nombre'] === '') {
+                throw new \InvalidArgumentException('Nombre requerido');
+            }
+            if ($d['ruc'] !== null && (strlen($d['ruc']) < 10 || strlen($d['ruc']) > 13)) {
+                throw new \InvalidArgumentException('RUC inválido');
+            }
 
-        redirect('/comercial/entidades?ok=1');
+            $this->repo->update($id, $d);
+            header('Location: /comercial/entidades/' . $id . '/edit?ok=1');
+            exit;
+        } catch (\PDOException $e) {
+            http_response_code(500);
+            echo 'No se pudo guardar la entidad';
+            error_log('[UPDATE] ' . $e->getCode() . ' ' . ($e->errorInfo[2] ?? $e->getMessage()));
+        } catch (\Throwable $e) {
+            http_response_code(400);
+            echo $e->getMessage();
+        }
     }
 
     public function delete(): void
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
+        if (empty($_POST['_csrf']) || !csrf_verify($_POST['_csrf'])) {
+            http_response_code(419);
+            echo 'CSRF inválido';
+            return;
+        }
         $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) { $this->entidades->delete($id); }
+        if ($id > 0) {
+            try {
+                $this->repo->delete($id);
+            } catch (\Throwable $e) {
+                Logger::error($e, 'EntidadesController::delete');
+            }
+        }
         redirect('/comercial/entidades');
     }
 
-    // --- Helpers JSON (privados) ---
     private function respondEntidadJson(array $payload, $status = 200): void
     {
-        http_response_code((int) $status);
+        http_response_code((int)$status);
         header('Content-Type: application/json; charset=UTF-8');
         echo json_encode($payload, JSON_UNESCAPED_UNICODE);
         exit;
@@ -243,13 +298,12 @@ final class EntidadesController
 
     private function loadEntidadDetalle(int $id): ?array
     {
-        $repo = $this->entidades;
-        $row  = $repo->findDetalles($id);
+        $row = $this->queryRepo->findDetalles($id);
         if (!$row) {
             return null;
         }
 
-        $servicios = $repo->serviciosActivos($id);
+        $servicios = $this->queryRepo->serviciosActivos($id);
 
         $provincia = trim((string)($row['provincia'] ?? ''));
         $canton    = trim((string)($row['canton'] ?? ''));

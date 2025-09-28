@@ -6,7 +6,7 @@ use App\Controllers\Contabilidad\DashboardController as ContabDashboard;
 use App\Controllers\Sistemas\DashboardController as SistemasDashboard;
 use App\Controllers\Cumplimiento\DashboardController as CumplimientoDashboard;
 use App\Controllers\Administrador\DashboardController as AdminDashboard;
-use App\Controllers\Comercial\EntidadesController;
+use App\Controllers\Comercial\EntidadesController as Ctrl;
 use App\Controllers\Comercial\AgendaController;
 
 // ---------- Auth ----------
@@ -30,6 +30,7 @@ $router->get('/contabilidad/dashboard',  [ContabDashboard::class,      'index'],
 $router->get('/sistemas/dashboard',      [SistemasDashboard::class,    'index'], ['middleware'=>['auth','role:sistemas,administrador']]);
 $router->get('/cumplimiento/dashboard',  [CumplimientoDashboard::class,'index'], ['middleware'=>['auth','role:cumplimiento,administrador']]);
 $router->get('/administrador/dashboard', [AdminDashboard::class,       'index'], ['middleware'=>['auth','role:administrador']]);
+
 $router->get(
     '/comercial/entidades/cards',
     function () {
@@ -38,22 +39,22 @@ $router->get(
     },
     ['middleware'=>['auth','role:comercial']]
 );
-$router->get('/comercial/entidades/ver', [EntidadesController::class, 'show'], ['middleware'=>['auth','role:comercial,administrador']]);
-$router->get('/comercial/entidades/{id}/show', [EntidadesController::class, 'showJson'], ['middleware'=>['auth','role:comercial']]);
+$router->get('/comercial/entidades/ver', [Ctrl::class, 'show'], ['middleware'=>['auth','role:comercial']]);
+$router->get('/comercial/entidades/{id}/show', [Ctrl::class, 'showJson'], ['middleware'=>['auth','role:comercial']]);
 
 // ---------- Comercial → Entidades (CRUD, auth + role) ----------
 $router->get(
     '/comercial/entidades',
-    [EntidadesController::class, 'index'],
+    [Ctrl::class, 'index'],
     ['middleware'=>['auth','role:comercial']]
 );
-$router->get('/comercial/entidades/crear',     [EntidadesController::class, 'createForm'], ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/entidades',          [EntidadesController::class, 'create'],     ['middleware'=>['auth','role:comercial,administrador']]);
-$router->get('/comercial/entidades/editar',    [EntidadesController::class, 'editForm'],   ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/entidades/{id}',     [EntidadesController::class, 'update'],     ['middleware'=>['auth','role:comercial,administrador']]);
-$router->post('/comercial/entidades/eliminar', [EntidadesController::class, 'delete'],     ['middleware'=>['auth','role:comercial,administrador']]);
+$router->get('/comercial/entidades/crear',     [Ctrl::class, 'createForm'], ['middleware'=>['auth','role:comercial']]);
+$router->post('/comercial/entidades',          [Ctrl::class, 'create'],    ['middleware'=>['auth','role:comercial']]);
+$router->get('/comercial/entidades/{id}/edit', [Ctrl::class, 'editForm'],  ['middleware'=>['auth','role:comercial']]);
+$router->post('/comercial/entidades/{id}',     [Ctrl::class, 'update'],    ['middleware'=>['auth','role:comercial']]);
+$router->post('/comercial/entidades/eliminar', [Ctrl::class, 'delete'],    ['middleware'=>['auth','role:comercial']]);
 
-// 
+//
 
 $router->get('/comercial/agenda',                   [AgendaController::class, 'index'],        ['middleware'=>['auth','role:comercial']]);
 $router->post('/comercial/agenda',                  [AgendaController::class, 'create'],       ['middleware'=>['auth','role:comercial']]);
@@ -64,3 +65,4 @@ $router->post('/comercial/agenda/{id}/eliminar',    [AgendaController::class, 'd
 
 // AJAX: cantones por provincia (auth)
 $router->get('/shared/cantones', [UbicacionesController::class, 'cantones'], ['middleware'=>['auth']]);
+
