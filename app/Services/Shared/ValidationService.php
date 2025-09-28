@@ -34,7 +34,7 @@ final class ValidationService
         $data = [
             'nombre'          => trim((string)($in['nombre'] ?? '')),
             'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'
-            'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
+            'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['telefono_fijo_1'] ?? $in['tfijo'] ?? ''),
             'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
             'email'           => trim((string)($in['email'] ?? '')),
             'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
@@ -87,6 +87,14 @@ final class ValidationService
             // por defecto dejamos "cooperativa"
             $data['tipo_entidad'] = 'cooperativa';
         }
+
+        $data['ruc'] = $data['ruc'] === '' ? null : $data['ruc'];
+        $data['telefono_fijo_1'] = $data['telefono_fijo'] === '' ? null : $data['telefono_fijo'];
+        unset($data['telefono_fijo']);
+        $data['telefono'] = null;
+        $data['telefono_movil'] = $data['telefono_movil'] === '' ? null : $data['telefono_movil'];
+        $data['email'] = $data['email'] === '' ? null : $data['email'];
+        $data['notas'] = $data['notas'] === '' ? null : $data['notas'];
 
         return ['ok' => empty($e), 'errors' => $e, 'data' => $data];
     }

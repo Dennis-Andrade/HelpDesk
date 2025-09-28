@@ -264,7 +264,7 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
                       aria-label="Ver detalles de <?= h($cardTitle) ?>">
                 Ver
               </button>
-              <a class="btn btn-primary" href="/comercial/entidades/editar?id=<?= h((string)$entityId) ?>">Editar</a>
+              <a class="btn btn-primary" href="/comercial/entidades/<?= h((string)$entityId) ?>/edit">Editar</a>
               <form method="post" action="/comercial/entidades/eliminar" class="ent-card-delete" aria-label="Eliminar <?= h($cardTitle) ?>">
                 <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
                 <input type="hidden" name="id" value="<?= h((string)$entityId) ?>">

@@ -4,9 +4,10 @@ declare(strict_types=1);
 namespace App\Controllers\Comercial;
 
 use App\Repositories\Comercial\AgendaRepository;
-use App\Repositories\Comercial\EntidadRepository;
+use App\Repositories\Comercial\EntidadQueryRepository;
 use App\Services\Comercial\AgendaService;
 use App\Services\Shared\ValidationService;
+use Config\Cnxn;
 use RuntimeException;
 use function csrf_token;
 use function csrf_verify;
@@ -22,12 +23,13 @@ final class AgendaController
     ];
 
     private AgendaService $service;
-    private EntidadRepository $entidades;
+    private EntidadQueryRepository $entidades;
 
-    public function __construct(?AgendaService $service = null, ?EntidadRepository $entidades = null)
+    public function __construct(?AgendaService $service = null, ?EntidadQueryRepository $entidades = null)
     {
+        $pdo = Cnxn::pdo();
         $this->service    = $service ?? new AgendaService(new AgendaRepository(), new ValidationService());
-        $this->entidades  = $entidades ?? new EntidadRepository();
+        $this->entidades  = $entidades ?? new EntidadQueryRepository($pdo);
     }
 
     public function index(): void
@@ -264,18 +266,18 @@ final class AgendaController
         $_SESSION['agenda_flash_data_' . $type] = $value;
     }
 
-    /** @return array<string,mixed> */
-    private function pullFlashData(string $type): array
+    /** @return array<string,mixed>|null */
+    private function pullFlashData(string $type): ?array
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
         }
         $key = 'agenda_flash_data_' . $type;
-        if (!isset($_SESSION[$key])) {
-            return [];
+        if (!isset($_SESSION[$key]) || !is_array($_SESSION[$key])) {
+            return null;
         }
         $value = $_SESSION[$key];
         unset($_SESSION[$key]);
-        return is_array($value) ? $value : [];
+        return $value;
     }
 }
