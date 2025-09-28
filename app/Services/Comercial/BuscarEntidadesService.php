@@ -1,17 +1,20 @@
 <?php
+declare(strict_types=1);
+
 namespace App\Services\Comercial;
 
-use App\Repositories\Comercial\EntidadRepository;
+use App\Repositories\Comercial\EntidadQueryRepository;
 use App\Services\Shared\ValidationService;
+use Config\Cnxn;
 
 final class BuscarEntidadesService
 {
-    private EntidadRepository $repository;
+    private EntidadQueryRepository $repository;
     private ValidationService $validator;
 
-    public function __construct(?EntidadRepository $repository = null, ?ValidationService $validator = null)
+    public function __construct(?EntidadQueryRepository $repository = null, ?ValidationService $validator = null)
     {
-        $this->repository = $repository ?? new EntidadRepository();
+        $this->repository = $repository ?? new EntidadQueryRepository(Cnxn::pdo());
         $this->validator  = $validator ?? new ValidationService();
     }
 
@@ -85,6 +88,13 @@ final class BuscarEntidadesService
      */
     private function sanitizeList($values): array
     {
+        if (is_string($values)) {
+            $jsonDecoded = json_decode($values, true);
+            if (is_array($jsonDecoded)) {
+                $values = $jsonDecoded;
+            }
+        }
+
         if (!is_array($values)) {
             if ($values === null || $values === '') {
                 return [];

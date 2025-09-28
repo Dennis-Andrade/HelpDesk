@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Services\Shared;
 
 use App\Repositories\Shared\UbicacionesRepository;
+use Config\Cnxn;
 
 /**
  * Provincias y Cantones (Ecuador).
@@ -11,12 +12,11 @@ use App\Repositories\Shared\UbicacionesRepository;
  */
 final class UbicacionesService
 {
-    /** @var UbicacionesRepository */
-    private $repo;
+    private UbicacionesRepository $repo;
 
     public function __construct(?UbicacionesRepository $repo = null)
     {
-        $this->repo = $repo ?: new UbicacionesRepository();
+        $this->repo = $repo ?? new UbicacionesRepository(Cnxn::pdo());
     }
 
     /** @return array<int, array{id:int, nombre:string}> */
@@ -28,7 +28,9 @@ final class UbicacionesService
     /** @return array<int, array{id:int, nombre:string}> */
     public function cantones(int $provinciaId): array
     {
-        if ($provinciaId <= 0) return [];
-        return $this->repo->cantonesPorProvincia($provinciaId);
+        if ($provinciaId <= 0) {
+            return [];
+        }
+        return $this->repo->cantones($provinciaId);
     }
 }
