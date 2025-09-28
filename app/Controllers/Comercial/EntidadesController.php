@@ -132,7 +132,15 @@ final class EntidadesController
 
         try {
             $newId = $repo->create($res['data']);
+            $repo->replaceServicios($newId, $res['data']['servicios'] ?? []);
         } catch (\Throwable $e) {
+            if (isset($newId)) {
+                try {
+                    $repo->delete((int)$newId);
+                } catch (\Throwable $cleanup) {
+                    Logger::error($cleanup, 'EntidadesController::create cleanup');
+                }
+            }
             Logger::error($e, 'EntidadesController::create');
             http_response_code(500);
             echo 'No se pudo guardar la entidad';
