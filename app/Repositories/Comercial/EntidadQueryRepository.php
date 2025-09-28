@@ -53,7 +53,7 @@ final class EntidadQueryRepository
                     c.ruc,
                     c.tipo_entidad,
                     c.id_segmento,
-                    seg.nombre AS segmento_nombre,
+                    seg.nombre_segmento AS segmento_nombre,
                     c.provincia_id,
                     prov.nombre AS provincia_nombre,
                     c.canton_id,
@@ -72,7 +72,7 @@ final class EntidadQueryRepository
                        ON cs.id_cooperativa = c.id_cooperativa AND cs.activo = TRUE
                 LEFT JOIN public.servicios s ON s.id_servicio = cs.id_servicio
                 " . $where . "
-                GROUP BY c.id_cooperativa, c.nombre, c.ruc, c.tipo_entidad, c.id_segmento, seg.nombre,
+                GROUP BY c.id_cooperativa, c.nombre, c.ruc, c.tipo_entidad, c.id_segmento, seg.nombre_segmento,
                          c.provincia_id, prov.nombre, c.canton_id, cant.nombre,
                          c.telefono, c.telefono_fijo_1, c.telefono_movil, c.email
                 ORDER BY c.nombre
@@ -163,7 +163,7 @@ final class EntidadQueryRepository
                     c.email,
                     c.tipo_entidad,
                     c.id_segmento,
-                    seg.nombre AS segmento_nombre,
+                    seg.nombre_segmento AS segmento_nombre,
                     c.provincia_id,
                     prov.nombre AS provincia,
                     c.canton_id,
@@ -184,7 +184,7 @@ final class EntidadQueryRepository
     /** @return array<int,array{id:int,nombre:string}> */
     public function segmentos(): array
     {
-        $stmt = $this->db->query('SELECT id_segmento AS id, nombre FROM public.segmentos ORDER BY nombre');
+        $stmt = $this->db->query('SELECT id_segmento AS id, nombre_segmento AS nombre FROM public.segmentos ORDER BY nombre_segmento');
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
