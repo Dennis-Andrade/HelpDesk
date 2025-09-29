@@ -290,10 +290,8 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
     </nav>
   <?php endif; ?>
 </section>
-
 <?php include __DIR__ . '/_detalle_modal.php'; ?>
 <script src="/js/entidades_detalle.js" defer></script>
-
 <?php if ($toastMessage !== null): ?>
 <script>
 (function(){
