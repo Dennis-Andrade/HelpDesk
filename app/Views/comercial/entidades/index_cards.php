@@ -5,7 +5,6 @@ use App\Services\Shared\Pagination;
 /** @var int   $page   Página actual */
 /** @var int   $perPage Elementos por página */
 /** @var string $q     Búsqueda actual */
-/** @var string $csrf  Token CSRF */
 /** @var array $filters Filtros activos */
 
 function h($value): string
@@ -227,7 +226,6 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
               </button>
               <a class="btn btn-primary" href="/comercial/entidades/editar?id=<?= h((string)$entityId) ?>">Editar</a>
               <form method="post" action="/comercial/entidades/eliminar" class="ent-card-delete" aria-label="Eliminar <?= h($cardTitle) ?>">
-                <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
                 <input type="hidden" name="id" value="<?= h((string)$entityId) ?>">
                 <button type="submit" class="btn btn-danger" onclick="return confirm('¿Deseas eliminar esta entidad?');">Eliminar</button>
               </form>

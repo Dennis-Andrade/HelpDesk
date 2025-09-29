@@ -192,6 +192,8 @@ final class EntidadRepository extends BaseRepository
         $sql = '
             SELECT
                 ' . self::COL_ID . '    AS id_cooperativa,
+                ' . self::COL_ID . '    AS id,
+                ' . self::COL_ID . '    AS id_entidad,
                 ' . self::COL_NOMBRE . '     AS nombre,
                 ' . self::COL_RUC . '        AS nit,
                 ' . self::COL_TFIJ . '      AS telefono_fijo_1,
@@ -279,40 +281,34 @@ final class EntidadRepository extends BaseRepository
                 (
                     ' . self::COL_NOMBRE . ',
                     ' . self::COL_RUC . ',
+                    ' . self::COL_TFIJ . ',
+                    ' . self::COL_TMOV . ',
                     ' . self::COL_MAIL . ',
                     ' . self::COL_PROV . ',
                     ' . self::COL_CANTON . ',
+                    ' . self::COL_TIPO . ',
                     ' . self::COL_SEGMENTO . ',
                     ' . self::COL_NOTAS . ',
-                    ' . self::COL_TIPO . '
+                    ' . self::COL_ACTV . '
                 )
             VALUES
                 (
                     :nombre,
                     :ruc,
+                    :tfijo,
+                    :tmov,
                     :email,
-                    :provincia_id,
-                    :canton_id,
-                    :segmento_id,
+                    :prov,
+                    :canton,
+                    :tipo,
+                    :segmento,
                     :notas,
-                    :tipo_entidad
+                    :activa
                 )
             RETURNING ' . self::COL_ID . ' AS id
         ';
 
-        $params = array(
-            ':nombre'       => array($d['nombre'], PDO::PARAM_STR),
-            ':ruc'          => $this->nullableStringParam($d['ruc'] ?? $d['nit'] ?? ''),
-            ':email'        => $this->nullableStringParam($d['email'] ?? ''),
-            ':provincia_id' => $this->nullableIntParam($d['provincia_id'] ?? null),
-            ':canton_id'    => $this->nullableIntParam($d['canton_id'] ?? null),
-            ':segmento_id'  => $this->nullableIntParam($d['id_segmento'] ?? $d['segmento_id'] ?? null),
-            ':notas'        => $this->nullableStringParam($d['notas'] ?? ''),
-            ':tipo_entidad' => array(
-                isset($d['tipo_entidad']) && $d['tipo_entidad'] !== '' ? (string)$d['tipo_entidad'] : 'cooperativa',
-                PDO::PARAM_STR
-            ),
-        );
+        $params = $this->buildEntidadParams($d);
 
         try {
             $rows = $this->db->execute($sql, $params);
