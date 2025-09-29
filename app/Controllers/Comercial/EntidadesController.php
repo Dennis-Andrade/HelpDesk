@@ -100,7 +100,7 @@ final class EntidadesController
         view('comercial/entidades/create', [
             'title'      => 'Nueva Entidad',
             'crumbs'     => $crumbs,
-            'provincias' => $provincias, // <<<<<
+            'provincias' => $provincias,
             'action'     => '/comercial/entidades',
             'segmentos'  => $repo->segmentos(),
             'servicios'  => $repo->servicios(),
@@ -171,16 +171,23 @@ final class EntidadesController
 
         $provincias = $this->ubicaciones->provincias();
         $cantones   = $this->ubicaciones->cantones((int)($row['provincia_id'] ?? 0));
+        $toastMessage = null;
+        if (isset($_GET['created']) && $_GET['created'] === '1') {
+            $toastMessage = 'Entidad creada correctamente';
+        } elseif (isset($_GET['ok']) && $_GET['ok'] === '1') {
+            $toastMessage = 'Cambios guardados';
+        }
 
         view('comercial/entidades/edit', [
             'title'      => 'Editar Entidad',
             'crumbs'     => $crumbs,
             'item'       => $row,
-            'provincias' => $provincias, // <<<<<
+            'provincias' => $provincias,
             'action'     => '/comercial/entidades/' . $id,
             'cantones'   => $cantones,
             'segmentos'  => $repo->segmentos(),
             'servicios'  => $repo->servicios(),
+            'toastMessage' => $toastMessage,
         ]);
     }
 
@@ -214,6 +221,7 @@ final class EntidadesController
                 'errors'=>$res['errors'],
                 'old'=>$res['data'],
                 'action'=>'/comercial/entidades/' . $id,
+                'toastMessage'=>null,
             ]);
             return;
         }
@@ -228,7 +236,7 @@ final class EntidadesController
             return;
         }
 
-        redirect('/comercial/entidades?ok=1');
+        redirect('/comercial/entidades/editar?id=' . $id . '&ok=1');
     }
 
     public function delete(): void
