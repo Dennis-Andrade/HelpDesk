@@ -225,34 +225,33 @@ final class EntidadRepository extends BaseRepository
     {
         $sql = '
         SELECT
-            c.id_cooperativa                                        AS id_entidad,
+            c.id_cooperativa                                      AS id_entidad,
             c.nombre,
-            NULLIF(c.ruc, ' . "''" . ')                             AS ruc,
-            NULLIF(c.telefono, ' . "''" . ')                         AS telefono,
-            NULLIF(c.telefono_fijo_1, ' . "''" . ')                  AS telefono_fijo_1,
-            NULLIF(c.telefono_fijo_2, ' . "''" . ')                  AS telefono_fijo_2,
-            NULLIF(c.telefono_movil, ' . "''" . ')                   AS telefono_movil,
-            NULLIF(c.email, ' . "''" . ')                            AS email,
-            NULLIF(c.email2, ' . "''" . ')                           AS email2,
-            NULLIF(c.email_raw, ' . "''" . ')                        AS email_raw,
-            NULLIF(c.telefono_raw, ' . "''" . ')                      AS telefono_raw,
-            NULLIF(c.telefono_fijo_1_raw, ' . "''" . ')              AS telefono_fijo_1_raw,
-            NULLIF(c.telefono_fijo_2_raw, ' . "''" . ')              AS telefono_fijo_2_raw,
-            NULLIF(c.telefono_movil_raw, ' . "''" . ')               AS telefono_movil_raw,
-            COALESCE(c.provincia_id, df.provincia_id)               AS provincia_id,
-            COALESCE(c.canton_id, df.canton_id)                     AS canton_id,
-            prov.nombre                                             AS provincia,
-            can.nombre                                              AS canton,
+            NULLIF(c.ruc, ' . "''" . ')                           AS ruc,
+            NULLIF(c.telefono, ' . "''" . ')                       AS telefono,
+            NULLIF(c.telefono_fijo_1, ' . "''" . ')                AS telefono_fijo_1,
+            NULLIF(c.telefono_fijo_2, ' . "''" . ')                AS telefono_fijo_2,
+            NULLIF(c.telefono_movil, ' . "''" . ')                 AS telefono_movil,
+            NULLIF(c.email, ' . "''" . ')                          AS email,
+            NULLIF(c.email2, ' . "''" . ')                         AS email2,
+            NULLIF(c.email_raw, ' . "''" . ')                      AS email_raw,
+            NULLIF(c.telefono_raw, ' . "''" . ')                    AS telefono_raw,
+            NULLIF(c.telefono_fijo_1_raw, ' . "''" . ')            AS telefono_fijo_1_raw,
+            NULLIF(c.telefono_fijo_2_raw, ' . "''" . ')            AS telefono_fijo_2_raw,
+            NULLIF(c.telefono_movil_raw, ' . "''" . ')             AS telefono_movil_raw,
+            c.provincia_id,
+            c.canton_id,
+            COALESCE(NULLIF(c.provincia, ' . "''" . '), prov.nombre) AS provincia,
+            COALESCE(NULLIF(c.canton, ' . "''" . '), can.nombre)     AS canton,
             c.tipo_entidad,
             c.id_segmento,
-            seg.nombre_segmento                                     AS segmento_nombre,
-            COALESCE(c.servicio_activo, ' . "''" . ')               AS servicio_activo,
+            seg.nombre_segmento                                   AS segmento_nombre,
+            COALESCE(c.servicio_activo, ' . "''" . ')             AS servicio_activo,
             c.notas
         FROM public.cooperativas c
-        LEFT JOIN public.datos_facturacion df ON df.id_cooperativa = c.id_cooperativa
-        LEFT JOIN public.provincia prov ON prov.id = COALESCE(c.provincia_id, df.provincia_id)
-        LEFT JOIN public.canton    can  ON can.id = COALESCE(c.canton_id, df.canton_id)
         LEFT JOIN public.segmentos seg ON seg.id_segmento = c.id_segmento
+        LEFT JOIN public.provincia prov ON prov.id = c.provincia_id
+        LEFT JOIN public.canton    can  ON can.id = c.canton_id
         WHERE c.id_cooperativa = :id
         LIMIT 1
         ';
