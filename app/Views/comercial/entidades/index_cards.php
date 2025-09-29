@@ -5,7 +5,6 @@ use App\Services\Shared\Pagination;
 /** @var int   $page   Página actual */
 /** @var int   $perPage Elementos por página */
 /** @var string $q     Búsqueda actual */
-/** @var string $csrf  Token CSRF */
 /** @var array $filters Filtros activos */
 
 function h($value): string
@@ -49,11 +48,26 @@ function formatLocation($row): string
 function gatherPhones($row): array
 {
     $phones = [];
+
+    if (!empty($row['telefonos']) && is_array($row['telefonos'])) {
+        foreach ($row['telefonos'] as $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+            $trimmed = trim((string)$value);
+            if ($trimmed === '') {
+                continue;
+            }
+            $phones[] = $trimmed;
+        }
+    }
+
     foreach (['telefono_fijo', 'telefono_fijo_1', 'telefono', 'telefono_movil', 'celular'] as $key) {
         if (!empty($row[$key])) {
             $phones[] = trim((string)$row[$key]);
         }
     }
+
     $phones = array_values(array_unique(array_filter($phones, static function ($v) {
         return $v !== '';
     })));
@@ -69,6 +83,10 @@ function gatherServices($row): array
         return $raw;
     }
     if (!is_array($raw)) {
+        $fallback = $row['servicio_activo'] ?? $row['servicios_text'] ?? '';
+        if (is_string($fallback) && trim($fallback) !== '') {
+            return array_map('trim', array_filter(explode(',', $fallback), static function ($v) { return $v !== ''; }));
+        }
         return [];
     }
     $labels = [];
@@ -197,7 +215,22 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
               <div class="ent-card-row">
                 <span class="ent-card-label">Correo</span>
                 <span class="ent-card-value">
-                  <?php $mail = trim((string)($row['email'] ?? '')); ?>
+                  <?php
+                    $emails = [];
+                    if (!empty($row['emails']) && is_array($row['emails'])) {
+                        foreach ($row['emails'] as $mailValue) {
+                            if (!is_scalar($mailValue)) {
+                                continue;
+                            }
+                            $mailTrim = trim((string)$mailValue);
+                            if ($mailTrim === '') {
+                                continue;
+                            }
+                            $emails[] = $mailTrim;
+                        }
+                    }
+                    $mail = $emails[0] ?? trim((string)($row['email'] ?? ''));
+                  ?>
                   <?= $mail === '' ? 'No especificado' : h($mail) ?>
                 </span>
               </div>
@@ -227,7 +260,6 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
               </button>
               <a class="btn btn-primary" href="/comercial/entidades/editar?id=<?= h((string)$entityId) ?>">Editar</a>
               <form method="post" action="/comercial/entidades/eliminar" class="ent-card-delete" aria-label="Eliminar <?= h($cardTitle) ?>">
-                <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
                 <input type="hidden" name="id" value="<?= h((string)$entityId) ?>">
                 <button type="submit" class="btn btn-danger" onclick="return confirm('¿Deseas eliminar esta entidad?');">Eliminar</button>
               </form>
