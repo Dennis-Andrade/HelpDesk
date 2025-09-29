@@ -84,6 +84,16 @@ final class ValidationService
             $data['tipo_entidad'] = 'cooperativa';
         }
 
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo es obligatorio';
+        } elseif (strpos($data['email'], '@') === false) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
         return ['ok' => empty($e), 'errors' => $e, 'data' => $data];
     }
 
