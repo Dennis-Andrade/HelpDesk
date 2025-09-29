@@ -255,6 +255,12 @@ final class EntidadesController
         }
 
         $servicios = $repo->serviciosActivos($id);
+        if (empty($servicios)) {
+            $serviciosFallback = $this->splitList($row['servicio_activo'] ?? null);
+            if (!empty($serviciosFallback)) {
+                $servicios = $serviciosFallback;
+            }
+        }
 
         $provincia = trim((string)($row['provincia'] ?? ''));
         $canton    = trim((string)($row['canton'] ?? ''));
@@ -271,17 +277,84 @@ final class EntidadesController
             $segmentoNombre = 'No especificado';
         }
 
+        $telefonoFijo = $this->firstNonEmpty([
+            $row['telefono_fijo_1'] ?? null,
+            $row['telefono'] ?? null,
+            $row['telefono_fijo_2'] ?? null,
+            $row['telefono_fijo_1_raw'] ?? null,
+            $row['telefono_fijo_2_raw'] ?? null,
+            $row['telefono_raw'] ?? null,
+        ]);
+
+        $telefonoMovil = $this->firstNonEmpty([
+            $row['telefono_movil'] ?? null,
+            $row['telefono_movil_raw'] ?? null,
+            $row['telefono'] ?? null,
+            $row['telefono_raw'] ?? null,
+        ]);
+
+        $email = $this->firstNonEmpty([
+            $row['email'] ?? null,
+            $row['email2'] ?? null,
+            $row['email_raw'] ?? null,
+        ]);
+
         return [
             'nombre'         => $row['nombre'],
             'ruc'            => $row['ruc'] ?? null,
-            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
-            'telefono_movil' => $row['telefono_movil'] ?? null,
-            'email'          => $row['email'] ?? null,
+            'telefono_fijo'  => $telefonoFijo,
+            'telefono_movil' => $telefonoMovil,
+            'email'          => $email,
             'tipo'           => $row['tipo_entidad'] ?? null,
             'segmento'       => $segmentoNombre,
             'ubicacion'      => $ubicacion,
             'notas'          => $row['notas'] ?? null,
             'servicios'      => $servicios,
         ];
+    }
+
+    /**
+     * @param array<int,mixed> $values
+     */
+    private function firstNonEmpty(array $values): ?string
+    {
+        foreach ($values as $value) {
+            if ($value === null) {
+                continue;
+            }
+            if (is_scalar($value)) {
+                $text = trim((string)$value);
+                if ($text !== '') {
+                    return $text;
+                }
+                continue;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param mixed $value
+     * @return array<int,string>
+     */
+    private function splitList($value): array
+    {
+        if (!is_string($value)) {
+            return [];
+        }
+
+        $parts = array_map('trim', explode(',', $value));
+        $clean = [];
+        foreach ($parts as $part) {
+            if ($part === '') {
+                continue;
+            }
+            if (!in_array($part, $clean, true)) {
+                $clean[] = $part;
+            }
+        }
+
+        return $clean;
     }
 }
