@@ -10,8 +10,6 @@ use App\Services\Shared\UbicacionesService;
 use App\Support\Logger;
 use function \view;
 use function \redirect;
-use function \csrf_token;
-use function \csrf_verify;
 
 final class EntidadesController
 {
@@ -54,41 +52,10 @@ final class EntidadesController
             'page'    => $result['page'],
             'perPage' => $result['perPage'],
             'q'       => $q,
-            'csrf'    => csrf_token(),
             'filters' => $filters,
             'toastMessage' => $toastMessage,
         ]);
     }
-    public function show(): void
-    {
-        $id = (int)($_GET['id'] ?? 0);
-        $this->showJson($id);
-    }
-
-    public function showJson($id): void
-    {
-        $id = (int) $id;
-
-        if ($id < 1) {
-            $this->respondEntidadJson(['error' => 'ID inválido'], 400);
-            return;
-        }
-
-        try {
-            $data = $this->loadEntidadDetalle($id);
-            if ($data === null) {
-                $this->respondEntidadJson(['error' => 'No se pudo obtener la entidad'], 404);
-                return;
-            }
-
-            $this->respondEntidadJson(['data' => $data], 200);
-            return;
-        } catch (\Throwable $e) {
-            $this->respondEntidadJson(['error' => 'Error interno'], 500);
-            return;
-        }
-    }
-
     public function createForm(): void
     {
         $crumbs = Breadcrumbs::make([
@@ -103,8 +70,7 @@ final class EntidadesController
         view('comercial/entidades/create', [
             'title'      => 'Nueva Entidad',
             'crumbs'     => $crumbs,
-            'csrf'       => csrf_token(),
-            'provincias' => $provincias, // <<<<<
+            'provincias' => $provincias,
             'action'     => '/comercial/entidades',
             'segmentos'  => $repo->segmentos(),
             'servicios'  => $repo->servicios(),
@@ -113,8 +79,6 @@ final class EntidadesController
 
     public function create(): void
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
-
         $repo = $this->entidades;
         $res  = $this->validator->validarEntidad($_POST);
 
@@ -124,7 +88,6 @@ final class EntidadesController
             view('comercial/entidades/create', [
                 'title'=>'Nueva Cooperativa',
                 'crumbs'=>$crumbs,
-                'csrf'=>csrf_token(),
                 'provincias'=>$this->ubicaciones->provincias(),
                 'cantones'=>$this->ubicaciones->cantones((int)($res['data']['provincia_id'] ?? 0)),
                 'segmentos'=>$repo->segmentos(),
@@ -138,14 +101,22 @@ final class EntidadesController
         }
 
         try {
-            $repo->create($res['data']);
+            $newId = $repo->create($res['data']);
+            $repo->replaceServicios($newId, $res['data']['servicios'] ?? []);
         } catch (\Throwable $e) {
+            if (isset($newId)) {
+                try {
+                    $repo->delete((int)$newId);
+                } catch (\Throwable $cleanup) {
+                    Logger::error($cleanup, 'EntidadesController::create cleanup');
+                }
+            }
             Logger::error($e, 'EntidadesController::create');
             http_response_code(500);
             echo 'No se pudo guardar la entidad';
             return;
         }
-        redirect('/comercial/entidades?created=1');
+        redirect('/comercial/entidades/editar?id=' . $newId . '&created=1');
     }
 
     public function editForm(): void
@@ -157,6 +128,11 @@ final class EntidadesController
         $row  = $repo->findById($id);
         if (!$row) { redirect('/comercial/entidades'); }
 
+        $row['id'] = (int)($row['id'] ?? $row['id_cooperativa'] ?? $id);
+        $row['id_entidad'] = (int)($row['id_entidad'] ?? $row['id'] ?? $id);
+        $row['id_cooperativa'] = (int)($row['id_cooperativa'] ?? $row['id'] ?? $id);
+        $row['servicios'] = $repo->serviciosDeEntidad($id);
+
         $crumbs = Breadcrumbs::make([
             ['href'=>'/comercial', 'label'=>'Comercial'],
             ['href'=>'/comercial/entidades', 'label'=>'Entidades'],
@@ -165,23 +141,28 @@ final class EntidadesController
 
         $provincias = $this->ubicaciones->provincias();
         $cantones   = $this->ubicaciones->cantones((int)($row['provincia_id'] ?? 0));
+        $toastMessage = null;
+        if (isset($_GET['created']) && $_GET['created'] === '1') {
+            $toastMessage = 'Entidad creada correctamente';
+        } elseif (isset($_GET['ok']) && $_GET['ok'] === '1') {
+            $toastMessage = 'Cambios guardados';
+        }
 
         view('comercial/entidades/edit', [
             'title'      => 'Editar Entidad',
             'crumbs'     => $crumbs,
             'item'       => $row,
-            'csrf'       => csrf_token(),
-            'provincias' => $provincias, // <<<<<
+            'provincias' => $provincias,
             'action'     => '/comercial/entidades/' . $id,
             'cantones'   => $cantones,
             'segmentos'  => $repo->segmentos(),
             'servicios'  => $repo->servicios(),
+            'toastMessage' => $toastMessage,
         ]);
     }
 
     public function update($id): void
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
         $id = (int)$id;
         if ($id < 1) {
             $id = (int)($_POST['id'] ?? 0);
@@ -194,20 +175,23 @@ final class EntidadesController
         if (!$res['ok']) {
             http_response_code(400);
             $row = array_merge((array)$repo->findById($id), $res['data']);
+            $row['id'] = $id;
+            $row['id_entidad'] = $id;
+            $row['id_cooperativa'] = $id;
             $crumbs = [['href'=>'/comercial','label'=>'Comercial'],['href'=>'/comercial/entidades','label'=>'Entidades'],['label'=>'Editar']];
             view('comercial/entidades/edit', [
                 'title'=>'Editar Cooperativa',
                 'crumbs'=>$crumbs,
                 'item'=>$row,
-                'csrf'=>csrf_token(),
                 'provincias'=>$this->ubicaciones->provincias(),
                 'cantones'=>$this->ubicaciones->cantones((int)($row['provincia_id'] ?? $res['data']['provincia_id'] ?? 0)),
                 'segmentos'=>$repo->segmentos(),
                 'servicios'=>$repo->servicios(),
                 'tipos'=>['cooperativa','mutualista','sujeto obligado no financiero','caja de ahorros','casa de valores'],
                 'errors'=>$res['errors'],
-                'sel'=>array_map('intval',(array)($_POST['servicios'] ?? [])),
+                'old'=>$res['data'],
                 'action'=>'/comercial/entidades/' . $id,
+                'toastMessage'=>null,
             ]);
             return;
         }
@@ -216,67 +200,20 @@ final class EntidadesController
             $repo->update($id, $res['data']);
             $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
         } catch (\Throwable $e) {
+            Logger::error($e, 'EntidadesController::update');
             http_response_code(500);
             echo 'No se pudo actualizar la entidad';
             return;
         }
 
-        redirect('/comercial/entidades?ok=1');
+        redirect('/comercial/entidades/editar?id=' . $id . '&ok=1');
     }
 
     public function delete(): void
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) { http_response_code(400); echo 'CSRF inválido'; return; }
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) { $this->entidades->delete($id); }
         redirect('/comercial/entidades');
     }
 
-    // --- Helpers JSON (privados) ---
-    private function respondEntidadJson(array $payload, $status = 200): void
-    {
-        http_response_code((int) $status);
-        header('Content-Type: application/json; charset=UTF-8');
-        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-
-    private function loadEntidadDetalle(int $id): ?array
-    {
-        $repo = $this->entidades;
-        $row  = $repo->findDetalles($id);
-        if (!$row) {
-            return null;
-        }
-
-        $servicios = $repo->serviciosActivos($id);
-
-        $provincia = trim((string)($row['provincia'] ?? ''));
-        $canton    = trim((string)($row['canton'] ?? ''));
-        $ubicacion = trim($provincia . (($provincia !== '' && $canton !== '') ? ' - ' : '') . $canton);
-        if ($ubicacion === '') {
-            $ubicacion = 'No especificado';
-        }
-
-        $segmentoNombre = trim((string)($row['segmento_nombre'] ?? ''));
-        if ($segmentoNombre === '' && !empty($row['id_segmento'])) {
-            $segmentoNombre = 'Segmento ' . (int)$row['id_segmento'];
-        }
-        if ($segmentoNombre === '') {
-            $segmentoNombre = 'No especificado';
-        }
-
-        return [
-            'nombre'         => $row['nombre'],
-            'ruc'            => $row['ruc'] ?? null,
-            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
-            'telefono_movil' => $row['telefono_movil'] ?? null,
-            'email'          => $row['email'] ?? null,
-            'tipo'           => $row['tipo_entidad'] ?? null,
-            'segmento'       => $segmentoNombre,
-            'ubicacion'      => $ubicacion,
-            'notas'          => $row['notas'] ?? null,
-            'servicios'      => $servicios,
-        ];
-    }
 }

@@ -5,7 +5,6 @@ use App\Services\Shared\Pagination;
 /** @var int   $page   Página actual */
 /** @var int   $perPage Elementos por página */
 /** @var string $q     Búsqueda actual */
-/** @var string $csrf  Token CSRF */
 /** @var array $filters Filtros activos */
 
 function h($value): string
@@ -49,11 +48,26 @@ function formatLocation($row): string
 function gatherPhones($row): array
 {
     $phones = [];
+
+    if (!empty($row['telefonos']) && is_array($row['telefonos'])) {
+        foreach ($row['telefonos'] as $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+            $trimmed = trim((string)$value);
+            if ($trimmed === '') {
+                continue;
+            }
+            $phones[] = $trimmed;
+        }
+    }
+
     foreach (['telefono_fijo', 'telefono_fijo_1', 'telefono', 'telefono_movil', 'celular'] as $key) {
         if (!empty($row[$key])) {
             $phones[] = trim((string)$row[$key]);
         }
     }
+
     $phones = array_values(array_unique(array_filter($phones, static function ($v) {
         return $v !== '';
     })));
@@ -69,6 +83,10 @@ function gatherServices($row): array
         return $raw;
     }
     if (!is_array($raw)) {
+        $fallback = $row['servicios_text'] ?? '';
+        if (is_string($fallback) && trim($fallback) !== '') {
+            return array_map('trim', array_filter(explode(',', $fallback), static function ($v) { return $v !== ''; }));
+        }
         return [];
     }
     $labels = [];
@@ -197,7 +215,22 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
               <div class="ent-card-row">
                 <span class="ent-card-label">Correo</span>
                 <span class="ent-card-value">
-                  <?php $mail = trim((string)($row['email'] ?? '')); ?>
+                  <?php
+                    $emails = [];
+                    if (!empty($row['emails']) && is_array($row['emails'])) {
+                        foreach ($row['emails'] as $mailValue) {
+                            if (!is_scalar($mailValue)) {
+                                continue;
+                            }
+                            $mailTrim = trim((string)$mailValue);
+                            if ($mailTrim === '') {
+                                continue;
+                            }
+                            $emails[] = $mailTrim;
+                        }
+                    }
+                    $mail = $emails[0] ?? trim((string)($row['email'] ?? ''));
+                  ?>
                   <?= $mail === '' ? 'No especificado' : h($mail) ?>
                 </span>
               </div>
@@ -218,16 +251,14 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
             </div>
             <footer class="ent-card-actions">
               <button type="button"
-                      class="btn btn-outline js-entidad-view"
-                      data-entidad-id="<?= h((string)$entityId) ?>"
-                      aria-haspopup="dialog"
-                      aria-controls="ent-card-modal"
-                      aria-label="Ver detalles de <?= h($cardTitle) ?>">
-                Ver
+                      class="btn btn-outline ent-card-view"
+                      data-entidad-view="<?= h((string)$entityId) ?>"
+                      aria-label="Ver detalle de <?= h($cardTitle) ?>">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                <span>Ver</span>
               </button>
               <a class="btn btn-primary" href="/comercial/entidades/editar?id=<?= h((string)$entityId) ?>">Editar</a>
               <form method="post" action="/comercial/entidades/eliminar" class="ent-card-delete" aria-label="Eliminar <?= h($cardTitle) ?>">
-                <input type="hidden" name="_csrf" value="<?= h($csrf) ?>">
                 <input type="hidden" name="id" value="<?= h((string)$entityId) ?>">
                 <button type="submit" class="btn btn-danger" onclick="return confirm('¿Deseas eliminar esta entidad?');">Eliminar</button>
               </form>
@@ -255,43 +286,6 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
   <?php endif; ?>
 </section>
 
-<div id="ent-card-modal" class="ent-modal" data-modal aria-hidden="true">
-  <div class="ent-modal__overlay" data-close-modal tabindex="-1" aria-hidden="true"></div>
-  <div class="ent-modal__box"
-       role="dialog"
-       aria-modal="true"
-       aria-labelledby="ent-card-modal-title"
-       aria-describedby="ent-card-modal-subtitle ent-card-modal-error"
-       tabindex="-1">
-    <div tabindex="0" data-modal-sentinel="start"></div>
-    <button type="button" class="ent-modal__close" aria-label="Cerrar" data-close-modal>&times;</button>
-    <div class="ent-modal__header">
-      <div class="ent-card-icon" aria-hidden="true">🏦</div>
-      <div>
-        <h2 id="ent-card-modal-title" class="ent-card-title">Entidad</h2>
-        <p id="ent-card-modal-subtitle" class="ent-card-subtitle">—</p>
-      </div>
-      <span id="ent-card-modal-servicios" class="ent-badge" aria-live="polite">0 servicios</span>
-    </div>
-    <div class="ent-modal__body">
-      <div id="ent-card-modal-error" class="ent-modal__error" role="alert" aria-live="assertive"></div>
-      <dl class="ent-details">
-        <div><dt>Ubicación</dt><dd id="ent-md-ubicacion">—</dd></div>
-        <div><dt>Segmento</dt><dd id="ent-md-segmento">—</dd></div>
-        <div><dt>Tipo</dt><dd id="ent-md-tipo">—</dd></div>
-        <div><dt>RUC</dt><dd id="ent-md-ruc">—</dd></div>
-        <div><dt>Teléfono fijo</dt><dd id="ent-md-tfijo">—</dd></div>
-        <div><dt>Teléfono móvil</dt><dd id="ent-md-tmovil">—</dd></div>
-        <div><dt>Correo</dt><dd id="ent-md-email">—</dd></div>
-        <div><dt>Notas</dt><dd id="ent-md-notas">—</dd></div>
-        <div><dt>Servicios activos</dt><dd id="ent-md-servicios">—</dd></div>
-      </dl>
-    </div>
-    <div class="ent-modal__footer">
-      <button type="button" class="btn btn-outline" data-close-modal data-modal-initial-focus>Cerrar</button>
-    </div>
-    <div tabindex="0" data-modal-sentinel="end"></div>
-  </div>
-</div>
+<?php include __DIR__ . '/_detalle_modal.php'; ?>
+<script src="/js/entidades_detalle.js" defer></script>
 
-<script src="/js/entidades_cards.js" defer></script>
