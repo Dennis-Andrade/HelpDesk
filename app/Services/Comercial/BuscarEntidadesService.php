@@ -69,13 +69,16 @@ final class BuscarEntidadesService
             'provincia_nombre' => isset($row['provincia_nombre']) ? (string)$row['provincia_nombre'] : null,
             'canton_nombre'    => isset($row['canton_nombre']) ? (string)$row['canton_nombre'] : null,
             'telefonos'        => $telefonos,
+            'telefono'         => isset($telefonos[0]) ? $telefonos[0] : null,
             'emails'           => $emails,
+            'email'            => isset($emails[0]) ? $emails[0] : null,
             'servicios'        => $servicios,
             'servicios_count'  => $serviciosCount,
             'tipo_entidad'     => isset($row['tipo_entidad']) ? (string)$row['tipo_entidad'] : null,
             'id_segmento'      => isset($row['id_segmento']) ? (int)$row['id_segmento'] : null,
             'provincia_id'     => isset($row['provincia_id']) && $row['provincia_id'] !== null ? (int)$row['provincia_id'] : null,
             'canton_id'        => isset($row['canton_id']) && $row['canton_id'] !== null ? (int)$row['canton_id'] : null,
+            'servicio_activo'  => isset($row['servicio_activo']) ? (string)$row['servicio_activo'] : null,
         ];
     }
 
