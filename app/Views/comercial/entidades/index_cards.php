@@ -83,7 +83,7 @@ function gatherServices($row): array
         return $raw;
     }
     if (!is_array($raw)) {
-        $fallback = $row['servicio_activo'] ?? $row['servicios_text'] ?? '';
+        $fallback = $row['servicios_text'] ?? '';
         if (is_string($fallback) && trim($fallback) !== '') {
             return array_map('trim', array_filter(explode(',', $fallback), static function ($v) { return $v !== ''; }));
         }

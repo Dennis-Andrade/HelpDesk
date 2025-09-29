@@ -74,6 +74,7 @@ final class BuscarEntidadesService
             'email'            => isset($emails[0]) ? $emails[0] : null,
             'servicios'        => $servicios,
             'servicios_count'  => $serviciosCount,
+            'servicios_text'   => isset($row['servicios_text']) ? (string)$row['servicios_text'] : null,
             'tipo_entidad'     => isset($row['tipo_entidad']) ? (string)$row['tipo_entidad'] : null,
             'id_segmento'      => isset($row['id_segmento']) ? (int)$row['id_segmento'] : null,
             'provincia_id'     => isset($row['provincia_id']) && $row['provincia_id'] !== null ? (int)$row['provincia_id'] : null,

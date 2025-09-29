@@ -105,7 +105,7 @@ final class EntidadRepository extends BaseRepository
             '    c.' . self::COL_TIPO . ' AS tipo_entidad,',
             '    c.' . self::COL_SEGMENTO . ' AS id_segmento,',
             '    seg.' . self::COL_NOM_SEG . ' AS segmento_nombre,',
-            '    COALESCE(c.servicio_activo, ' . "''" . ') AS servicio_activo,',
+            '    COALESCE(svc.servicios_text, ' . "''" . ') AS servicios_text,',
             '    COALESCE(c.' . self::COL_PROV . ', df.provincia_id) AS provincia_id,',
             '    prov.nombre AS provincia_nombre,',
             '    COALESCE(c.' . self::COL_CANTON . ', df.canton_id) AS canton_id,',
@@ -150,13 +150,15 @@ final class EntidadRepository extends BaseRepository
             'LEFT JOIN LATERAL (',
             '    SELECT',
             '        json_agg(nombre_servicio ORDER BY nombre_servicio) AS servicios_json,',
-            '        COUNT(*) AS servicios_count',
+            '        COUNT(*) AS servicios_count,',
+            '        string_agg(nombre_servicio, \', \' ORDER BY nombre_servicio) AS servicios_text',
             '    FROM (',
             '        SELECT DISTINCT s.' . self::COL_NOM_SERV . ' AS nombre_servicio',
             '        FROM ' . self::T_PIVOT . ' cs',
             '        JOIN ' . self::T_SERV . ' s ON s.' . self::COL_ID_SERV . ' = cs.' . self::PIV_SERV,
             '        WHERE cs.' . self::PIV_COOP . ' = c.' . self::COL_ID,
             '          AND cs.' . self::PIV_ACTIVO . ' = true',
+            '        ORDER BY s.' . self::COL_NOM_SERV,
             '    ) AS svc_names',
             ') AS svc ON TRUE',
             'WHERE (',
@@ -252,12 +254,24 @@ final class EntidadRepository extends BaseRepository
             c.tipo_entidad,
             c.id_segmento,
             seg.nombre_segmento                                   AS segmento_nombre,
-            COALESCE(c.servicio_activo, ' . "''" . ')             AS servicio_activo,
+            COALESCE(svc.servicios_text, ' . "''" . ')           AS servicios_text,
             c.notas
         FROM public.cooperativas c
         LEFT JOIN public.segmentos seg ON seg.id_segmento = c.id_segmento
         LEFT JOIN public.provincia prov ON prov.id = c.provincia_id
         LEFT JOIN public.canton    can  ON can.id = c.canton_id
+        LEFT JOIN LATERAL (
+            SELECT
+                string_agg(nombre_servicio, \', \' ORDER BY nombre_servicio) AS servicios_text
+            FROM (
+                SELECT DISTINCT s.nombre_servicio AS nombre_servicio
+                FROM public.cooperativa_servicio cs
+                JOIN public.servicios s ON s.id_servicio = cs.id_servicio
+                WHERE cs.id_cooperativa = c.id_cooperativa
+                  AND cs.activo = true
+                ORDER BY s.nombre_servicio
+            ) AS svc_names
+        ) AS svc ON TRUE
         WHERE c.id_cooperativa = :id
         LIMIT 1
         ';
@@ -487,6 +501,7 @@ final class EntidadRepository extends BaseRepository
                 'email'            => isset($emails[0]) ? $emails[0] : null,
                 'servicios'        => $servicios,
                 'servicios_count'  => isset($row['servicios_count']) ? (int)$row['servicios_count'] : 0,
+                'servicios_text'   => isset($row['servicios_text']) ? (string)$row['servicios_text'] : null,
                 'tipo_entidad'     => isset($row['tipo_entidad']) ? (string)$row['tipo_entidad'] : null,
                 'id_segmento'      => isset($row['id_segmento']) ? (int)$row['id_segmento'] : null,
                 'provincia_id'     => isset($row['provincia_id']) && $row['provincia_id'] !== null ? (int)$row['provincia_id'] : null,

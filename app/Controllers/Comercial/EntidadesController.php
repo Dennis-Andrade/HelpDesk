@@ -257,7 +257,7 @@ final class EntidadesController
 
         $servicios = $repo->serviciosActivos($id);
         if (empty($servicios)) {
-            $serviciosFallback = $this->splitList($row['servicio_activo'] ?? null);
+            $serviciosFallback = $this->splitList($row['servicios_text'] ?? null);
             if (!empty($serviciosFallback)) {
                 $servicios = $serviciosFallback;
             }
