@@ -56,6 +56,34 @@ final class EntidadesController
             'toastMessage' => $toastMessage,
         ]);
     }
+
+    public function show(): void
+    {
+        $id = (int)($_GET['id'] ?? 0);
+        $this->showJson($id);
+    }
+
+    public function showJson($id): void
+    {
+        $id = (int)$id;
+        if ($id < 1) {
+            $this->respondEntidadJson(['error' => 'ID inválido'], 400);
+            return;
+        }
+
+        try {
+            $data = $this->loadEntidadDetalle($id);
+            if ($data === null) {
+                $this->respondEntidadJson(['error' => 'Entidad no encontrada'], 404);
+                return;
+            }
+
+            $this->respondEntidadJson($data, 200);
+        } catch (\Throwable $e) {
+            Logger::error($e, 'EntidadesController::showJson');
+            $this->respondEntidadJson(['error' => 'Error interno'], 500);
+        }
+    }
     public function createForm(): void
     {
         $crumbs = Breadcrumbs::make([
@@ -214,5 +242,59 @@ final class EntidadesController
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) { $this->entidades->delete($id); }
         redirect('/comercial/entidades');
+    }
+
+    private function respondEntidadJson(array $payload, int $status = 200): void
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    private function loadEntidadDetalle(int $id): ?array
+    {
+        $repo = $this->entidades;
+        $row  = $repo->findDetalles($id);
+        if (!$row) {
+            return null;
+        }
+
+        $servicios = $repo->serviciosActivos($id);
+
+        $provincia = trim((string)($row['provincia'] ?? ''));
+        $canton    = trim((string)($row['canton'] ?? ''));
+        if ($provincia === '' && isset($row['provincia_nombre'])) {
+            $provincia = trim((string)$row['provincia_nombre']);
+        }
+        if ($canton === '' && isset($row['canton_nombre'])) {
+            $canton = trim((string)$row['canton_nombre']);
+        }
+
+        $ubicacion = trim($provincia . (($provincia !== '' && $canton !== '') ? ' - ' : '') . $canton);
+        if ($ubicacion === '') {
+            $ubicacion = 'No especificado';
+        }
+
+        $segmentoNombre = trim((string)($row['segmento_nombre'] ?? ''));
+        if ($segmentoNombre === '' && !empty($row['id_segmento'])) {
+            $segmentoNombre = 'Segmento ' . (int)$row['id_segmento'];
+        }
+        if ($segmentoNombre === '') {
+            $segmentoNombre = 'No especificado';
+        }
+
+        return [
+            'nombre'         => (string)($row['nombre'] ?? ''),
+            'ruc'            => $row['ruc'] ?? null,
+            'telefono_fijo'  => $row['telefono_fijo_1'] ?? null,
+            'telefono_movil' => $row['telefono_movil'] ?? null,
+            'email'          => $row['email'] ?? null,
+            'tipo'           => $row['tipo_entidad'] ?? null,
+            'segmento'       => $segmentoNombre,
+            'ubicacion'      => $ubicacion,
+            'notas'          => $row['notas'] ?? null,
+            'servicios'      => $servicios,
+        ];
     }
 }
