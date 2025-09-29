@@ -121,8 +121,7 @@ $emailCssClass   = $emailHasError ? 'is-invalid' : '';
       placeholder="Ej.: contacto@coac.ec"
       value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>"
       class="<?= $emailCssClass ?>"
-      aria-invalid="<?= $emailHasError ? 'true' : 'false' ?>"
-      required>
+      aria-invalid="<?= $emailHasError ? 'true' : 'false' ?>">
   </label>
   <div class="grid-2 col-span-2 ent-form__row">
     <label>
