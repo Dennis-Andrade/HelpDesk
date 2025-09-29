@@ -222,6 +222,7 @@ final class EntidadesController
             $repo->update($id, $res['data']);
             $repo->replaceServicios($id, $res['data']['servicios'] ?? []);
         } catch (\Throwable $e) {
+            Logger::error($e, 'EntidadesController::update');
             http_response_code(500);
             echo 'No se pudo actualizar la entidad';
             return;
