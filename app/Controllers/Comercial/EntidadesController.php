@@ -78,7 +78,7 @@ final class EntidadesController
                 return;
             }
 
-            $this->respondEntidadJson(['data' => $data], 200);
+            $this->respondEntidadJson($data, 200);
             return;
         } catch (\Throwable $e) {
             $this->respondEntidadJson(['error' => 'Error interno'], 500);
