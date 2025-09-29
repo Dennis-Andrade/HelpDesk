@@ -31,12 +31,17 @@ final class ValidationService
         };
 
         // Normalización
+        $emailInput = trim((string)($in['email'] ?? ''));
+        $emailNormalized = $emailInput === '' ? '' : mb_strtolower($emailInput, 'UTF-8');
+
         $data = [
             'nombre'          => trim((string)($in['nombre'] ?? '')),
             'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'
             'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
             'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
-            'email'           => trim((string)($in['email'] ?? '')),
+            'email'           => $emailNormalized,
+            'email2'          => $emailNormalized,
+            'email_raw'       => $emailInput,
             'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
             'canton_id'       => $intOrNull($in['canton_id'] ?? null),
             'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
@@ -76,6 +81,10 @@ final class ValidationService
             $e['telefono_movil'] = 'El celular debe tener 10 dígitos';
         }
 
+        // email: si viene, formato válido
+        if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'El correo electrónico no es válido';
+        }
         // tipo_entidad: valores permitidos
         $permitidos = ['cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores'];
         if ($data['tipo_entidad'] === '' || !in_array($data['tipo_entidad'], $permitidos, true)) {
