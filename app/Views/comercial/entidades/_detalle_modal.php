@@ -12,9 +12,6 @@
        aria-describedby="ent-card-modal-subtitle ent-card-modal-error"
        tabindex="-1">
     <div tabindex="0" data-modal-sentinel="start"></div>
-    <button type="button" class="ent-modal__close" aria-label="Cerrar" data-close-modal>
-      <span class="material-symbols-outlined" aria-hidden="true">close</span>
-    </button>
     <div class="ent-modal__header ent-card-head">
       <div class="ent-card-icon" aria-hidden="true">
         <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
@@ -65,8 +62,6 @@
           <dd class="ent-details__value ent-details__value--services" id="ent-md-servicios">—</dd>
         </div>
       </dl>
-    </div>
-    <div class="ent-modal__footer">
       <button type="button" class="btn btn-outline" data-close-modal data-modal-initial-focus>Cerrar</button>
     </div>
     <div tabindex="0" data-modal-sentinel="end"></div>

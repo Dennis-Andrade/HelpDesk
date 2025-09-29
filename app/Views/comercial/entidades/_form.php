@@ -113,7 +113,6 @@ $emailCssClass   = $emailHasError ? 'is-invalid' : '';
       placeholder="Ej.: 0998765432"
       value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
-
   <label class="col-span-2">
     Correo electrónico <?= $emailHasError ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
     <input
@@ -125,7 +124,6 @@ $emailCssClass   = $emailHasError ? 'is-invalid' : '';
       aria-invalid="<?= $emailHasError ? 'true' : 'false' ?>"
       required>
   </label>
-
   <div class="grid-2 col-span-2 ent-form__row">
     <label>
       Provincia
