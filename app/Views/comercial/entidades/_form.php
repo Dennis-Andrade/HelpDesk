@@ -57,6 +57,8 @@ if (!empty($segmentosData)) {
 $tipoActual = (string)($item['tipo_entidad'] ?? $old['tipo_entidad'] ?? 'cooperativa');
 $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahorros', 'casa_valores'];
 $segmentoVisible = $tipoActual === 'cooperativa';
+$emailHasError   = isset($errors['email']);
+$emailCssClass   = $emailHasError ? 'is-invalid' : '';
 ?>
 
 <div class="ent-form__grid grid grid-2">
@@ -112,12 +114,14 @@ $segmentoVisible = $tipoActual === 'cooperativa';
       value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
   <label class="col-span-2">
-    Correo electrónico <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
+    Correo electrónico <?= $emailHasError ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
     <input
       type="email"
       name="email"
       placeholder="Ej.: contacto@coac.ec"
       value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>"
+      class="<?= $emailCssClass ?>"
+      aria-invalid="<?= $emailHasError ? 'true' : 'false' ?>"
       required>
   </label>
   <div class="grid-2 col-span-2 ent-form__row">
