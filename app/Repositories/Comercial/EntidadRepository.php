@@ -98,6 +98,8 @@ final class EntidadRepository extends BaseRepository
         $sqlLines = array(
             'SELECT',
             '    c.' . self::COL_ID . ' AS id,',
+            '    c.' . self::COL_ID . ' AS id_cooperativa,',
+            '    c.' . self::COL_ID . ' AS id_entidad,',
             '    c.' . self::COL_NOMBRE . ' AS nombre,',
             '    c.' . self::COL_RUC . ' AS ruc,',
             '    c.' . self::COL_TIPO . ' AS tipo_entidad,',
@@ -227,6 +229,8 @@ final class EntidadRepository extends BaseRepository
     {
         $sql = '
         SELECT
+            c.id_cooperativa                                      AS id,
+            c.id_cooperativa                                      AS id_cooperativa,
             c.id_cooperativa                                      AS id_entidad,
             c.nombre,
             NULLIF(c.ruc, ' . "''" . ')                           AS ruc,
@@ -307,9 +311,6 @@ final class EntidadRepository extends BaseRepository
                     :ruc,
                     :tfijo,
                     :tmov,
-                    :email,
-                    :email2,
-                    :email_raw,
                     :prov,
                     :canton,
                     :tipo,
@@ -473,6 +474,8 @@ final class EntidadRepository extends BaseRepository
 
             $hydrated[] = array(
                 'id'               => $id,
+                'id_cooperativa'   => $id,
+                'id_entidad'       => $id,
                 'nombre'           => isset($row['nombre']) ? (string)$row['nombre'] : '',
                 'ruc'              => isset($row['ruc']) ? (string)$row['ruc'] : null,
                 'segmento_nombre'  => isset($row['segmento_nombre']) ? (string)$row['segmento_nombre'] : null,
