@@ -188,6 +188,22 @@
     }
   });
 
+  function normalizeDetallePayload(payload){
+    if (payload && typeof payload === 'object' && !Array.isArray(payload) && payload.data && typeof payload.data === 'object') {
+      payload = payload.data;
+    }
+
+    if (payload && typeof payload === 'object' && Array.isArray(payload.entidades)) {
+      throw new Error('Se detectó un JSON estático obsoleto (public/data/entidades_detalle.json). Elimínalo para usar el detalle dinámico.');
+    }
+
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('La respuesta del servidor no contiene un detalle válido.');
+    }
+
+    return payload;
+  }
+
   async function fetchDetalle(id){
     var url = '/comercial/entidades/' + encodeURIComponent(id) + '/show';
     var response;
@@ -212,7 +228,7 @@
       throw new Error(message);
     }
 
-    return payload;
+    return normalizeDetallePayload(payload);
   }
 
   function renderServicios(data){
