@@ -56,6 +56,7 @@ if (!empty($segmentosData)) {
 
 $tipoActual = (string)($item['tipo_entidad'] ?? $old['tipo_entidad'] ?? 'cooperativa');
 $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahorros', 'casa_valores'];
+$segmentoVisible = $tipoActual === 'cooperativa';
 ?>
 
 <div class="ent-form__grid grid grid-2">
@@ -65,7 +66,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
       type="text"
       name="nombre"
       required
-      placeholder="Ej.: COAC SAN JUAN LTDA"
+      placeholder="Ej.: COAC del Ecuador"
       value="<?= htmlspecialchars((string)$val('nombre'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 
@@ -112,12 +113,13 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
   </label>
 
   <label class="col-span-2">
-    Email <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
+    Correo electrónico <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
     <input
       type="email"
       name="email"
-      placeholder="ejemplo@dominio.com"
-      value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>">
+      placeholder="Ej.: contacto@coac.ec"
+      value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>"
+      required>
   </label>
 
   <div class="grid-2 col-span-2 ent-form__row">
@@ -163,7 +165,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
     </label>
   </div>
 
-  <label class="col-span-2">
+  <label class="col-span-2" id="segmento_wrap"<?= $segmentoVisible ? '' : ' style="display:none;"' ?>>
     Segmento (solo cooperativa)
     <select name="id_segmento">
       <?php foreach ($segmentOptions as $valor => $label): ?>
