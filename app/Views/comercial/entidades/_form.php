@@ -110,7 +110,15 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
       placeholder="Ej.: 0998765432"
       value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
-
+  <label class="col-span-2">
+    Correo electrónico <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
+    <input
+      type="email"
+      name="email"
+      maxlength="100"
+      placeholder="Ej.: contacto@cooperativa.ec"
+      value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>">
+  </label>
   <div class="grid-2 col-span-2 ent-form__row">
     <label>
       Provincia
