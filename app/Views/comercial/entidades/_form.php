@@ -65,7 +65,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
       type="text"
       name="nombre"
       required
-      placeholder="Ej.: COAC SAN JUAN LTDA"
+      placeholder="Ej.: COAC del Ecuador"
       value="<?= htmlspecialchars((string)$val('nombre'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 
@@ -112,11 +112,11 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
   </label>
 
   <label class="col-span-2">
-    Email <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
+    Correo electrónico
     <input
-      type="email"
+      type="text"
       name="email"
-      placeholder="ejemplo@dominio.com"
+      placeholder="Ej.: contacto@cooperativa.ec"
       value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 

@@ -161,6 +161,7 @@ final class EntidadesController
         $row['id'] = (int)($row['id'] ?? $row['id_cooperativa'] ?? $id);
         $row['id_entidad'] = (int)($row['id_entidad'] ?? $row['id'] ?? $id);
         $row['id_cooperativa'] = (int)($row['id_cooperativa'] ?? $row['id'] ?? $id);
+        $row['servicios'] = $repo->serviciosDeEntidad($id);
 
         $crumbs = Breadcrumbs::make([
             ['href'=>'/comercial', 'label'=>'Comercial'],
@@ -211,7 +212,7 @@ final class EntidadesController
                 'servicios'=>$repo->servicios(),
                 'tipos'=>['cooperativa','mutualista','sujeto obligado no financiero','caja de ahorros','casa de valores'],
                 'errors'=>$res['errors'],
-                'sel'=>array_map('intval',(array)($_POST['servicios'] ?? [])),
+                'old'=>$res['data'],
                 'action'=>'/comercial/entidades/' . $id,
             ]);
             return;
