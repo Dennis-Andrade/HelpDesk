@@ -14,7 +14,6 @@ final class ValidationService
      * - ruc: opcional, SOLO dígitos, 10 a 13 caracteres si se proporciona
      * - telefono_fijo: opcional, SOLO dígitos, exactamente 7 si se proporciona
      * - telefono_movil: opcional, SOLO dígitos, exactamente 10 si se proporciona
-     * - email: opcional, formato email si se proporciona
      * - provincia_id, canton_id, tipo_entidad, id_segmento: opcionales, enteros o null
      * - servicios: opcional, array de enteros
      *
@@ -36,7 +35,6 @@ final class ValidationService
             'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'
             'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
             'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
-            'email'           => trim((string)($in['email'] ?? '')),
             'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
             'canton_id'       => $intOrNull($in['canton_id'] ?? null),
             'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
@@ -74,11 +72,6 @@ final class ValidationService
         // móvil: si viene, 10 dígitos
         if ($data['telefono_movil'] !== '' && strlen($data['telefono_movil']) !== 10) {
             $e['telefono_movil'] = 'El celular debe tener 10 dígitos';
-        }
-
-        // email: si viene, formato válido
-        if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $e['email'] = 'Email inválido';
         }
 
         // tipo_entidad: valores permitidos
