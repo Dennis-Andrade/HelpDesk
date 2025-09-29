@@ -111,7 +111,6 @@ $segmentoVisible = $tipoActual === 'cooperativa';
       placeholder="Ej.: 0998765432"
       value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
-
   <label class="col-span-2">
     Correo electrónico <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
     <input
@@ -121,7 +120,6 @@ $segmentoVisible = $tipoActual === 'cooperativa';
       value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>"
       required>
   </label>
-
   <div class="grid-2 col-span-2 ent-form__row">
     <label>
       Provincia

@@ -30,12 +30,14 @@ final class ValidationService
         };
 
         // Normalización
+        $emailInput = trim((string)($in['email'] ?? ''));
+        $emailNormalized = $emailInput === '' ? '' : mb_strtolower($emailInput, 'UTF-8');
+
         $data = [
             'nombre'          => trim((string)($in['nombre'] ?? '')),
             'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'
             'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
             'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
-            'email'           => trim((string)($in['email'] ?? '')),
             'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
             'canton_id'       => $intOrNull($in['canton_id'] ?? null),
             'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
