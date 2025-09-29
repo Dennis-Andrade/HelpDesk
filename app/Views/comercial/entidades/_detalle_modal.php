@@ -25,15 +25,42 @@
     <div class="ent-modal__body">
       <div id="ent-card-modal-error" class="ent-modal__error" role="alert" aria-live="assertive"></div>
       <dl class="ent-details">
-        <div><dt>Ubicación</dt><dd id="ent-md-ubicacion">—</dd></div>
-        <div><dt>Segmento</dt><dd id="ent-md-segmento">—</dd></div>
-        <div><dt>Tipo</dt><dd id="ent-md-tipo">—</dd></div>
-        <div><dt>RUC</dt><dd id="ent-md-ruc">—</dd></div>
-        <div><dt>Teléfono fijo</dt><dd id="ent-md-tfijo">—</dd></div>
-        <div><dt>Teléfono móvil</dt><dd id="ent-md-tmovil">—</dd></div>
-        <div><dt>Correo</dt><dd id="ent-md-email">—</dd></div>
-        <div><dt>Notas</dt><dd id="ent-md-notas">—</dd></div>
-        <div><dt>Servicios activos</dt><dd id="ent-md-servicios">—</dd></div>
+        <div class="ent-details__item">
+          <dt class="ent-details__term">Ubicación</dt>
+          <dd class="ent-details__value" id="ent-md-ubicacion">—</dd>
+        </div>
+        <div class="ent-details__item">
+          <dt class="ent-details__term">Segmento</dt>
+          <dd class="ent-details__value ent-details__value--badge" id="ent-md-segmento">—</dd>
+        </div>
+        <div class="ent-details__item">
+          <dt class="ent-details__term">Tipo</dt>
+          <dd class="ent-details__value ent-details__value--accent" id="ent-md-tipo">—</dd>
+        </div>
+        <div class="ent-details__item">
+          <dt class="ent-details__term">RUC</dt>
+          <dd class="ent-details__value" id="ent-md-ruc">—</dd>
+        </div>
+        <div class="ent-details__item">
+          <dt class="ent-details__term">Teléfono fijo</dt>
+          <dd class="ent-details__value" id="ent-md-tfijo">—</dd>
+        </div>
+        <div class="ent-details__item">
+          <dt class="ent-details__term">Teléfono móvil</dt>
+          <dd class="ent-details__value" id="ent-md-tmovil">—</dd>
+        </div>
+        <div class="ent-details__item">
+          <dt class="ent-details__term">Correo</dt>
+          <dd class="ent-details__value ent-details__value--link" id="ent-md-email">—</dd>
+        </div>
+        <div class="ent-details__item">
+          <dt class="ent-details__term">Notas</dt>
+          <dd class="ent-details__value ent-details__value--notes" id="ent-md-notas">—</dd>
+        </div>
+        <div class="ent-details__item ent-details__item--services">
+          <dt class="ent-details__term">Servicios activos</dt>
+          <dd class="ent-details__value ent-details__value--services" id="ent-md-servicios">—</dd>
+        </div>
       </dl>
       <button type="button" class="btn btn-outline" data-close-modal data-modal-initial-focus>Cerrar</button>
     </div>
