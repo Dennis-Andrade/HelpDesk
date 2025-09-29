@@ -85,7 +85,6 @@ final class ValidationService
         if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
             $e['email'] = 'El correo electrónico no es válido';
         }
-
         // tipo_entidad: valores permitidos
         $permitidos = ['cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores'];
         if ($data['tipo_entidad'] === '' || !in_array($data['tipo_entidad'], $permitidos, true)) {
