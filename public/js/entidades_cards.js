@@ -2,9 +2,9 @@
   const modal = document.getElementById('ent-card-modal');
   if (!modal) { return; }
 
-  const dialog       = modal.querySelector('.ent-modal__box');
-  const overlay      = modal.querySelector('.ent-modal__overlay');
-  const closeButtons = modal.querySelectorAll('[data-close-modal]');
+  const dialog        = modal.querySelector('.ent-modal__box');
+  const overlay       = modal.querySelector('.ent-modal__overlay');
+  const closeButtons  = modal.querySelectorAll('[data-close-modal]');
   const sentinelStart = modal.querySelector('[data-modal-sentinel="start"]');
   const sentinelEnd   = modal.querySelector('[data-modal-sentinel="end"]');
   const initialFocus  = modal.querySelector('[data-modal-initial-focus]');
