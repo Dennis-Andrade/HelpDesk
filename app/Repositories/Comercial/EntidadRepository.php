@@ -227,6 +227,59 @@ final class EntidadRepository extends BaseRepository
         return $row ?: null;
     }
 
+    public function findDetalles(int $id): ?array
+    {
+        $sql = '
+        SELECT
+            c.id_cooperativa                                        AS id_entidad,
+            c.nombre,
+            NULLIF(c.ruc, ' . "''" . ')                             AS ruc,
+            NULLIF(c.' . self::COL_TFIJ . ', ' . "''" . ')           AS telefono_fijo_1,
+            NULLIF(c.' . self::COL_TMOV . ', ' . "''" . ')           AS telefono_movil,
+            NULLIF(c.' . self::COL_MAIL . ', ' . "''" . ')           AS email,
+            COALESCE(c.' . self::COL_PROV . ', df.provincia_id)      AS provincia_id,
+            COALESCE(c.' . self::COL_CANTON . ', df.canton_id)       AS canton_id,
+            prov.nombre                                             AS provincia,
+            can.nombre                                              AS canton,
+            c.' . self::COL_TIPO . '                                AS tipo_entidad,
+            c.' . self::COL_SEGMENTO . '                            AS id_segmento,
+            seg.' . self::COL_NOM_SEG . '                           AS segmento_nombre,
+            c.' . self::COL_NOTAS . '                               AS notas
+        FROM public.cooperativas c
+        LEFT JOIN public.datos_facturacion df ON df.id_cooperativa = c.id_cooperativa
+        LEFT JOIN public.provincia prov ON prov.id = COALESCE(c.' . self::COL_PROV . ', df.provincia_id)
+        LEFT JOIN public.canton    can  ON can.id = COALESCE(c.' . self::COL_CANTON . ', df.canton_id)
+        LEFT JOIN public.segmentos seg ON seg.' . self::COL_ID_SEG . ' = c.' . self::COL_SEGMENTO . '
+        WHERE c.' . self::COL_ID . ' = :id
+        LIMIT 1
+        ';
+
+        try {
+            $row = $this->db->fetch($sql, array(':id' => array($id, PDO::PARAM_INT)));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al obtener el detalle de la entidad.', 0, $e);
+        }
+
+        return $row ?: null;
+    }
+
+    public function serviciosActivos(int $id): array
+    {
+        $sql = '
+        SELECT s.id_servicio, s.nombre_servicio
+        FROM public.cooperativa_servicio cs
+        JOIN public.servicios s ON s.id_servicio = cs.id_servicio
+        WHERE cs.id_cooperativa = :id AND cs.activo = true
+        ORDER BY s.nombre_servicio
+        ';
+
+        try {
+            return $this->db->fetchAll($sql, array(':id' => array($id, PDO::PARAM_INT)));
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al obtener los servicios activos.', 0, $e);
+        }
+    }
+
     /** Crear y devolver el id nuevo */
     public function create(array $d): int
     {
@@ -431,7 +484,6 @@ final class EntidadRepository extends BaseRepository
                 'id_segmento'      => isset($row['id_segmento']) ? (int)$row['id_segmento'] : null,
                 'provincia_id'     => isset($row['provincia_id']) && $row['provincia_id'] !== null ? (int)$row['provincia_id'] : null,
                 'canton_id'        => isset($row['canton_id']) && $row['canton_id'] !== null ? (int)$row['canton_id'] : null,
-                'servicio_activo'  => isset($row['servicio_activo']) ? (string)$row['servicio_activo'] : null,
             );
         }
 
