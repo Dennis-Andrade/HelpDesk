@@ -14,7 +14,6 @@ final class ValidationService
      * - ruc: opcional, SOLO dígitos, 10 a 13 caracteres si se proporciona
      * - telefono_fijo: opcional, SOLO dígitos, exactamente 7 si se proporciona
      * - telefono_movil: opcional, SOLO dígitos, exactamente 10 si se proporciona
-     * - email: opcional, formato email si se proporciona
      * - provincia_id, canton_id, tipo_entidad, id_segmento: opcionales, enteros o null
      * - servicios: opcional, array de enteros
      *
@@ -31,17 +30,21 @@ final class ValidationService
         };
 
         // Normalización
+        $emailInput = $in['email'] ?? '';
+        $emailTrim  = trim((string)$emailInput);
+
         $data = [
             'nombre'          => trim((string)($in['nombre'] ?? '')),
             'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'
             'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
             'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
-            'email'           => trim((string)($in['email'] ?? '')),
-            'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
-            'canton_id'       => $intOrNull($in['canton_id'] ?? null),
-            'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
-            'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
-            'notas'           => trim((string)($in['notas'] ?? '')),
+            'email'           => $emailTrim,
+            'email_raw'       => (string)$emailInput,
+        'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
+        'canton_id'       => $intOrNull($in['canton_id'] ?? null),
+        'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
+        'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
+        'notas'           => trim((string)($in['notas'] ?? '')),
         ];
         // Alias para compatibilidad con repositorios que esperan 'nit'.
         $data['nit'] = $data['ruc'];
@@ -76,16 +79,21 @@ final class ValidationService
             $e['telefono_movil'] = 'El celular debe tener 10 dígitos';
         }
 
-        // email: si viene, formato válido
-        if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $e['email'] = 'Email inválido';
-        }
-
         // tipo_entidad: valores permitidos
         $permitidos = ['cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores'];
         if ($data['tipo_entidad'] === '' || !in_array($data['tipo_entidad'], $permitidos, true)) {
             // por defecto dejamos "cooperativa"
             $data['tipo_entidad'] = 'cooperativa';
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
         }
 
         return ['ok' => empty($e), 'errors' => $e, 'data' => $data];
