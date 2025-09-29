@@ -30,6 +30,9 @@ final class ValidationService
         };
 
         // Normalización
+        $emailInput = trim((string)($in['email'] ?? ''));
+        $emailNormalized = $emailInput === '' ? '' : mb_strtolower($emailInput, 'UTF-8');
+
         $data = [
             'nombre'          => trim((string)($in['nombre'] ?? '')),
             'ruc'             => $digits($in['nit'] ?? $in['ruc'] ?? ''), // admite 'nit' o 'ruc'

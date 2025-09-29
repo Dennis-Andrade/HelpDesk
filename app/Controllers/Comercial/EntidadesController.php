@@ -215,5 +215,4 @@ final class EntidadesController
         if ($id > 0) { $this->entidades->delete($id); }
         redirect('/comercial/entidades');
     }
-
 }
