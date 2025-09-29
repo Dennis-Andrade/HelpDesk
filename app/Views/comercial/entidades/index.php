@@ -256,8 +256,10 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
             </div>
             <footer class="ent-card-actions">
               <button type="button"
-                      class="btn btn-outline ent-card-view"
-                      data-entidad-view="<?= h((string)$entityId) ?>"
+                      class="btn btn-outline ent-card-view js-entidad-view"
+                      data-entidad-id="<?= h((string)$entityId) ?>"
+                      aria-haspopup="dialog"
+                      aria-controls="ent-card-modal"
                       aria-label="Ver detalle de <?= h($cardTitle) ?>">
                 <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
                 <span>Ver</span>
@@ -290,8 +292,10 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
     </nav>
   <?php endif; ?>
 </section>
+
 <?php include __DIR__ . '/_detalle_modal.php'; ?>
-<script src="/js/entidades_detalle.js" defer></script>
+<script src="/js/entidades_cards.js" defer></script>
+
 <?php if ($toastMessage !== null): ?>
 <script>
 (function(){
