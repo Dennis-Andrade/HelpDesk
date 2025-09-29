@@ -255,6 +255,13 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
               </div>
             </div>
             <footer class="ent-card-actions">
+              <button type="button"
+                      class="btn btn-outline ent-card-view"
+                      data-entidad-view="<?= h((string)$entityId) ?>"
+                      aria-label="Ver detalle de <?= h($cardTitle) ?>">
+                <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                <span>Ver</span>
+              </button>
               <a class="btn btn-primary" href="/comercial/entidades/editar?id=<?= h((string)$entityId) ?>">Editar</a>
               <form method="post" action="/comercial/entidades/eliminar" class="ent-card-delete" aria-label="Eliminar <?= h($cardTitle) ?>">
                 <input type="hidden" name="id" value="<?= h((string)$entityId) ?>">
@@ -283,7 +290,8 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
     </nav>
   <?php endif; ?>
 </section>
-
+<?php include __DIR__ . '/_detalle_modal.php'; ?>
+<script src="/js/entidades_detalle.js" defer></script>
 <?php if ($toastMessage !== null): ?>
 <script>
 (function(){
