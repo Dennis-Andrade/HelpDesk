@@ -112,11 +112,12 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
   </label>
 
   <label class="col-span-2">
-    Email <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
+    Correo electrónico <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
     <input
       type="email"
       name="email"
-      placeholder="ejemplo@dominio.com"
+      maxlength="100"
+      placeholder="Ej.: contacto@cooperativa.ec"
       value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 
