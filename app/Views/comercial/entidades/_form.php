@@ -119,11 +119,11 @@ $emailCssClass   = $emailHasError ? 'is-invalid' : '';
     <input
       type="email"
       name="email"
-      required  Agregar si es obligatorio
-    placeholder="Ej.: contacto@coac.ec"
-    value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>"
-    class="<?= $emailCssClass ?>"
-    aria-invalid="<?= $emailHasError ? 'true' : 'false' ?>">
+      required
+      placeholder="Ej.: contacto@coac.ec"
+      value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>"
+      class="<?= $emailCssClass ?>"
+      aria-invalid="<?= $emailHasError ? 'true' : 'false' ?>">
   </label>
   <div class="grid-2 col-span-2 ent-form__row">
     <label>
@@ -168,7 +168,7 @@ $emailCssClass   = $emailHasError ? 'is-invalid' : '';
     </label>
   </div>
 
-  <label class="col-span-2" id="segmento_wrap" <?= $segmentoVisible ? '' : ' style="display:none;"' ?>>
+  <label class="col-span-2" id="segmento_wrap"<?= $segmentoVisible ? '' : ' style="display:none;"' ?>>
     Segmento (solo cooperativa)
     <select name="id_segmento">
       <?php foreach ($segmentOptions as $valor => $label): ?>
