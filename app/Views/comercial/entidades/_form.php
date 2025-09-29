@@ -111,15 +111,6 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
       value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 
-  <label class="col-span-2">
-    Correo electrónico
-    <input
-      type="text"
-      name="email"
-      placeholder="Ej.: contacto@cooperativa.ec"
-      value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>">
-  </label>
-
   <div class="grid-2 col-span-2 ent-form__row">
     <label>
       Provincia
