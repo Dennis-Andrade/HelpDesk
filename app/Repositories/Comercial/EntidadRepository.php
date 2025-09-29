@@ -300,7 +300,6 @@ final class EntidadRepository extends BaseRepository
                     :tfijo,
                     :tmov,
                     :email,
-                    :email2,
                     :prov,
                     :canton,
                     :tipo,

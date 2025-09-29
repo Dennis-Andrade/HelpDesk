@@ -76,11 +76,6 @@ final class ValidationService
             $e['telefono_movil'] = 'El celular debe tener 10 dígitos';
         }
 
-        // email: si viene, formato válido
-        if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-            $e['email'] = 'Email inválido';
-        }
-
         // tipo_entidad: valores permitidos
         $permitidos = ['cooperativa','mutualista','sujeto_no_financiero','caja_ahorros','casa_valores'];
         if ($data['tipo_entidad'] === '' || !in_array($data['tipo_entidad'], $permitidos, true)) {
