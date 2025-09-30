@@ -42,6 +42,8 @@ final class EntidadesController
             $toastMessage = 'Entidad creada correctamente';
         } elseif (isset($_GET['ok']) && $_GET['ok'] === '1') {
             $toastMessage = 'Cambios guardados';
+        } elseif (isset($_GET['deleted']) && $_GET['deleted'] === '1') {
+            $toastMessage = 'Entidad eliminada correctamente';
         }
 
         return view('comercial/entidades/index', [
@@ -240,7 +242,7 @@ final class EntidadesController
     {
         $id = (int)($_POST['id'] ?? 0);
         if ($id > 0) { $this->entidades->delete($id); }
-        redirect('/comercial/entidades');
+        redirect('/comercial/entidades?deleted=1');
     }
 
     private function respondEntidadJson(array $payload, int $status = 200): void
