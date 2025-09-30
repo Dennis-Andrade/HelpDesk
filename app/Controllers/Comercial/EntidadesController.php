@@ -41,7 +41,7 @@ final class EntidadesController
         if (isset($_GET['created']) && $_GET['created'] === '1') {
             $toastMessage = 'Entidad creada correctamente';
         } elseif (isset($_GET['ok']) && $_GET['ok'] === '1') {
-            $toastMessage = 'Cambios guardados';
+            $toastMessage = 'Entidad actualizada correctamente';
         } elseif (isset($_GET['deleted']) && $_GET['deleted'] === '1') {
             $toastMessage = 'Entidad eliminada correctamente';
         }
@@ -171,13 +171,6 @@ final class EntidadesController
 
         $provincias = $this->ubicaciones->provincias();
         $cantones   = $this->ubicaciones->cantones((int)($row['provincia_id'] ?? 0));
-        $toastMessage = null;
-        if (isset($_GET['created']) && $_GET['created'] === '1') {
-            $toastMessage = 'Entidad creada correctamente';
-        } elseif (isset($_GET['ok']) && $_GET['ok'] === '1') {
-            $toastMessage = 'Cambios guardados';
-        }
-
         view('comercial/entidades/edit', [
             'title'      => 'Editar Entidad',
             'crumbs'     => $crumbs,
