@@ -116,6 +116,21 @@ $emailCssClass   = $emailHasError ? 'is-invalid' : '';
         value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
     </label>
   </div>
+
+    <label>
+      Celular <?= isset($errors['telefono_movil']) ? '<small class="text-error">' . $errors['telefono_movil'] . '</small>' : '' ?>
+      <input
+        type="text"
+        name="telefono_movil"
+        inputmode="numeric"
+        pattern="^\d{10}$"
+        minlength="10"
+        maxlength="10"
+        title="Solo números, 10 dígitos"
+        placeholder="Ej.: 0998765432"
+        value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
+    </label>
+  </div>
   <label class="col-span-2">
     Correo electrónico * <?= $emailHasError ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
     <input
