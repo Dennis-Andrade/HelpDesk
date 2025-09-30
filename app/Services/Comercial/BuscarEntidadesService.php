@@ -79,6 +79,7 @@ final class BuscarEntidadesService
             'id_segmento'      => isset($row['id_segmento']) ? (int)$row['id_segmento'] : null,
             'provincia_id'     => isset($row['provincia_id']) && $row['provincia_id'] !== null ? (int)$row['provincia_id'] : null,
             'canton_id'        => isset($row['canton_id']) && $row['canton_id'] !== null ? (int)$row['canton_id'] : null,
+            'servicio_activo'  => isset($row['servicio_activo']) ? (string)$row['servicio_activo'] : null,
         ];
     }
 
