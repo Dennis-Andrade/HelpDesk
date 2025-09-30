@@ -23,6 +23,8 @@ final class EntidadRepository extends BaseRepository
     private const COL_TFIJ          = 'telefono_fijo_1';
     private const COL_TMOV          = 'telefono_movil';
     private const COL_MAIL          = 'email';
+    private const COL_MAIL_ALT      = 'email2';
+    private const COL_MAIL_RAW      = 'email_raw';
     private const COL_ACTV          = 'activa';
     private const COL_PROV          = 'provincia_id';
     private const COL_CANTON        = 'canton_id';
@@ -279,6 +281,8 @@ final class EntidadRepository extends BaseRepository
                     ' . self::COL_TFIJ . ',
                     ' . self::COL_TMOV . ',
                     ' . self::COL_MAIL . ',
+                    ' . self::COL_MAIL_ALT . ',
+                    ' . self::COL_MAIL_RAW . ',
                     ' . self::COL_PROV . ',
                     ' . self::COL_CANTON . ',
                     ' . self::COL_TIPO . ',
@@ -329,6 +333,8 @@ final class EntidadRepository extends BaseRepository
                 ' . self::COL_TFIJ . '    = :tfijo,
                 ' . self::COL_TMOV . '     = :tmov,
                 ' . self::COL_MAIL . '    = :email,
+                ' . self::COL_MAIL_ALT . ' = :email_alt,
+                ' . self::COL_MAIL_RAW . ' = :email_raw,
                 ' . self::COL_PROV . '     = :prov,
                 ' . self::COL_CANTON . '   = :canton,
                 ' . self::COL_TIPO . '     = :tipo,
@@ -537,6 +543,8 @@ final class EntidadRepository extends BaseRepository
             ':tfijo'   => $this->nullableStringParam($d['telefono_fijo'] ?? ''),
             ':tmov'    => $this->nullableStringParam($d['telefono_movil'] ?? ''),
             ':email'   => $this->nullableStringParam($d['email'] ?? ''),
+            ':email_alt' => $this->nullableStringParam($d['email2'] ?? $d['email'] ?? ''),
+            ':email_raw' => $this->nullableStringParam($d['email_raw'] ?? $d['email'] ?? ''),
             ':prov'    => $this->nullableIntParam($d['provincia_id'] ?? null),
             ':canton'  => $this->nullableIntParam($d['canton_id'] ?? null),
             ':tipo'    => array($d['tipo_entidad'], PDO::PARAM_STR),
