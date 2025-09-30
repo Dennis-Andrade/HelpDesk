@@ -144,7 +144,7 @@ final class EntidadesController
             echo 'No se pudo guardar la entidad';
             return;
         }
-        redirect('/comercial/entidades');
+        redirect('/comercial/entidades/editar?id=' . $newId . '&created=1');
     }
 
     public function editForm(): void
@@ -233,8 +233,7 @@ final class EntidadesController
             echo 'No se pudo actualizar la entidad';
             return;
         }
-
-        redirect('/comercial/entidades');
+        redirect('/comercial/entidades/editar?id=' . $id . '&ok=1');
     }
 
     public function delete(): void
