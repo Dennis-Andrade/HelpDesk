@@ -119,6 +119,7 @@ $emailCssClass   = $emailHasError ? 'is-invalid' : '';
     <input
       type="email"
       name="email"
+      required
       placeholder="Ej.: contacto@coac.ec"
       value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>"
       class="<?= $emailCssClass ?>"

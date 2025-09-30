@@ -109,7 +109,7 @@ final class EntidadRepository extends BaseRepository
             '    COALESCE(c.' . self::COL_CANTON . ', df.canton_id) AS canton_id,',
             '    can.nombre AS canton_nombre,',
             '    phone_data.telefonos_json,',
-            '    NULLIF(TRIM(c.' . self::COL_MAIL . '), ' . "''" . ') AS email,',
+            '    NULLIF(TRIM(c.' . self::COL_MAIL . '), ' . "''" . ') AS email_principal,',
             '    svc.servicios_json,',
             '    COALESCE(svc.servicios_count, 0) AS servicios_count',
             'FROM ' . self::T_COOP . ' c',
@@ -452,16 +452,16 @@ final class EntidadRepository extends BaseRepository
             $id = isset($row['id']) ? (int)$row['id'] : 0;
 
             $telefonos = $this->decodeJsonList($row['telefonos_json'] ?? null);
-            $email    = array();
+            $emails    = array();
 
-            if (isset($row['email_json'])) {
-                $email = $this->decodeJsonList($row['email_json']);
+            if (isset($row['emails_json'])) {
+                $emails = $this->decodeJsonList($row['emails_json']);
             }
 
-            if ((empty($email) || !is_array($email)) && isset($row['email'])) {
-                $email = trim((string)$row['email']);
-                if ($email !== '') {
-                    $email = array($email);
+            if ((empty($emails) || !is_array($emails)) && isset($row['email_principal'])) {
+                $emailPrincipal = trim((string)$row['email_principal']);
+                if ($emailPrincipal !== '') {
+                    $emails = array($emailPrincipal);
                 }
             }
             $servicios = $this->decodeJsonList($row['servicios_json'] ?? null);
@@ -477,8 +477,8 @@ final class EntidadRepository extends BaseRepository
                 'canton_nombre'    => isset($row['canton_nombre']) ? (string)$row['canton_nombre'] : null,
                 'telefonos'        => $telefonos,
                 'telefono'         => isset($telefonos[0]) ? $telefonos[0] : null,
-                'email'           => $email,
-                'email'            => isset($email[0]) ? $email[0] : null,
+                'emails'           => $emails,
+                'email'            => isset($emails[0]) ? $emails[0] : null,
                 'servicios'        => $servicios,
                 'servicios_count'  => isset($row['servicios_count']) ? (int)$row['servicios_count'] : 0,
                 'servicios_text'   => isset($row['servicios_text']) ? (string)$row['servicios_text'] : null,

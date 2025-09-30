@@ -74,6 +74,56 @@ function gatherPhones($row): array
     return $phones;
 }
 
+function gatherEmails($row): array
+{
+    $emails = [];
+
+    if (!empty($row['emails']) && is_array($row['emails'])) {
+        foreach ($row['emails'] as $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+            $trimmed = trim((string)$value);
+            if ($trimmed === '') {
+                continue;
+            }
+            $emails[] = $trimmed;
+        }
+    }
+
+    $fallbackKeys = [
+        'email',
+        'email_principal',
+        'correo',
+        'correo_contacto',
+        'email_cooperativa',
+        'email_contacto',
+        'email1',
+        'email2',
+    ];
+
+    foreach ($fallbackKeys as $key) {
+        if (!array_key_exists($key, $row)) {
+            continue;
+        }
+        $value = $row[$key];
+        if (!is_scalar($value)) {
+            continue;
+        }
+        $trimmed = trim((string)$value);
+        if ($trimmed === '') {
+            continue;
+        }
+        $emails[] = $trimmed;
+    }
+
+    $emails = array_values(array_unique(array_filter($emails, static function ($v) {
+        return $v !== '';
+    })));
+
+    return $emails;
+}
+
 function gatherServices($row): array
 {
     $raw = $row['servicios'] ?? [];
@@ -178,6 +228,7 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
           $entityId   = (int)($row['id_entidad'] ?? $row['id'] ?? 0);
           $cardTitle  = $row['nombre'] ?? 'Entidad';
           $phones     = gatherPhones($row);
+          $emails     = gatherEmails($row);
           $services   = gatherServices($row);
         ?>
         <li class="ent-cards-grid__item" role="listitem">
@@ -215,22 +266,7 @@ function buildPageUrl(int $pageNumber, array $filters, int $perPage): string
               <div class="ent-card-row">
                 <span class="ent-card-label">Correo</span>
                 <span class="ent-card-value">
-                  <?php
-                    $emails = [];
-                    if (!empty($row['emails']) && is_array($row['emails'])) {
-                        foreach ($row['emails'] as $mailValue) {
-                            if (!is_scalar($mailValue)) {
-                                continue;
-                            }
-                            $mailTrim = trim((string)$mailValue);
-                            if ($mailTrim === '') {
-                                continue;
-                            }
-                            $emails[] = $mailTrim;
-                        }
-                    }
-                    $mail = $emails[0] ?? trim((string)($row['email'] ?? ''));
-                  ?>
+                  <?php $mail = $emails[0] ?? ''; ?>
                   <?= $mail === '' ? 'No especificado' : h($mail) ?>
                 </span>
               </div>
