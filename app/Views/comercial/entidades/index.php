@@ -99,8 +99,8 @@ function gatherServices($row): array
 
 function primaryEmail($row): ?string
 {
-    if (isset($row['emails']) && is_array($row['emails'])) {
-        foreach ($row['emails'] as $value) {
+    if (isset($row['email']) && is_array($row['email'])) {
+        foreach ($row['email'] as $value) {
             if (!is_scalar($value)) { continue; }
             $trimmed = trim((string)$value);
             if ($trimmed !== '') {

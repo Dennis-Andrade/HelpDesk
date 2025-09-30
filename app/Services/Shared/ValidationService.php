@@ -84,6 +84,84 @@ final class ValidationService
             // por defecto dejamos "cooperativa"
             $data['tipo_entidad'] = 'cooperativa';
         }
+      
+        if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo electrónico es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo electrónico es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo electrónico es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo electrónico es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo electrónico es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo electrónico es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo electrónico es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
 
         if ($data['email'] === '') {
             $e['email'] = 'El correo electrónico es obligatorio';

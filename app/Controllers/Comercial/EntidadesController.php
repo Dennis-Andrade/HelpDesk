@@ -233,7 +233,6 @@ final class EntidadesController
             echo 'No se pudo actualizar la entidad';
             return;
         }
-
         redirect('/comercial/entidades/editar?id=' . $id . '&ok=1');
     }
 
