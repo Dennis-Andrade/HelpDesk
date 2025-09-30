@@ -16,13 +16,33 @@ final class Logger
         $payload = [
             'dt'      => date('c'),
             'context' => $context,
+            'class'   => get_class($e),
             'msg'     => $e->getMessage(),
         ];
 
-        if ($e instanceof \PDOException && isset($e->errorInfo)) {
-            $payload['errorInfo'] = $e->errorInfo;
+        $pdo = self::extractPdoException($e);
+        if ($pdo !== null) {
+            $payload['pdo'] = [
+                'class'     => get_class($pdo),
+                'code'      => $pdo->getCode(),
+                'message'   => $pdo->getMessage(),
+                'errorInfo' => $pdo->errorInfo ?? null,
+            ];
         }
 
         @file_put_contents($file, json_encode($payload, JSON_UNESCAPED_UNICODE) . PHP_EOL, FILE_APPEND);
+    }
+
+    private static function extractPdoException(\Throwable $e): ?\PDOException
+    {
+        $current = $e;
+        while ($current !== null) {
+            if ($current instanceof \PDOException) {
+                return $current;
+            }
+            $current = $current->getPrevious();
+        }
+
+        return null;
     }
 }
