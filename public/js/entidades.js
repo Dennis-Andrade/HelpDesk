@@ -65,58 +65,6 @@
   });
 })();
 
-/* ===== Ver (modal) ===== */
-(function(){
-  const modal  = document.getElementById('ent-modal');
-  if (!modal) return;
-
-  const closeEls = modal.querySelectorAll('.ent-modal__close');
-  const titleEl  = modal.querySelector('#ent-modal-title');
-  const servEl   = modal.querySelector('#ent-modal-serv');
-
-  const fill = (id, text) => { const el = modal.querySelector(id); if (el) el.textContent = text || '—'; };
-
-  function openModal(){
-    modal.setAttribute('aria-hidden','false');
-    document.documentElement.style.overflow='hidden';
-  }
-  function closeModal(){
-    modal.setAttribute('aria-hidden','true');
-    document.documentElement.style.overflow='';
-  }
-  closeEls.forEach(b => b.addEventListener('click', closeModal));
-  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-
-  document.addEventListener('click', async (ev) => {
-    const btn = ev.target.closest('.btn-view');
-    if (!btn) return;
-    const id = btn.getAttribute('data-id');
-    if (!id) return;
-
-    try{
-      const r = await fetch('/comercial/entidades/ver?id=' + encodeURIComponent(id), {headers:{'Accept':'application/json'}});
-      const d = await r.json();
-
-      titleEl.textContent = d.nombre || 'Cooperativa';
-      servEl.textContent  = (d.servicios && d.servicios.length ? d.servicios.length : 0) + ' servicios';
-
-      fill('#md-ubicacion', d.ubicacion || 'No especificado');
-      fill('#md-segmento',  d.segmento  || 'No especificado');
-      fill('#md-tipo',      d.tipo      || 'No especificado');
-      fill('#md-ruc',       d.ruc       || '—');
-      fill('#md-tfijo',     d.telefono_fijo || '—');
-      fill('#md-tmov',      d.telefono_movil || '—');
-      fill('#md-email',     d.email     || '—');
-      fill('#md-notas',     d.notas     || '—');
-
-      // servicios
-      const sv = (d.servicios || []).map(s => '• ' + s.nombre_servicio).join('\n');
-      fill('#md-servicios', sv || '—');
-
-      openModal();
-    }catch(e){ /* noop */ }
-  });
-})();
 /* ====== Provincias → Cantones (encadenado) ====== */
 (function () {
   const $prov = document.querySelector('#provincia_id, select[name="provincia_id"]');
