@@ -9,7 +9,6 @@ $action = isset($action) ? (string)$action : '/comercial/entidades';
 <section class="card ent-container">
   <h1 class="ent-title">Nueva Cooperativa</h1>
   <form method="post" action="<?= htmlspecialchars($action, ENT_QUOTES, 'UTF-8') ?>" class="form ent-form">
-    <input type="hidden" name="_csrf" value="<?= htmlspecialchars($csrf ?? '', ENT_QUOTES, 'UTF-8') ?>">
     <?php include __DIR__ . '/_form.php'; ?>
     <div class="form-actions ent-actions">
       <button class="btn btn-primary" type="submit">Guardar</button>

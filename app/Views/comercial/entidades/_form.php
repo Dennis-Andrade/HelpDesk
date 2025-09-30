@@ -56,6 +56,9 @@ if (!empty($segmentosData)) {
 
 $tipoActual = (string)($item['tipo_entidad'] ?? $old['tipo_entidad'] ?? 'cooperativa');
 $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahorros', 'casa_valores'];
+$segmentoVisible = $tipoActual === 'cooperativa';
+$emailHasError   = isset($errors['email']);
+$emailCssClass   = $emailHasError ? 'is-invalid' : '';
 ?>
 
 <div class="ent-form__grid grid grid-2">
@@ -65,11 +68,11 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
       type="text"
       name="nombre"
       required
-      placeholder="Ej.: COAC SAN JUAN LTDA"
+      placeholder="Ej.: COAC del Ecuador"
       value="<?= htmlspecialchars((string)$val('nombre'), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 
-  <label>
+  <label class="col-span-2">
     Cédula / RUC (10–13) <?= isset($errors['ruc']) ? '<small class="text-error">' . $errors['ruc'] . '</small>' : '' ?>
     <input
       type="text"
@@ -83,41 +86,46 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
       value="<?= htmlspecialchars((string)$val('nit', $val('ruc')), ENT_QUOTES, 'UTF-8') ?>">
   </label>
 
-  <label>
-    Teléfono fijo <?= isset($errors['telefono_fijo']) ? '<small class="text-error">' . $errors['telefono_fijo'] . '</small>' : '' ?>
-    <input
-      type="text"
-      name="telefono_fijo"
-      inputmode="numeric"
-      pattern="^\d{7}$"
-      minlength="7"
-      maxlength="7"
-      title="Solo números, 7 dígitos"
-      placeholder="Ej.: 022345678"
-      value="<?= htmlspecialchars((string)$val('telefono_fijo'), ENT_QUOTES, 'UTF-8') ?>">
-  </label>
+  <div class="grid-2 col-span-2 ent-form__row">
+    <label>
+      Teléfono fijo <?= isset($errors['telefono_fijo']) ? '<small class="text-error">' . $errors['telefono_fijo'] . '</small>' : '' ?>
+      <input
+        type="text"
+        name="telefono_fijo"
+        inputmode="numeric"
+        pattern="^\d{7}$"
+        minlength="7"
+        maxlength="7"
+        title="Solo números, 7 dígitos"
+        placeholder="Ej.: 022345678"
+        value="<?= htmlspecialchars((string)$val('telefono_fijo'), ENT_QUOTES, 'UTF-8') ?>">
+    </label>
+
+    <label>
+      Celular <?= isset($errors['telefono_movil']) ? '<small class="text-error">' . $errors['telefono_movil'] . '</small>' : '' ?>
+      <input
+        type="text"
+        name="telefono_movil"
+        inputmode="numeric"
+        pattern="^\d{10}$"
+        minlength="10"
+        maxlength="10"
+        title="Solo números, 10 dígitos"
+        placeholder="Ej.: 0998765432"
+        value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
+    </label>
+  </div>
 
   <label class="col-span-2">
-    Celular <?= isset($errors['telefono_movil']) ? '<small class="text-error">' . $errors['telefono_movil'] . '</small>' : '' ?>
-    <input
-      type="text"
-      name="telefono_movil"
-      inputmode="numeric"
-      pattern="^\d{10}$"
-      minlength="10"
-      maxlength="10"
-      title="Solo números, 10 dígitos"
-      placeholder="Ej.: 0998765432"
-      value="<?= htmlspecialchars((string)$val('telefono_movil'), ENT_QUOTES, 'UTF-8') ?>">
-  </label>
-
-  <label class="col-span-2">
-    Email <?= isset($errors['email']) ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
+    Correo electrónico * <?= $emailHasError ? '<small class="text-error">' . $errors['email'] . '</small>' : '' ?>
     <input
       type="email"
       name="email"
-      placeholder="ejemplo@dominio.com"
-      value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>">
+      required
+      placeholder="Ej.: contacto@coac.ec"
+      value="<?= htmlspecialchars((string)$val('email'), ENT_QUOTES, 'UTF-8') ?>"
+      class="<?= $emailCssClass ?>"
+      aria-invalid="<?= $emailHasError ? 'true' : 'false' ?>">
   </label>
 
   <div class="grid-2 col-span-2 ent-form__row">
@@ -163,7 +171,7 @@ $tiposEntidad = ['cooperativa', 'mutualista', 'sujeto_no_financiero', 'caja_ahor
     </label>
   </div>
 
-  <label class="col-span-2">
+  <label class="col-span-2" id="segmento_wrap"<?= $segmentoVisible ? '' : ' style="display:none;"' ?>>
     Segmento (solo cooperativa)
     <select name="id_segmento">
       <?php foreach ($segmentOptions as $valor => $label): ?>
