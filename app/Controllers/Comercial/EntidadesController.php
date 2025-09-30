@@ -146,7 +146,7 @@ final class EntidadesController
             echo 'No se pudo guardar la entidad';
             return;
         }
-        redirect('/comercial/entidades?created=1');
+        redirect('/comercial/entidades/editar?id=' . $newId . '&created=1');
     }
 
     public function editForm(): void
@@ -180,6 +180,7 @@ final class EntidadesController
             'cantones'   => $cantones,
             'segmentos'  => $repo->segmentos(),
             'servicios'  => $repo->servicios(),
+            'toastMessage' => $toastMessage,
         ]);
     }
 
@@ -213,6 +214,7 @@ final class EntidadesController
                 'errors'=>$res['errors'],
                 'old'=>$res['data'],
                 'action'=>'/comercial/entidades/' . $id,
+                'toastMessage'=>null,
             ]);
             return;
         }
@@ -226,8 +228,7 @@ final class EntidadesController
             echo 'No se pudo actualizar la entidad';
             return;
         }
-
-        redirect('/comercial/entidades?ok=1');
+        redirect('/comercial/entidades/editar?id=' . $id . '&ok=1');
     }
 
     public function delete(): void
