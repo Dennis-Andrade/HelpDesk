@@ -111,7 +111,7 @@ final class EntidadRepository extends BaseRepository
             '    COALESCE(c.' . self::COL_CANTON . ', df.canton_id) AS canton_id,',
             '    can.nombre AS canton_nombre,',
             '    phone_data.telefonos_json,',
-            '    email_data.emails_json,',
+            '    NULLIF(TRIM(c.' . self::COL_MAIL . '), ' . "''" . ') AS email_principal,',
             '    svc.servicios_json,',
             '    COALESCE(svc.servicios_count, 0) AS servicios_count',
             'FROM ' . self::T_COOP . ' c',
@@ -137,20 +137,6 @@ final class EntidadRepository extends BaseRepository
             '        WHERE phone IS NOT NULL',
             '    ) AS phones',
             ') AS phone_data ON TRUE',
-            'LEFT JOIN LATERAL (',
-            '    SELECT json_agg(email ORDER BY email) AS emails_json',
-            '    FROM (',
-            '        SELECT DISTINCT email',
-            '        FROM (',
-            "            SELECT NULLIF(TRIM(c." . self::COL_MAIL . "), '') AS email",
-            "            UNION ALL",
-            "            SELECT NULLIF(TRIM(c." . self::COL_MAIL_ALT . "), '')",
-            "            UNION ALL",
-            "            SELECT NULLIF(TRIM(c." . self::COL_MAIL_RAW . "), '')",
-            '        ) AS raw',
-            '        WHERE email IS NOT NULL',
-            '    ) AS emails',
-            ') AS email_data ON TRUE',
             'LEFT JOIN LATERAL (',
             '    SELECT',
             '        json_agg(nombre_servicio ORDER BY nombre_servicio) AS servicios_json,',
@@ -209,7 +195,7 @@ final class EntidadRepository extends BaseRepository
                 ' . self::COL_RUC . '        AS nit,
                 ' . self::COL_TFIJ . '      AS telefono_fijo_1,
                 ' . self::COL_TMOV . '       AS telefono_movil,
-                ' . self::COL_MAIL . '      AS email,
+                NULLIF(TRIM(' . self::COL_MAIL . '), ' . "''" . ')      AS email,
                 ' . self::COL_PROV . '       AS provincia_id,
                 ' . self::COL_CANTON . '     AS canton_id,
                 ' . self::COL_TIPO . '       AS tipo_entidad,
@@ -240,7 +226,7 @@ final class EntidadRepository extends BaseRepository
             NULLIF(c.ruc, ' . "''" . ')                             AS ruc,
             NULLIF(c.' . self::COL_TFIJ . ', ' . "''" . ')           AS telefono_fijo_1,
             NULLIF(c.' . self::COL_TMOV . ', ' . "''" . ')           AS telefono_movil,
-            NULLIF(c.' . self::COL_MAIL . ', ' . "''" . ')           AS email,
+            NULLIF(TRIM(c.' . self::COL_MAIL . '), ' . "''" . ')       AS email,
             COALESCE(c.' . self::COL_PROV . ', df.provincia_id)      AS provincia_id,
             COALESCE(c.' . self::COL_CANTON . ', df.canton_id)       AS canton_id,
             prov.nombre                                             AS provincia,
@@ -472,7 +458,18 @@ final class EntidadRepository extends BaseRepository
             $id = isset($row['id']) ? (int)$row['id'] : 0;
 
             $telefonos = $this->decodeJsonList($row['telefonos_json'] ?? null);
-            $emails    = $this->decodeJsonList($row['emails_json'] ?? null);
+            $emails    = array();
+
+            if (isset($row['emails_json'])) {
+                $emails = $this->decodeJsonList($row['emails_json']);
+            }
+
+            if ((empty($emails) || !is_array($emails)) && isset($row['email_principal'])) {
+                $emailPrincipal = trim((string)$row['email_principal']);
+                if ($emailPrincipal !== '') {
+                    $emails = array($emailPrincipal);
+                }
+            }
             $servicios = $this->decodeJsonList($row['servicios_json'] ?? null);
 
             $hydrated[] = array(
