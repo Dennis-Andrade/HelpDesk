@@ -39,13 +39,11 @@ final class ValidationService
             'telefono_fijo'   => $digits($in['telefono_fijo'] ?? $in['tfijo'] ?? ''),
             'telefono_movil'  => $digits($in['telefono_movil'] ?? $in['tmov'] ?? ''),
             'email'           => $emailTrim,
-            'email2'          => $emailTrim,
-            'email_raw'       => (string)$emailInput,
-        'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
-        'canton_id'       => $intOrNull($in['canton_id'] ?? null),
-        'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
-        'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
-        'notas'           => trim((string)($in['notas'] ?? '')),
+            'provincia_id'    => $intOrNull($in['provincia_id'] ?? null),
+            'canton_id'       => $intOrNull($in['canton_id'] ?? null),
+            'tipo_entidad'    => trim((string)($in['tipo_entidad'] ?? 'cooperativa')),
+            'id_segmento'     => $intOrNull($in['id_segmento'] ?? null),
+            'notas'           => trim((string)($in['notas'] ?? '')),
         ];
         // Alias para compatibilidad con repositorios que esperan 'nit'.
         $data['nit'] = $data['ruc'];
@@ -88,6 +86,16 @@ final class ValidationService
         }
       
         if ($data['email'] !== '' && !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+            $e['email'] = 'Debe contener @ para ser un correo válido';
+        }
+
+        if ($data['tipo_entidad'] !== 'cooperativa') {
+            $data['id_segmento'] = null;
+        }
+
+        if ($data['email'] === '') {
+            $e['email'] = 'El correo electrónico es obligatorio';
+        } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
             $e['email'] = 'Debe contener @ para ser un correo válido';
         }
 

@@ -311,8 +311,6 @@ final class EntidadRepository extends BaseRepository
                     :tfijo,
                     :tmov,
                     :email,
-                    :email_alt,
-                    :email_raw,
                     :prov,
                     :canton,
                     :tipo,
