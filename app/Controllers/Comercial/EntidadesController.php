@@ -144,7 +144,7 @@ final class EntidadesController
             echo 'No se pudo guardar la entidad';
             return;
         }
-        redirect('/comercial/entidades?created=1');
+        redirect('/comercial/entidades');
     }
 
     public function editForm(): void
@@ -234,7 +234,7 @@ final class EntidadesController
             return;
         }
 
-        redirect('/comercial/entidades?ok=1');
+        redirect('/comercial/entidades');
     }
 
     public function delete(): void
