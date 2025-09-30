@@ -38,8 +38,6 @@ $router->get(
     },
     ['middleware'=>['auth','role:comercial']]
 );
-$router->get('/comercial/entidades/ver', [EntidadesController::class, 'show'], ['middleware'=>['auth','role:comercial,administrador']]);
-$router->get('/comercial/entidades/{id}/show', [EntidadesController::class, 'showJson'], ['middleware'=>['auth','role:comercial']]);
 
 // ---------- Comercial → Entidades (CRUD, auth + role) ----------
 $router->get(
@@ -47,6 +45,8 @@ $router->get(
     [EntidadesController::class, 'index'],
     ['middleware'=>['auth','role:comercial']]
 );
+$router->get('/comercial/entidades/show', [EntidadesController::class, 'show'], ['middleware'=>['auth','role:comercial']]);
+$router->get('/comercial/entidades/{id}/show', [EntidadesController::class, 'showJson'], ['middleware'=>['auth','role:comercial']]);
 $router->get('/comercial/entidades/crear',     [EntidadesController::class, 'createForm'], ['middleware'=>['auth','role:comercial,administrador']]);
 $router->post('/comercial/entidades',          [EntidadesController::class, 'create'],     ['middleware'=>['auth','role:comercial,administrador']]);
 $router->get('/comercial/entidades/editar',    [EntidadesController::class, 'editForm'],   ['middleware'=>['auth','role:comercial,administrador']]);
