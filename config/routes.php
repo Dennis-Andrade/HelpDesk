@@ -8,6 +8,7 @@ use App\Controllers\Cumplimiento\DashboardController as CumplimientoDashboard;
 use App\Controllers\Administrador\DashboardController as AdminDashboard;
 use App\Controllers\Comercial\EntidadesController;
 use App\Controllers\Comercial\AgendaController;
+use App\Controllers\Comercial\ContactosController;
 
 // ---------- Auth ----------
 $router->get('/login',  [LoginController::class, 'show']);
@@ -64,3 +65,19 @@ $router->post('/comercial/agenda/{id}/eliminar',    [AgendaController::class, 'd
 
 // AJAX: cantones por provincia (auth)
 $router->get('/shared/cantones', [UbicacionesController::class, 'cantones'], ['middleware'=>['auth']]);
+// ---------- Comercial → Contactos (CRUD) ----------
+$router->get(
+    '/comercial/contactos',
+    [ContactosController::class, 'index'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/contactos',
+    [ContactosController::class, 'create'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/contactos/{id}/eliminar',
+    [ContactosController::class, 'delete'],
+    ['middleware'=>['auth','role:comercial']]
+);
