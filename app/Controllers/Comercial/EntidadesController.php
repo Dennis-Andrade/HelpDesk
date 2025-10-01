@@ -146,7 +146,8 @@ final class EntidadesController
             echo 'No se pudo guardar la entidad';
             return;
         }
-        redirect('/comercial/entidades');
+        $query = http_build_query(array('id' => $newId, 'created' => 1));
+        redirect('/comercial/entidades/editar?' . $query);
     }
 
     public function editForm(): void
@@ -229,7 +230,8 @@ final class EntidadesController
             return;
         }
 
-        redirect('/comercial/entidades');
+        $query = http_build_query(array('id' => $id, 'ok' => 1));
+        redirect('/comercial/entidades/editar?' . $query);
     }
 
     public function delete(): void
