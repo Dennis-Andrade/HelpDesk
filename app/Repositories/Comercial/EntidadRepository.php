@@ -96,17 +96,20 @@ final class EntidadRepository extends BaseRepository
         $sqlLines = array(
             'SELECT',
             '    c.' . self::COL_ID . ' AS id,',
+            '    c.' . self::COL_ID . ' AS id_cooperativa,',
+            '    c.' . self::COL_ID . ' AS id_entidad,',
             '    c.' . self::COL_NOMBRE . ' AS nombre,',
             '    c.' . self::COL_RUC . ' AS ruc,',
             '    c.' . self::COL_TIPO . ' AS tipo_entidad,',
             '    c.' . self::COL_SEGMENTO . ' AS id_segmento,',
             '    seg.' . self::COL_NOM_SEG . ' AS segmento_nombre,',
+            '    COALESCE(svc.servicios_text, ' . "''" . ') AS servicios_text,',
             '    COALESCE(c.' . self::COL_PROV . ', df.provincia_id) AS provincia_id,',
             '    prov.nombre AS provincia_nombre,',
             '    COALESCE(c.' . self::COL_CANTON . ', df.canton_id) AS canton_id,',
             '    can.nombre AS canton_nombre,',
             '    phone_data.telefonos_json,',
-            '    email_data.emails_json,',
+            '    NULLIF(TRIM(c.' . self::COL_MAIL . '), ' . "''" . ') AS email_principal,',
             '    svc.servicios_json,',
             '    COALESCE(svc.servicios_count, 0) AS servicios_count',
             'FROM ' . self::T_COOP . ' c',
@@ -133,25 +136,17 @@ final class EntidadRepository extends BaseRepository
             '    ) AS phones',
             ') AS phone_data ON TRUE',
             'LEFT JOIN LATERAL (',
-            '    SELECT json_agg(email ORDER BY email) AS emails_json',
-            '    FROM (',
-            '        SELECT DISTINCT email',
-            '        FROM (',
-            "            SELECT NULLIF(TRIM(c." . self::COL_MAIL . "), '') AS email",
-            '        ) AS raw',
-            '        WHERE email IS NOT NULL',
-            '    ) AS emails',
-            ') AS email_data ON TRUE',
-            'LEFT JOIN LATERAL (',
             '    SELECT',
             '        json_agg(nombre_servicio ORDER BY nombre_servicio) AS servicios_json,',
-            '        COUNT(*) AS servicios_count',
+            '        COUNT(*) AS servicios_count,',
+            '        string_agg(nombre_servicio, \', \' ORDER BY nombre_servicio) AS servicios_text',
             '    FROM (',
             '        SELECT DISTINCT s.' . self::COL_NOM_SERV . ' AS nombre_servicio',
             '        FROM ' . self::T_PIVOT . ' cs',
             '        JOIN ' . self::T_SERV . ' s ON s.' . self::COL_ID_SERV . ' = cs.' . self::PIV_SERV,
             '        WHERE cs.' . self::PIV_COOP . ' = c.' . self::COL_ID,
             '          AND cs.' . self::PIV_ACTIVO . ' = true',
+            '        ORDER BY s.' . self::COL_NOM_SERV,
             '    ) AS svc_names',
             ') AS svc ON TRUE',
             'WHERE (',
@@ -192,11 +187,13 @@ final class EntidadRepository extends BaseRepository
         $sql = '
             SELECT
                 ' . self::COL_ID . '    AS id_cooperativa,
+                ' . self::COL_ID . '    AS id,
+                ' . self::COL_ID . '    AS id_entidad,
                 ' . self::COL_NOMBRE . '     AS nombre,
                 ' . self::COL_RUC . '        AS nit,
                 ' . self::COL_TFIJ . '      AS telefono_fijo_1,
                 ' . self::COL_TMOV . '       AS telefono_movil,
-                ' . self::COL_MAIL . '      AS email,
+                NULLIF(TRIM(' . self::COL_MAIL . '), ' . "''" . ')      AS email,
                 ' . self::COL_PROV . '       AS provincia_id,
                 ' . self::COL_CANTON . '     AS canton_id,
                 ' . self::COL_TIPO . '       AS tipo_entidad,
@@ -225,23 +222,23 @@ final class EntidadRepository extends BaseRepository
             c.id_cooperativa                                        AS id_entidad,
             c.nombre,
             NULLIF(c.ruc, ' . "''" . ')                             AS ruc,
-            NULLIF(c.telefono_fijo_1, ' . "''" . ')                  AS telefono_fijo_1,
-            NULLIF(c.telefono_movil, ' . "''" . ')                   AS telefono_movil,
-            NULLIF(c.email, ' . "''" . ')                            AS email,
-            COALESCE(c.provincia_id, df.provincia_id)               AS provincia_id,
-            COALESCE(c.canton_id, df.canton_id)                     AS canton_id,
+            NULLIF(c.' . self::COL_TFIJ . ', ' . "''" . ')           AS telefono_fijo_1,
+            NULLIF(c.' . self::COL_TMOV . ', ' . "''" . ')           AS telefono_movil,
+            NULLIF(TRIM(c.' . self::COL_MAIL . '), ' . "''" . ')       AS email,
+            COALESCE(c.' . self::COL_PROV . ', df.provincia_id)      AS provincia_id,
+            COALESCE(c.' . self::COL_CANTON . ', df.canton_id)       AS canton_id,
             prov.nombre                                             AS provincia,
             can.nombre                                              AS canton,
-            c.tipo_entidad,
-            c.id_segmento,
-            seg.nombre_segmento                                     AS segmento_nombre,
-            c.notas
+            c.' . self::COL_TIPO . '                                AS tipo_entidad,
+            c.' . self::COL_SEGMENTO . '                            AS id_segmento,
+            seg.' . self::COL_NOM_SEG . '                           AS segmento_nombre,
+            c.' . self::COL_NOTAS . '                               AS notas
         FROM public.cooperativas c
         LEFT JOIN public.datos_facturacion df ON df.id_cooperativa = c.id_cooperativa
-        LEFT JOIN public.provincia prov ON prov.id = COALESCE(c.provincia_id, df.provincia_id)
-        LEFT JOIN public.canton    can  ON can.id = COALESCE(c.canton_id, df.canton_id)
-        LEFT JOIN public.segmentos seg ON seg.id_segmento = c.id_segmento
-        WHERE c.id_cooperativa = :id
+        LEFT JOIN public.provincia prov ON prov.id = COALESCE(c.' . self::COL_PROV . ', df.provincia_id)
+        LEFT JOIN public.canton    can  ON can.id = COALESCE(c.' . self::COL_CANTON . ', df.canton_id)
+        LEFT JOIN public.segmentos seg ON seg.' . self::COL_ID_SEG . ' = c.' . self::COL_SEGMENTO . '
+        WHERE c.' . self::COL_ID . ' = :id
         LIMIT 1
         ';
 
@@ -279,40 +276,34 @@ final class EntidadRepository extends BaseRepository
                 (
                     ' . self::COL_NOMBRE . ',
                     ' . self::COL_RUC . ',
+                    ' . self::COL_TFIJ . ',
+                    ' . self::COL_TMOV . ',
                     ' . self::COL_MAIL . ',
                     ' . self::COL_PROV . ',
                     ' . self::COL_CANTON . ',
+                    ' . self::COL_TIPO . ',
                     ' . self::COL_SEGMENTO . ',
                     ' . self::COL_NOTAS . ',
-                    ' . self::COL_TIPO . '
+                    ' . self::COL_ACTV . '
                 )
             VALUES
                 (
                     :nombre,
                     :ruc,
+                    :tfijo,
+                    :tmov,
                     :email,
-                    :provincia_id,
-                    :canton_id,
-                    :segmento_id,
+                    :prov,
+                    :canton,
+                    :tipo,
+                    :segmento,
                     :notas,
-                    :tipo_entidad
+                    :activa
                 )
             RETURNING ' . self::COL_ID . ' AS id
         ';
 
-        $params = array(
-            ':nombre'       => array($d['nombre'], PDO::PARAM_STR),
-            ':ruc'          => $this->nullableStringParam($d['ruc'] ?? $d['nit'] ?? ''),
-            ':email'        => $this->nullableStringParam($d['email'] ?? ''),
-            ':provincia_id' => $this->nullableIntParam($d['provincia_id'] ?? null),
-            ':canton_id'    => $this->nullableIntParam($d['canton_id'] ?? null),
-            ':segmento_id'  => $this->nullableIntParam($d['id_segmento'] ?? $d['segmento_id'] ?? null),
-            ':notas'        => $this->nullableStringParam($d['notas'] ?? ''),
-            ':tipo_entidad' => array(
-                isset($d['tipo_entidad']) && $d['tipo_entidad'] !== '' ? (string)$d['tipo_entidad'] : 'cooperativa',
-                PDO::PARAM_STR
-            ),
-        );
+        $params = $this->buildEntidadParams($d);
 
         try {
             $rows = $this->db->execute($sql, $params);
@@ -461,20 +452,36 @@ final class EntidadRepository extends BaseRepository
             $id = isset($row['id']) ? (int)$row['id'] : 0;
 
             $telefonos = $this->decodeJsonList($row['telefonos_json'] ?? null);
-            $emails    = $this->decodeJsonList($row['emails_json'] ?? null);
+            $emails    = array();
+
+            if (isset($row['emails_json'])) {
+                $emails = $this->decodeJsonList($row['emails_json']);
+            }
+
+            if ((empty($emails) || !is_array($emails)) && isset($row['email_principal'])) {
+                $emailPrincipal = trim((string)$row['email_principal']);
+                if ($emailPrincipal !== '') {
+                    $emails = array($emailPrincipal);
+                }
+            }
             $servicios = $this->decodeJsonList($row['servicios_json'] ?? null);
 
             $hydrated[] = array(
                 'id'               => $id,
+                'id_cooperativa'   => $id,
+                'id_entidad'       => $id,
                 'nombre'           => isset($row['nombre']) ? (string)$row['nombre'] : '',
                 'ruc'              => isset($row['ruc']) ? (string)$row['ruc'] : null,
                 'segmento_nombre'  => isset($row['segmento_nombre']) ? (string)$row['segmento_nombre'] : null,
                 'provincia_nombre' => isset($row['provincia_nombre']) ? (string)$row['provincia_nombre'] : null,
                 'canton_nombre'    => isset($row['canton_nombre']) ? (string)$row['canton_nombre'] : null,
                 'telefonos'        => $telefonos,
+                'telefono'         => isset($telefonos[0]) ? $telefonos[0] : null,
                 'emails'           => $emails,
+                'email'            => isset($emails[0]) ? $emails[0] : null,
                 'servicios'        => $servicios,
                 'servicios_count'  => isset($row['servicios_count']) ? (int)$row['servicios_count'] : 0,
+                'servicios_text'   => isset($row['servicios_text']) ? (string)$row['servicios_text'] : null,
                 'tipo_entidad'     => isset($row['tipo_entidad']) ? (string)$row['tipo_entidad'] : null,
                 'id_segmento'      => isset($row['id_segmento']) ? (int)$row['id_segmento'] : null,
                 'provincia_id'     => isset($row['provincia_id']) && $row['provincia_id'] !== null ? (int)$row['provincia_id'] : null,
