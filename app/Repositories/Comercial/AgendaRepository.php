@@ -8,15 +8,15 @@ use RuntimeException;
 
 final class AgendaRepository extends BaseRepository
 {
-    private const TABLE            = 'public.agenda_eventos';
+    private const TABLE            = 'public.agenda_contactos';
     private const TABLE_COOPS      = 'public.cooperativas';
     private const COL_ID           = 'id_evento';
     private const COL_COOP_ID      = 'id_cooperativa';
     private const COL_TITULO       = 'titulo';
-    private const COL_DESCRIPCION  = 'descripcion';
+    private const COL_DESCRIPCION  = 'nota';
     private const COL_FECHA        = 'fecha_evento';
     private const COL_TELF         = 'telefono_contacto';
-    private const COL_MAIL         = 'email_contacto';
+    private const COL_MAIL         = 'oficial_correo';
     private const COL_ESTADO       = 'estado';
     private const COL_CREATED_AT   = 'created_at';
     private const COL_UPDATED_AT   = 'updated_at';
