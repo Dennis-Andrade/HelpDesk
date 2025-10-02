@@ -1,6 +1,5 @@
 (function () {
   'use strict';
-
   function autoDismissToasts() {
     const toasts = document.querySelectorAll('.agenda-page__toast');
     toasts.forEach(function (toast) {
@@ -10,6 +9,5 @@
       }, 10000);
     });
   }
-
   document.addEventListener('DOMContentLoaded', autoDismissToasts);
 })();
