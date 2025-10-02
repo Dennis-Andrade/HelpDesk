@@ -57,6 +57,55 @@ final class ContactosController
     }
 
     /**
+     * Devuelve sugerencias de búsqueda para el cuadro de texto principal.
+     */
+    public function suggest(): void
+    {
+        $q = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+        if (mb_strlen($q) < 3) {
+            $this->respondJson(['items' => []]);
+        }
+
+        try {
+            $rows = $this->repo->suggest($q, 12);
+        } catch (\Throwable $e) {
+            $this->respondJson(['items' => [], 'error' => 'No se pudo obtener sugerencias'], 500);
+        }
+
+        $contactItems = [];
+        $entityItems  = [];
+
+        foreach ($rows as $row) {
+            $nombre  = trim((string)($row['nombre'] ?? ''));
+            $entidad = trim((string)($row['entidad_nombre'] ?? ''));
+
+            if ($entidad !== '' && !isset($entityItems[$entidad])) {
+                $entityItems[$entidad] = [
+                    'type' => 'entity',
+                    'term' => $entidad,
+                    'label'=> 'Entidad · ' . $entidad,
+                ];
+            }
+
+            if ($nombre !== '') {
+                $contactItems[] = [
+                    'type'    => 'contact',
+                    'term'    => $nombre,
+                    'label'   => $nombre . ($entidad !== '' ? ' · ' . $entidad : ''),
+                    'cargo'   => (string)($row['cargo'] ?? ''),
+                    'entidad' => $entidad,
+                ];
+            }
+        }
+
+        $entities   = array_slice(array_values($entityItems), 0, 5);
+        $contacts   = array_slice($contactItems, 0, 7);
+        $items      = array_merge($entities, $contacts);
+
+        $this->respondJson(['items' => $items]);
+    }
+
+    /**
      * Maneja la creación de un contacto a partir de los datos del POST.
      */
     public function create()
@@ -162,5 +211,18 @@ final class ContactosController
             ];
         }
         return $list;
+    }
+
+    /**
+     * Envía una respuesta JSON y termina la ejecución.
+     *
+     * @param array<string,mixed> $payload
+     */
+    private function respondJson(array $payload, int $status = 200): void
+    {
+        http_response_code($status);
+        header('Content-Type: application/json; charset=UTF-8');
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
     }
 }

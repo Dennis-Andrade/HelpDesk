@@ -70,6 +70,11 @@ $router->get(
     [ContactosController::class, 'index'],
     ['middleware'=>['auth','role:comercial']]
 );
+$router->get(
+    '/comercial/contactos/sugerencias',
+    [ContactosController::class, 'suggest'],
+    ['middleware'=>['auth','role:comercial']]
+);
 $router->post(
     '/comercial/contactos',
     [ContactosController::class, 'create'],

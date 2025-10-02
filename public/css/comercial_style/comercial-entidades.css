@@ -153,6 +153,13 @@
   gap:10px;
   margin: 18px 0 24px;
 }
+.ent-search__field{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  gap:.35rem;
+  width:min(420px, 100%);
+}
 .ent-search--stack label{
   font-weight:700;
   color:var(--text-body, #111827);
@@ -160,6 +167,40 @@
 .ent-search input[type="text"]{
   width:min(280px, 60vw);
   padding:.55rem .75rem; border:1px solid #d1d5db; border-radius:8px; background:#fff;
+}
+.ent-search__field input[type="text"]{
+  width:100%;
+}
+.ent-search__suggestions{
+  position:absolute;
+  top:100%;
+  left:0;
+  right:0;
+  margin-top:.35rem;
+  background:#fff;
+  border:1px solid #d1d5db;
+  border-radius:10px;
+  box-shadow:0 12px 24px rgba(15,23,42,.12);
+  padding:.35rem 0;
+  z-index:40;
+}
+.ent-search__suggestions[hidden]{
+  display:none;
+}
+.ent-search__suggestion{
+  width:100%;
+  padding:.55rem .85rem;
+  background:transparent;
+  border:0;
+  text-align:left;
+  font-size:.95rem;
+  color:var(--text-body, #111827);
+  cursor:pointer;
+}
+.ent-search__suggestion:hover,
+.ent-search__suggestion.is-active{
+  background:rgba(255,102,0,.12);
+  color:var(--color-secondary, #ff6600);
 }
 .ent-search input[type="text"]:focus{
   border-color: var(--color-primary);
@@ -239,6 +280,7 @@
 .contact-list__cell--header{
   text-transform:uppercase;
   letter-spacing:.03em;
+  color:#fff;
 }
 .contact-list__delete{
   display:inline;

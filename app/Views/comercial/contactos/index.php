@@ -106,8 +106,11 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
   <section class="ent-container ent-contactos-list" aria-labelledby="contactos-listado-title">
     <h2 id="contactos-listado-title" class="ent-title">Listado de contactos</h2>
     <form class="ent-search ent-search--stack" action="/comercial/contactos" method="get" role="search">
-      <label for="contactos-search-input">Buscar contacto</label>
-      <input id="contactos-search-input" type="text" name="q" value="<?= h($q ?? '') ?>" aria-describedby="contactos-search-help" placeholder="Nombre...">
+      <div class="ent-search__field">
+        <label for="contactos-search-input">Buscar por nombre o entidad</label>
+        <input id="contactos-search-input" type="text" name="q" value="<?= h($q ?? '') ?>" aria-describedby="contactos-search-help" placeholder="Nombre o entidad" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <div id="contactos-search-suggestions" class="ent-search__suggestions" data-min-chars="3" role="listbox" aria-label="Sugerencias de búsqueda" hidden></div>
+      </div>
       <?php foreach ($filters as $filterKey => $filterValue): ?>
         <?php if ($filterKey === 'q') { continue; } ?>
         <?php if (is_array($filterValue)): ?>
@@ -118,7 +121,7 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
           <input type="hidden" name="<?= h((string)$filterKey) ?>" value="<?= h((string)$filterValue) ?>">
         <?php endif; ?>
       <?php endforeach; ?>
-      <span id="contactos-search-help" class="ent-search__help">Escribe al menos 3 caracteres</span>
+      <span id="contactos-search-help" class="ent-search__help">Escribe al menos 3 caracteres para ver sugerencias</span>
       <button class="btn btn-outline" type="submit">Buscar</button>
     </form>
 
@@ -172,3 +175,4 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     <?php endif; ?>
   </section>
 </section>
+<script src="/js/contactos-typeahead.js" defer></script>
