@@ -72,6 +72,44 @@ final class AgendaService
     }
 
     /**
+     * @param array<string,mixed> $input
+     * @return array{ok:bool,errors:array<string,string>,data:array<string,mixed>}
+     */
+    public function actualizar(int $id, array $input): array
+    {
+        if ($id < 1) {
+            return [
+                'ok' => false,
+                'errors' => ['id' => 'Identificador inválido'],
+                'data' => $this->extraerOld($input),
+            ];
+        }
+
+        $actual = $this->repository->obtenerPorId($id);
+        if ($actual === null) {
+            return [
+                'ok' => false,
+                'errors' => ['id' => 'El contacto no existe'],
+                'data' => $this->extraerOld($input),
+            ];
+        }
+
+        $estadoActual = (string)($actual['estado'] ?? 'Pendiente');
+        [$payload, $old, $errors] = $this->validar($input, true, $estadoActual);
+        if ($errors) {
+            return ['ok' => false, 'errors' => $errors, 'data' => $old];
+        }
+
+        $this->repository->actualizar($id, $payload);
+
+        return [
+            'ok' => true,
+            'errors' => [],
+            'data' => $old,
+        ];
+    }
+
+    /**
      * @return array{ok:bool,errors:array<string,string>}
      */
     public function cambiarEstado(int $id, string $estado): array
@@ -110,7 +148,7 @@ final class AgendaService
      * @param array<string,mixed> $input
      * @return array{0:array<string,mixed>,1:array<string,mixed>,2:array<string,string>}
      */
-    private function validar(array $input): array
+    private function validar(array $input, bool $esActualizacion = false, string $estadoActual = 'Pendiente'): array
     {
         $errors = [];
 
@@ -122,6 +160,7 @@ final class AgendaService
         $correo = trim((string)($input['oficial_correo'] ?? ''));
         $cargo = trim((string)($input['cargo'] ?? ''));
         $nota = trim((string)($input['nota'] ?? ''));
+        $estadoEntrada = trim((string)($input['estado'] ?? ''));
 
         if ($titulo === '' || mb_strlen($titulo) > 150) {
             $errors['titulo'] = 'Ingresa un título (máximo 150 caracteres)';
@@ -151,6 +190,16 @@ final class AgendaService
             $errors['id_cooperativa'] = 'Selecciona una entidad válida';
         }
 
+        $estadoNormalizado = $estadoActual !== '' ? $estadoActual : 'Pendiente';
+        if ($esActualizacion) {
+            $estadoLimpio = $this->normalizarEstado($estadoEntrada);
+            if ($estadoEntrada !== '' && $estadoLimpio === '') {
+                $errors['estado'] = 'Selecciona un estado válido';
+            } elseif ($estadoLimpio !== '') {
+                $estadoNormalizado = $estadoLimpio;
+            }
+        }
+
         $payload = [
             'id_cooperativa' => $idCooperativa,
             'titulo' => $titulo,
@@ -161,7 +210,7 @@ final class AgendaService
             'oficial_correo' => $correo !== '' ? $correo : null,
             'cargo' => $cargo !== '' ? $cargo : null,
             'nota' => $nota !== '' ? $nota : null,
-            'estado' => 'Pendiente',
+            'estado' => $esActualizacion ? $estadoNormalizado : 'Pendiente',
         ];
 
         $old = [
@@ -173,9 +222,29 @@ final class AgendaService
             'oficial_correo' => $correo,
             'cargo' => $cargo,
             'nota' => $nota,
+            'estado' => $esActualizacion ? ($estadoEntrada !== '' ? $estadoEntrada : $estadoActual) : 'Pendiente',
         ];
 
         return [$payload, $old, $errors];
+    }
+
+    /**
+     * @param array<string,mixed> $input
+     * @return array<string,mixed>
+     */
+    private function extraerOld(array $input): array
+    {
+        return [
+            'id_cooperativa'   => $input['id_cooperativa'] ?? '',
+            'titulo'           => trim((string)($input['titulo'] ?? '')),
+            'fecha_evento'     => trim((string)($input['fecha_evento'] ?? '')),
+            'oficial_nombre'   => trim((string)($input['oficial_nombre'] ?? '')),
+            'telefono_contacto'=> trim((string)($input['telefono_contacto'] ?? '')),
+            'oficial_correo'   => trim((string)($input['oficial_correo'] ?? '')),
+            'cargo'            => trim((string)($input['cargo'] ?? '')),
+            'nota'             => trim((string)($input['nota'] ?? '')),
+            'estado'           => trim((string)($input['estado'] ?? '')),
+        ];
     }
 
     private function normalizarEntero(null|int|string $value): ?int
