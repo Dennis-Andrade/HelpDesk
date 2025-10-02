@@ -52,30 +52,14 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     return '/comercial/contactos' . ($queryString !== '' ? '?' . $queryString : '');
 }
 ?>
-<section class="ent-list ent-list--cards" aria-labelledby="contactos-title">
-  <header class="ent-toolbar" role="search">
+<section class="ent-list" aria-labelledby="contactos-title">
+  <header class="ent-toolbar">
     <div class="ent-toolbar__lead">
       <h1 id="contactos-title" class="ent-title">Agenda de contactos</h1>
       <p class="ent-toolbar__caption" aria-live="polite">
         <?= h((string)(int)$total) ?> contactos · Página <?= h((string)(int)$page) ?> de <?= h((string)(int)$pages) ?>
       </p>
     </div>
-    <form class="ent-search" action="/comercial/contactos" method="get">
-      <label for="contactos-search-input">Buscar contacto</label>
-      <input id="contactos-search-input" type="text" name="q" value="<?= h($q ?? '') ?>" aria-describedby="contactos-search-help" placeholder="Nombre...">
-      <?php foreach ($filters as $filterKey => $filterValue): ?>
-        <?php if ($filterKey === 'q') { continue; } ?>
-        <?php if (is_array($filterValue)): ?>
-          <?php foreach ($filterValue as $fv): ?>
-            <input type="hidden" name="<?= h((string)$filterKey) ?>[]" value="<?= h((string)$fv) ?>">
-          <?php endforeach; ?>
-        <?php else: ?>
-          <input type="hidden" name="<?= h((string)$filterKey) ?>" value="<?= h((string)$filterValue) ?>">
-        <?php endif; ?>
-      <?php endforeach; ?>
-      <span id="contactos-search-help" class="ent-search__help">Escribe al menos 3 caracteres</span>
-      <button class="btn btn-outline" type="submit">Buscar</button>
-    </form>
   </header>
 
   <section class="card ent-container" aria-labelledby="nuevo-contacto-title">
@@ -119,87 +103,72 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     </form>
   </section>
 
-  <?php if (empty($items)): ?>
-    <div class="card" role="status" aria-live="polite">No se encontraron contactos.</div>
-  <?php else: ?>
-    <ul class="ent-cards-grid" role="list">
-      <?php foreach ($items as $row): ?>
-        <?php
-          $contactId   = (int)($row['id'] ?? 0);
-          $contactName = $row['nombre'] ?? 'Contacto';
-          $entityName  = $row['entidad_nombre'] ?? '';
-          $titulo      = $row['titulo'] ?? '';
-          $cargo       = $row['cargo'] ?? '';
-          $telefono    = $row['telefono'] ?? '';
-          $correo      = $row['correo'] ?? '';
-          $nota        = $row['nota'] ?? '';
-        ?>
-        <li class="ent-cards-grid__item" role="listitem">
-          <article class="ent-card" aria-labelledby="contact-card-title-<?= h((string)$contactId) ?>">
-            <header class="ent-card-head">
-              <div class="ent-card-icon" aria-hidden="true">
-                <span class="material-symbols-outlined" aria-hidden="true">person</span>
-              </div>
-              <h2 id="contact-card-title-<?= h((string)$contactId) ?>" class="ent-card-title">
-                <?= h($contactName) ?>
-              </h2>
-              <span class="ent-badge" aria-label="Entidad asociada">
-                <?= h($entityName) ?>
-              </span>
-            </header>
-            <div class="ent-card-body">
-              <div class="ent-card-row">
-                <span class="ent-card-label">Título</span>
-                <span class="ent-card-value">
-                  <?= $titulo !== '' ? h($titulo) : '—' ?>
-                </span>
-              </div>
-              <div class="ent-card-row">
-                <span class="ent-card-label">Cargo</span>
-                <span class="ent-card-value">
-                  <?= $cargo !== '' ? h($cargo) : '—' ?>
-                </span>
-              </div>
-              <div class="ent-card-row">
-                <span class="ent-card-label">Teléfono</span>
-                <span class="ent-card-value">
-                  <?= $telefono !== '' ? h($telefono) : '—' ?>
-                </span>
-              </div>
-              <div class="ent-card-row">
-                <span class="ent-card-label">Correo</span>
-                <span class="ent-card-value">
-                  <?= $correo !== '' ? h($correo) : '—' ?>
-                </span>
-              </div>
-              <div class="ent-card-row">
-                <span class="ent-card-label">Nota</span>
-                <span class="ent-card-value">
-                  <?= $nota !== '' ? h($nota) : '—' ?>
-                </span>
-              </div>
-            </div>
-            <footer class="ent-card-actions">
-              <form method="post" action="/comercial/contactos/<?= h((string)$contactId) ?>/eliminar" class="ent-card-delete" onsubmit="return confirm('¿Deseas eliminar este contacto?');">
+  <section class="ent-container ent-contactos-list" aria-labelledby="contactos-listado-title">
+    <h2 id="contactos-listado-title" class="ent-title">Listado de contactos</h2>
+    <form class="ent-search ent-search--stack" action="/comercial/contactos" method="get" role="search">
+      <label for="contactos-search-input">Buscar contacto</label>
+      <input id="contactos-search-input" type="text" name="q" value="<?= h($q ?? '') ?>" aria-describedby="contactos-search-help" placeholder="Nombre...">
+      <?php foreach ($filters as $filterKey => $filterValue): ?>
+        <?php if ($filterKey === 'q') { continue; } ?>
+        <?php if (is_array($filterValue)): ?>
+          <?php foreach ($filterValue as $fv): ?>
+            <input type="hidden" name="<?= h((string)$filterKey) ?>[]" value="<?= h((string)$fv) ?>">
+          <?php endforeach; ?>
+        <?php else: ?>
+          <input type="hidden" name="<?= h((string)$filterKey) ?>" value="<?= h((string)$filterValue) ?>">
+        <?php endif; ?>
+      <?php endforeach; ?>
+      <span id="contactos-search-help" class="ent-search__help">Escribe al menos 3 caracteres</span>
+      <button class="btn btn-outline" type="submit">Buscar</button>
+    </form>
+
+    <?php if (empty($items)): ?>
+      <div class="card" role="status" aria-live="polite">No se encontraron contactos.</div>
+    <?php else: ?>
+      <div class="contact-list" role="table" aria-label="Listado de contactos">
+        <div class="contact-list__header" role="row">
+          <span class="contact-list__cell contact-list__cell--header" role="columnheader">Nombre</span>
+          <span class="contact-list__cell contact-list__cell--header" role="columnheader">Entidad</span>
+          <span class="contact-list__cell contact-list__cell--header" role="columnheader">Cargo</span>
+          <span class="contact-list__cell contact-list__cell--header" role="columnheader">Teléfono</span>
+          <span class="contact-list__cell contact-list__cell--header contact-list__cell--actions" role="columnheader">Acciones</span>
+        </div>
+        <?php foreach ($items as $row): ?>
+          <?php
+            $contactId   = (int)($row['id'] ?? 0);
+            $contactName = $row['nombre'] ?? 'Contacto';
+            $entityName  = $row['entidad_nombre'] ?? '';
+            $cargo       = $row['cargo'] ?? '';
+            $telefono    = $row['telefono'] ?? '';
+          ?>
+          <div class="contact-list__row" role="row">
+            <span class="contact-list__cell" data-label="Nombre" role="cell"><?= h($contactName) ?></span>
+            <span class="contact-list__cell" data-label="Entidad" role="cell"><?= $entityName !== '' ? h($entityName) : '—' ?></span>
+            <span class="contact-list__cell" data-label="Cargo" role="cell"><?= $cargo !== '' ? h($cargo) : '—' ?></span>
+            <span class="contact-list__cell" data-label="Teléfono" role="cell"><?= $telefono !== '' ? h($telefono) : '—' ?></span>
+            <span class="contact-list__cell contact-list__cell--actions" data-label="Acciones" role="cell">
+              <a class="btn btn-primary" href="/comercial/contactos/editar?id=<?= h((string)$contactId) ?>" target="_blank" rel="noopener">Editar</a>
+              <form method="post" action="/comercial/contactos/<?= h((string)$contactId) ?>/eliminar" class="contact-list__delete" onsubmit="return confirm('¿Deseas eliminar este contacto?');">
                 <button type="submit" class="btn btn-danger">Eliminar</button>
               </form>
-            </footer>
-          </article>
-        </li>
-      <?php endforeach; ?>
-    </ul>
-    <nav class="pagination" aria-label="Paginación de contactos">
-      <?php if ($page > 1): ?>
-        <a href="<?= h(buildPageUrlContactos($prev, $filters, $perPage)) ?>" rel="prev">&laquo; Anterior</a>
-      <?php else: ?>
-        <span class="disabled" aria-disabled="true">&laquo; Anterior</span>
-      <?php endif; ?>
-      <span aria-live="polite">Página <?= h((string)(int)$page) ?> de <?= h((string)(int)$pages) ?></span>
-      <?php if ($page < $pages): ?>
-        <a href="<?= h(buildPageUrlContactos($next, $filters, $perPage)) ?>" rel="next">Siguiente &raquo;</a>
-      <?php else: ?>
-        <span class="disabled" aria-disabled="true">Siguiente &raquo;</span>
-      <?php endif; ?>
-    </nav>
-  <?php endif; ?>
+            </span>
+          </div>
+        <?php endforeach; ?>
+      </div>
+
+      <nav class="pagination" aria-label="Paginación de contactos">
+        <?php if ($page > 1): ?>
+          <a href="<?= h(buildPageUrlContactos($prev, $filters, $perPage)) ?>" rel="prev">&laquo; Anterior</a>
+        <?php else: ?>
+          <span class="disabled" aria-disabled="true">&laquo; Anterior</span>
+        <?php endif; ?>
+        <span aria-live="polite">Página <?= h((string)(int)$page) ?> de <?= h((string)(int)$pages) ?></span>
+        <?php if ($page < $pages): ?>
+          <a href="<?= h(buildPageUrlContactos($next, $filters, $perPage)) ?>" rel="next">Siguiente &raquo;</a>
+        <?php else: ?>
+          <span class="disabled" aria-disabled="true">Siguiente &raquo;</span>
+        <?php endif; ?>
+      </nav>
+    <?php endif; ?>
+  </section>
 </section>
