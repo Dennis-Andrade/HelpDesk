@@ -4,198 +4,281 @@ declare(strict_types=1);
 namespace App\Services\Comercial;
 
 use App\Repositories\Comercial\AgendaRepository;
-use App\Services\Shared\ValidationService;
-use DateTimeImmutable;
-use RuntimeException;
 
 final class AgendaService
 {
-    public function __construct(
-        private AgendaRepository $repository,
-        private ValidationService $validator
-    ) {
+    public function __construct(private AgendaRepository $repository)
+    {
     }
 
     /**
-     * @param array{texto?:string,desde?:string,hasta?:string,estado?:string} $filters
+     * @return array<int,array{id:int,nombre:string}>
      */
-    public function list(array $filters, int $page, int $perPage): array
+    public function cooperativas(): array
     {
-        $clean = [
-            'texto'  => trim((string)($filters['texto'] ?? '')),
-            'desde'  => trim((string)($filters['desde'] ?? '')),
-            'hasta'  => trim((string)($filters['hasta'] ?? '')),
-            'estado' => trim((string)($filters['estado'] ?? '')),
-        ];
-
-        $page    = max(1, (int)$page);
-        $perPage = max(1, min(100, (int)$perPage));
-
-        return $this->repository->search($clean, $page, $perPage);
+        return $this->repository->obtenerCooperativas();
     }
 
-    public function get(int $id): ?array
+    /**
+     * @param array<string,mixed> $filters
+     * @return array<int,array<string,mixed>>
+     */
+    public function listado(array $filters): array
+    {
+        $clean = [
+            'q' => trim((string)($filters['q'] ?? '')),
+            'coop' => $this->normalizarEntero($filters['coop'] ?? null),
+            'estado' => $this->normalizarEstado($filters['estado'] ?? ''),
+        ];
+
+        return $this->repository->listar($clean);
+    }
+
+    /**
+     * @param array<string,mixed> $filters
+     * @return array<int,array<string,mixed>>
+     */
+    public function datosParaExportar(array $filters): array
+    {
+        $clean = [
+            'q' => trim((string)($filters['q'] ?? '')),
+            'coop' => $this->normalizarEntero($filters['coop'] ?? null),
+            'estado' => $this->normalizarEstado($filters['estado'] ?? ''),
+        ];
+
+        return $this->repository->listarParaExportar($clean);
+    }
+
+    /**
+     * @param array<string,mixed> $input
+     * @return array{ok:bool,errors:array<string,string>,data:array<string,mixed>,id?:int}
+     */
+    public function crear(array $input, ?int $userId): array
+    {
+        [$payload, $old, $errors] = $this->validar($input);
+        if ($errors) {
+            return ['ok' => false, 'errors' => $errors, 'data' => $old];
+        }
+
+        $payload['creado_por'] = $userId;
+        $id = $this->repository->crear($payload);
+
+        return [
+            'ok' => true,
+            'errors' => [],
+            'data' => $old,
+            'id' => $id,
+        ];
+    }
+
+    /**
+     * @param array<string,mixed> $input
+     * @return array{ok:bool,errors:array<string,string>,data:array<string,mixed>}
+     */
+    public function actualizar(int $id, array $input): array
+    {
+        if ($id < 1) {
+            return [
+                'ok' => false,
+                'errors' => ['id' => 'Identificador inválido'],
+                'data' => $this->extraerOld($input),
+            ];
+        }
+
+        $actual = $this->repository->obtenerPorId($id);
+        if ($actual === null) {
+            return [
+                'ok' => false,
+                'errors' => ['id' => 'El contacto no existe'],
+                'data' => $this->extraerOld($input),
+            ];
+        }
+
+        $estadoActual = (string)($actual['estado'] ?? 'Pendiente');
+        [$payload, $old, $errors] = $this->validar($input, true, $estadoActual);
+        if ($errors) {
+            return ['ok' => false, 'errors' => $errors, 'data' => $old];
+        }
+
+        $this->repository->actualizar($id, $payload);
+
+        return [
+            'ok' => true,
+            'errors' => [],
+            'data' => $old,
+        ];
+    }
+
+    /**
+     * @return array{ok:bool,errors:array<string,string>}
+     */
+    public function cambiarEstado(int $id, string $estado): array
+    {
+        if ($id < 1) {
+            return ['ok' => false, 'errors' => ['id' => 'Identificador inválido']];
+        }
+
+        $normalizado = $this->normalizarEstado($estado);
+        if ($normalizado === '') {
+            return ['ok' => false, 'errors' => ['estado' => 'Estado inválido']];
+        }
+
+        $this->repository->cambiarEstado($id, $normalizado);
+        return ['ok' => true, 'errors' => []];
+    }
+
+    public function eliminar(int $id): bool
+    {
+        if ($id < 1) {
+            return false;
+        }
+        $this->repository->eliminar($id);
+        return true;
+    }
+
+    public function obtener(int $id): ?array
     {
         if ($id < 1) {
             return null;
         }
-
-        return $this->repository->findById($id);
+        return $this->repository->obtenerPorId($id);
     }
 
-    public function create(array $input): int
+    /**
+     * @param array<string,mixed> $input
+     * @return array{0:array<string,mixed>,1:array<string,mixed>,2:array<string,string>}
+     */
+    private function validar(array $input, bool $esActualizacion = false, string $estadoActual = 'Pendiente'): array
     {
-        $data = $this->validate($input);
-        return $this->repository->create($data);
-    }
+        $errors = [];
 
-    public function update(int $id, array $input): void
-    {
-        if ($id < 1) {
-            throw new RuntimeException($this->encodeErrors(['id' => 'Identificador inválido']));
+        $idCooperativa = $this->normalizarEntero($input['id_cooperativa'] ?? null);
+        $titulo = trim((string)($input['titulo'] ?? ''));
+        $fecha = trim((string)($input['fecha_evento'] ?? ''));
+        $nombre = trim((string)($input['oficial_nombre'] ?? ''));
+        $telefonoEntrada = trim((string)($input['telefono_contacto'] ?? ''));
+        $correo = trim((string)($input['oficial_correo'] ?? ''));
+        $cargo = trim((string)($input['cargo'] ?? ''));
+        $nota = trim((string)($input['nota'] ?? ''));
+        $estadoEntrada = trim((string)($input['estado'] ?? ''));
+
+        if ($titulo === '' || mb_strlen($titulo) > 150) {
+            $errors['titulo'] = 'Ingresa un título (máximo 150 caracteres)';
         }
 
-        $data = $this->validate($input);
-        $this->repository->update($id, $data);
-    }
-
-    public function changeStatus(int $id, string $estado): void
-    {
-        if ($id < 1) {
-            throw new RuntimeException($this->encodeErrors(['id' => 'Identificador inválido']));
+        $fechaNormalizada = $this->validarFecha($fecha);
+        if ($fechaNormalizada === null) {
+            $errors['fecha_evento'] = 'Selecciona una fecha válida (AAAA-MM-DD)';
         }
 
-        $estado = strtolower(trim($estado));
-        if ($estado === '') {
-            $estado = 'pendiente';
+        $telefonoLimpio = null;
+        if ($telefonoEntrada !== '') {
+            $soloDigitos = preg_replace('/\D+/', '', $telefonoEntrada) ?? '';
+            $longitud = strlen($soloDigitos);
+            if ($soloDigitos === '' || $longitud < 7 || $longitud > 10) {
+                $errors['telefono_contacto'] = 'El teléfono debe tener entre 7 y 10 dígitos';
+            } else {
+                $telefonoLimpio = $soloDigitos;
+            }
         }
 
-        if (!$this->isEstadoValido($estado)) {
-            throw new RuntimeException($this->encodeErrors(['estado' => 'Estado inválido']));
+        if ($correo !== '' && filter_var($correo, FILTER_VALIDATE_EMAIL) === false) {
+            $errors['oficial_correo'] = 'Ingresa un correo válido';
         }
 
-        $this->repository->updateEstado($id, $estado);
-    }
-
-    public function delete(int $id): void
-    {
-        if ($id < 1) {
-            throw new RuntimeException($this->encodeErrors(['id' => 'Identificador inválido']));
+        if ($idCooperativa !== null && $idCooperativa < 1) {
+            $errors['id_cooperativa'] = 'Selecciona una entidad válida';
         }
 
-        $this->repository->delete($id);
+        $estadoNormalizado = $estadoActual !== '' ? $estadoActual : 'Pendiente';
+        if ($esActualizacion) {
+            $estadoLimpio = $this->normalizarEstado($estadoEntrada);
+            if ($estadoEntrada !== '' && $estadoLimpio === '') {
+                $errors['estado'] = 'Selecciona un estado válido';
+            } elseif ($estadoLimpio !== '') {
+                $estadoNormalizado = $estadoLimpio;
+            }
+        }
+
+        $payload = [
+            'id_cooperativa' => $idCooperativa,
+            'titulo' => $titulo,
+            'fecha_evento' => $fechaNormalizada ?? $fecha,
+            'contacto' => $nombre !== '' ? $nombre : null,
+            'telefono_contacto' => $telefonoLimpio,
+            'oficial_nombre' => $nombre !== '' ? $nombre : null,
+            'oficial_correo' => $correo !== '' ? $correo : null,
+            'cargo' => $cargo !== '' ? $cargo : null,
+            'nota' => $nota !== '' ? $nota : null,
+            'estado' => $esActualizacion ? $estadoNormalizado : 'Pendiente',
+        ];
+
+        $old = [
+            'id_cooperativa' => $input['id_cooperativa'] ?? '',
+            'titulo' => $titulo,
+            'fecha_evento' => $fecha,
+            'oficial_nombre' => $nombre,
+            'telefono_contacto' => $telefonoEntrada,
+            'oficial_correo' => $correo,
+            'cargo' => $cargo,
+            'nota' => $nota,
+            'estado' => $esActualizacion ? ($estadoEntrada !== '' ? $estadoEntrada : $estadoActual) : 'Pendiente',
+        ];
+
+        return [$payload, $old, $errors];
     }
 
     /**
      * @param array<string,mixed> $input
      * @return array<string,mixed>
      */
-    private function validate(array $input): array
+    private function extraerOld(array $input): array
     {
-        $errors = [];
-
-        $idCooperativa = isset($input['id_cooperativa']) ? (int)$input['id_cooperativa'] : 0;
-        if ($idCooperativa < 1) {
-            $errors['id_cooperativa'] = 'Selecciona una entidad válida';
-        }
-
-        $titulo = trim((string)($input['titulo'] ?? ''));
-        if (!$this->validator->stringLength($titulo, 1, 160)) {
-            $errors['titulo'] = 'El título debe tener entre 1 y 160 caracteres';
-        }
-
-        $descripcion = trim((string)($input['descripcion'] ?? ''));
-        if ($descripcion === '') {
-            $descripcion = null;
-        }
-
-        $fechaEntrada = trim((string)($input['fecha_evento'] ?? ''));
-        $fechaNormalizada = null;
-        if ($fechaEntrada === '') {
-            $errors['fecha_evento'] = 'La fecha del evento es obligatoria';
-        } else {
-            $fechaNormalizada = $this->normalizarFecha($fechaEntrada);
-            if ($fechaNormalizada === null) {
-                $errors['fecha_evento'] = 'La fecha del evento es inválida';
-            }
-        }
-
-        $telefono = trim((string)($input['telefono_contacto'] ?? ''));
-        if ($telefono === '') {
-            $telefono = null;
-        } else {
-            $soloDigitos = preg_replace('/\D+/', '', $telefono) ?? '';
-            if ($soloDigitos === '') {
-                $errors['telefono_contacto'] = 'El teléfono solo debe contener dígitos';
-                $telefono = null;
-            } elseif (!$this->validator->digits($soloDigitos, 7, 20)) {
-                $errors['telefono_contacto'] = 'El teléfono debe tener entre 7 y 20 dígitos';
-                $telefono = null;
-            } else {
-                $telefono = $soloDigitos;
-            }
-        }
-
-        $email = trim((string)($input['email_contacto'] ?? ''));
-        if ($email === '') {
-            $email = null;
-        } elseif (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-            $errors['email_contacto'] = 'El email es inválido';
-        }
-
-        $estado = strtolower(trim((string)($input['estado'] ?? 'pendiente')));
-        if ($estado === '') {
-            $estado = 'pendiente';
-        }
-        if (!$this->isEstadoValido($estado)) {
-            $errors['estado'] = 'Estado inválido';
-        }
-
-        if ($errors) {
-            throw new RuntimeException($this->encodeErrors($errors));
-        }
-
         return [
-            'id_cooperativa'    => $idCooperativa,
-            'titulo'            => $titulo,
-            'descripcion'       => $descripcion,
-            'fecha_evento'      => $fechaNormalizada ?? $fechaEntrada,
-            'telefono_contacto' => $telefono,
-            'email_contacto'    => $email,
-            'estado'            => $estado,
+            'id_cooperativa'   => $input['id_cooperativa'] ?? '',
+            'titulo'           => trim((string)($input['titulo'] ?? '')),
+            'fecha_evento'     => trim((string)($input['fecha_evento'] ?? '')),
+            'oficial_nombre'   => trim((string)($input['oficial_nombre'] ?? '')),
+            'telefono_contacto'=> trim((string)($input['telefono_contacto'] ?? '')),
+            'oficial_correo'   => trim((string)($input['oficial_correo'] ?? '')),
+            'cargo'            => trim((string)($input['cargo'] ?? '')),
+            'nota'             => trim((string)($input['nota'] ?? '')),
+            'estado'           => trim((string)($input['estado'] ?? '')),
         ];
     }
 
-    private function normalizarFecha(string $value): ?string
+    private function normalizarEntero(null|int|string $value): ?int
     {
-        $formatos = [
-            'Y-m-d\TH:i',
-            'Y-m-d\TH:i:s',
-            'Y-m-d H:i',
-            'Y-m-d H:i:s',
-            'Y-m-d',
-        ];
-
-        foreach ($formatos as $formato) {
-            if ($this->validator->dateTimeValid($value, $formato)) {
-                $dt = DateTimeImmutable::createFromFormat($formato, $value);
-                if ($dt instanceof DateTimeImmutable) {
-                    return $dt->format('Y-m-d H:i:s');
-                }
-            }
+        if ($value === null || $value === '') {
+            return null;
         }
+        if (is_string($value) && !ctype_digit($value)) {
+            return null;
+        }
+        $int = (int)$value;
+        return $int > 0 ? $int : null;
+    }
 
+    private function validarFecha(string $value): ?string
+    {
+        if ($value === '') {
+            return null;
+        }
+        $dt = \DateTimeImmutable::createFromFormat('Y-m-d', $value);
+        if ($dt instanceof \DateTimeImmutable) {
+            return $dt->format('Y-m-d');
+        }
         return null;
     }
 
-    private function isEstadoValido(string $estado): bool
+    private function normalizarEstado(string $estado): string
     {
-        return in_array($estado, ['pendiente', 'completado', 'cancelado'], true);
-    }
-
-    private function encodeErrors(array $errors): string
-    {
-        $json = json_encode($errors, JSON_UNESCAPED_UNICODE);
-        return $json === false ? '{}' : $json;
+        $map = [
+            'pendiente' => 'Pendiente',
+            'completado' => 'Completado',
+            'cancelado' => 'Cancelado',
+        ];
+        $key = strtolower(trim($estado));
+        return $map[$key] ?? '';
     }
 }

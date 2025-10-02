@@ -4,278 +4,320 @@ declare(strict_types=1);
 namespace App\Controllers\Comercial;
 
 use App\Repositories\Comercial\AgendaRepository;
-use App\Repositories\Comercial\EntidadRepository;
 use App\Services\Comercial\AgendaService;
-use App\Services\Shared\ValidationService;
-use RuntimeException;
-use function csrf_token;
-use function csrf_verify;
 use function redirect;
 use function view;
 
 final class AgendaController
 {
-    private const ESTADOS = [
-        'pendiente'  => 'Pendiente',
-        'completado' => 'Completado',
-        'cancelado'  => 'Cancelado',
-    ];
-
     private AgendaService $service;
-    private EntidadRepository $entidades;
 
-    public function __construct(?AgendaService $service = null, ?EntidadRepository $entidades = null)
+    public function __construct(?AgendaService $service = null)
     {
-        $this->service    = $service ?? new AgendaService(new AgendaRepository(), new ValidationService());
-        $this->entidades  = $entidades ?? new EntidadRepository();
+        $this->service = $service ?? new AgendaService(new AgendaRepository());
     }
 
     public function index(): void
     {
         $filters = [
-            'texto'  => trim((string)($_GET['texto'] ?? '')),
-            'desde'  => trim((string)($_GET['desde'] ?? '')),
-            'hasta'  => trim((string)($_GET['hasta'] ?? '')),
+            'q'      => trim((string)($_GET['q'] ?? '')),
+            'coop'   => $_GET['coop'] ?? '',
             'estado' => trim((string)($_GET['estado'] ?? '')),
         ];
-        $page    = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-        $perPage = isset($_GET['per_page']) ? (int)$_GET['per_page'] : 20;
 
-        $result = $this->service->list($filters, $page, $perPage);
+        $items = $this->service->listado($filters);
+        $coops = $this->service->cooperativas();
 
-        $editId = isset($_GET['edit']) ? (int)$_GET['edit'] : 0;
-        $editTarget = null;
-        if ($editId > 0) {
-            $editTarget = $this->service->get($editId);
-        }
-
-        $editErrors = $this->pullFlashData('edit_errors');
-        $editOld    = $this->pullFlashData('edit_old');
-        if (!empty($editOld)) {
-            $editTarget = array_merge((array)$editTarget, $editOld);
-        }
+        $notice = $this->pullFlash('notice');
+        $errorNotice = $this->pullFlash('error');
+        $formErrors = $this->pullFlashData('errors');
+        $formOld = $this->pullFlashData('old');
 
         view('comercial/agenda/index', [
-            'title'      => 'Agenda Comercial',
-            'csrf'       => csrf_token(),
-            'filters'    => $filters,
-            'items'      => $result['data'],
-            'total'      => $result['total'],
-            'page'       => $result['page'],
-            'perPage'    => $result['per_page'],
-            'estados'    => self::ESTADOS,
-            'entidades'  => $this->listadoEntidades(),
-            'flashError' => $this->pullFlash('error'),
-            'flashOk'    => $this->pullFlash('ok'),
-            'editTarget' => $editTarget,
-            'editErrors' => $editErrors,
-            'editOld'    => $editOld,
+            'layout'        => 'layout',
+            'title'         => 'Agenda de contactos',
+            'filters'       => $filters,
+            'cooperativas'  => $coops,
+            'items'         => $items,
+            'notice'        => $notice,
+            'errorNotice'   => $errorNotice,
+            'formErrors'    => $formErrors,
+            'formOld'       => $formOld,
         ]);
     }
 
-    public function showJson(int $id): void
+    public function store(): void
     {
-        header('Content-Type: application/json; charset=utf-8');
-
-        if ($id < 1) {
-            http_response_code(400);
-            echo json_encode(['error' => 'ID inválido'], JSON_UNESCAPED_UNICODE);
-            return;
-        }
-
-        $evento = $this->service->get($id);
-        if ($evento === null) {
-            http_response_code(404);
-            echo json_encode(['error' => 'Evento no encontrado'], JSON_UNESCAPED_UNICODE);
-            return;
-        }
-
-        echo json_encode($evento, JSON_UNESCAPED_UNICODE);
-    }
-
-    public function create(): void
-    {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) {
-            http_response_code(400);
-            echo 'CSRF inválido';
-            return;
-        }
-
-        try {
-            $this->service->create($_POST);
-            $this->flash('ok', 'Evento registrado correctamente');
+        $result = $this->service->crear($_POST, $this->currentUserId());
+        if (!$result['ok']) {
+            $this->flashData('errors', $result['errors']);
+            $this->flashData('old', $result['data']);
+            $this->flash('error', 'Revisa los campos del formulario.');
             redirect('/comercial/agenda');
-        } catch (RuntimeException $e) {
-            $errors = $this->decodeErrors($e);
-            view('comercial/agenda/create', [
-                'title'     => 'Nuevo evento',
-                'csrf'      => csrf_token(),
-                'errors'    => $errors,
-                'old'       => $this->oldInput($_POST),
-                'estados'   => self::ESTADOS,
-                'entidades' => $this->listadoEntidades(),
-            ]);
+            return;
         }
+
+        $this->flash('notice', 'Contacto creado correctamente.');
+        redirect('/comercial/agenda');
     }
 
     public function edit(int $id): void
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) {
-            http_response_code(400);
-            echo 'CSRF inválido';
+        $item = $this->service->obtener($id);
+        if ($item === null) {
+            $this->flash('error', 'El contacto solicitado no existe.');
+            redirect('/comercial/agenda');
             return;
         }
 
-        try {
-            $this->service->update($id, $_POST);
-            $this->flash('ok', 'Evento actualizado');
-            redirect('/comercial/agenda');
-        } catch (RuntimeException $e) {
-            $errors = $this->decodeErrors($e);
-            $this->flashData('edit_errors', $errors);
-            $this->flashData('edit_old', $this->oldInput($_POST));
-            $this->flash('error', $this->errorsToText($errors));
-            redirect('/comercial/agenda?edit=' . $id);
+        $errors = $this->pullFlashData('edit_errors');
+        $old = $this->pullFlashData('edit_old');
+        if (!$old) {
+            $old = [
+                'id_cooperativa'   => $item['id_cooperativa'] ?? '',
+                'titulo'           => $item['titulo'] ?? '',
+                'fecha_evento'     => $item['fecha_evento'] ?? '',
+                'oficial_nombre'   => $item['oficial_nombre'] ?? ($item['contacto'] ?? ''),
+                'telefono_contacto'=> $item['telefono_contacto'] ?? '',
+                'oficial_correo'   => $item['oficial_correo'] ?? '',
+                'cargo'            => $item['cargo'] ?? '',
+                'nota'             => $item['nota'] ?? '',
+                'estado'           => $item['estado'] ?? 'Pendiente',
+            ];
         }
+
+        view('comercial/agenda/edit', [
+            'layout'        => 'layout',
+            'title'         => 'Editar contacto',
+            'item'          => $item,
+            'cooperativas'  => $this->service->cooperativas(),
+            'formErrors'    => $errors,
+            'formOld'       => $old,
+        ]);
+    }
+
+    public function update(int $id): void
+    {
+        $result = $this->service->actualizar($id, $_POST);
+        if (!$result['ok']) {
+            $this->flashData('edit_errors', $result['errors']);
+            $this->flashData('edit_old', $result['data']);
+            $this->flash('error', 'Revisa los campos del formulario.');
+            redirect('/comercial/agenda/' . $id . '/editar');
+            return;
+        }
+
+        $this->flash('notice', 'Contacto actualizado correctamente.');
+        redirect('/comercial/agenda');
     }
 
     public function changeStatus(int $id): void
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) {
-            http_response_code(400);
-            echo 'CSRF inválido';
-            return;
+        $estado = (string)($_POST['estado'] ?? '');
+        $result = $this->service->cambiarEstado($id, $estado);
+        if ($result['ok']) {
+            $this->flash('notice', 'Estado actualizado correctamente.');
+        } else {
+            $this->flash('error', $this->erroresComoTexto($result['errors']));
         }
-
-        try {
-            $estado = (string)($_POST['estado'] ?? '');
-            $this->service->changeStatus($id, $estado);
-            $this->flash('ok', 'Estado actualizado');
-        } catch (RuntimeException $e) {
-            $this->flash('error', $this->errorsToText($this->decodeErrors($e)));
-        }
-
         redirect('/comercial/agenda');
     }
 
     public function delete(int $id): void
     {
-        if (!csrf_verify($_POST['_csrf'] ?? '')) {
-            http_response_code(400);
-            echo 'CSRF inválido';
-            return;
+        if ($this->service->eliminar($id)) {
+            $this->flash('notice', 'Contacto eliminado correctamente.');
+        } else {
+            $this->flash('error', 'No se pudo eliminar el contacto.');
         }
-
-        try {
-            $this->service->delete($id);
-            $this->flash('ok', 'Evento eliminado');
-        } catch (RuntimeException $e) {
-            $this->flash('error', $this->errorsToText($this->decodeErrors($e)));
-        }
-
         redirect('/comercial/agenda');
     }
 
-    /** @return array<string,string> */
-    private function decodeErrors(RuntimeException $e): array
+    public function export(): void
     {
-        $decoded = json_decode($e->getMessage(), true);
-        if (!is_array($decoded)) {
-            return ['general' => 'No se pudo procesar la solicitud'];
-        }
+        $filters = [
+            'q'      => trim((string)($_GET['q'] ?? '')),
+            'coop'   => $_GET['coop'] ?? '',
+            'estado' => trim((string)($_GET['estado'] ?? '')),
+        ];
 
-        /** @var array<string,string> $decoded */
-        return $decoded;
+        $rows = $this->service->datosParaExportar($filters);
+        $vcf = $this->construirVcf($rows);
+        $filename = 'agenda-' . date('Ymd') . '.vcf';
+
+        header('Content-Type: text/vcard; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($vcf));
+        echo $vcf;
     }
 
-    /** @return array<string,mixed> */
-    private function oldInput(array $input): array
+    private function construirVcf(array $rows): string
     {
-        $keep = ['id_cooperativa','titulo','descripcion','fecha_evento','telefono_contacto','email_contacto','estado'];
-        $old  = [];
-        foreach ($keep as $key) {
-            if (!array_key_exists($key, $input)) {
-                continue;
+        $out = '';
+        $rev = gmdate('Ymd\THis\Z');
+        foreach ($rows as $row) {
+            $nombre = (string)($row['oficial_nombre'] ?? $row['contacto'] ?? $row['coop_nombre'] ?? $row['titulo'] ?? '');
+            $fn = $nombre !== '' ? $nombre : 'Contacto Agenda';
+            [$family, $given, $add, $pref, $suf] = $this->vcfNameParts($nombre);
+
+            $org = $row['coop_nombre'] ?? '';
+            $cargo = $row['cargo'] ?? '';
+            $titulo = $row['titulo'] ?? '';
+
+            $notaPartes = [];
+            if (!empty($row['fecha_evento'])) {
+                $notaPartes[] = 'Fecha: ' . $row['fecha_evento'];
             }
-            $value = $input[$key];
-            if (is_string($value)) {
-                $old[$key] = trim($value);
-            } else {
-                $old[$key] = $value;
+            if (!empty($row['nota'])) {
+                $notaPartes[] = (string)$row['nota'];
             }
-        }
-        return $old;
-    }
+            $nota = $notaPartes ? implode('\n', $notaPartes) : '';
 
-    /** @return array<int, array{id:int,nombre:string}> */
-    private function listadoEntidades(): array
-    {
-        $resultado = $this->entidades->search('', 1, 200);
-        $items = $resultado['items'] ?? [];
-        $list = [];
-        foreach ($items as $item) {
-            if (!isset($item['id'], $item['nombre'])) {
-                continue;
+            $telefono = $row['telefono_contacto'] ?? ($row['coop_telefono'] ?? '');
+            $correo = $row['oficial_correo'] ?? ($row['coop_email'] ?? '');
+
+            $lineas = [
+                'BEGIN:VCARD',
+                'VERSION:3.0',
+                'FN:' . $this->vcfEscape($fn),
+                'N:' . $family . ';' . $given . ';' . $add . ';' . $pref . ';' . $suf,
+            ];
+
+            if ($org !== '') {
+                $lineas[] = 'ORG:' . $this->vcfEscape($org);
             }
-            $list[] = ['id' => (int)$item['id'], 'nombre' => (string)$item['nombre']];
-        }
-        return $list;
-    }
-
-    private function errorsToText(array $errors): string
-    {
-        $parts = [];
-        foreach ($errors as $field => $message) {
-            if (!is_string($message)) {
-                continue;
+            if ($cargo !== '') {
+                $lineas[] = 'ROLE:' . $this->vcfEscape($cargo);
             }
-            $parts[] = ucfirst(str_replace('_', ' ', $field)) . ': ' . $message;
+            if ($titulo !== '') {
+                $lineas[] = 'TITLE:' . $this->vcfEscape($titulo);
+            }
+            if ($correo !== '') {
+                $lineas[] = 'EMAIL;TYPE=WORK:' . $this->vcfEscape($correo);
+            }
+            if ($telefono !== '') {
+                $lineas[] = 'TEL;TYPE=WORK,VOICE:' . $this->vcfEscape($telefono);
+            }
+            if (!empty($row['coop_canton']) || !empty($row['coop_provincia'])) {
+                $city = $this->vcfEscape((string)($row['coop_canton'] ?? ''));
+                $region = $this->vcfEscape((string)($row['coop_provincia'] ?? ''));
+                $lineas[] = 'ADR;TYPE=WORK:;;;' . $city . ';' . $region . ';;Ecuador';
+            }
+            if ($nota !== '') {
+                $lineas[] = 'NOTE:' . $this->vcfEscape($nota);
+            }
+
+            $lineas[] = 'CATEGORIES:Agenda HelpDesk,Comercial';
+            $lineas[] = 'UID:agenda-' . ($row['id'] ?? uniqid('', true)) . '@helpdesk';
+            $lineas[] = 'REV:' . $rev;
+            $lineas[] = 'END:VCARD';
+
+            $out .= implode("\r\n", $lineas) . "\r\n";
         }
-        return $parts ? implode('. ', $parts) : 'No se pudo completar la operación';
+
+        return $out;
     }
 
-    private function flash(string $type, string $message): void
+    private function vcfEscape(string $value): string
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
-        $_SESSION['agenda_flash_' . $type] = $message;
+        return str_replace(
+            ["\\", ";", ",", "\r\n", "\n", "\r"],
+            ["\\\\", "\\;", "\\,", "\\n", "\\n", ''],
+            $value
+        );
     }
 
-    private function pullFlash(string $type): ?string
+    /**
+     * @return array{0:string,1:string,2:string,3:string,4:string}
+     */
+    private function vcfNameParts(string $full): array
     {
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
+        $full = trim(preg_replace('/\s+/', ' ', $full) ?? '');
+        if ($full === '') {
+            return ['', '', '', '', ''];
         }
-        $key = 'agenda_flash_' . $type;
-        if (!isset($_SESSION[$key])) {
+        $parts = explode(' ', $full);
+        $family = array_pop($parts) ?? '';
+        $given = trim(implode(' ', $parts));
+        return [
+            $this->vcfEscape($family),
+            $this->vcfEscape($given),
+            '',
+            '',
+            '',
+        ];
+    }
+
+    private function currentUserId(): ?int
+    {
+        if (!isset($_SESSION['auth']['id'])) {
             return null;
         }
-        $value = $_SESSION[$key];
-        unset($_SESSION[$key]);
+        return (int)$_SESSION['auth']['id'];
+    }
+
+    private function flash(string $key, string $message): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $_SESSION['agenda_flash_' . $key] = $message;
+    }
+
+    private function pullFlash(string $key): ?string
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $fullKey = 'agenda_flash_' . $key;
+        if (!isset($_SESSION[$fullKey])) {
+            return null;
+        }
+        $value = $_SESSION[$fullKey];
+        unset($_SESSION[$fullKey]);
         return is_string($value) ? $value : null;
     }
 
-    private function flashData(string $type, array $value): void
+    private function flashData(string $key, array $value): void
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
         }
-        $_SESSION['agenda_flash_data_' . $type] = $value;
+        $_SESSION['agenda_flash_data_' . $key] = $value;
     }
 
-    /** @return array<string,mixed> */
-    private function pullFlashData(string $type): array
+    /**
+     * @return array<string,mixed>
+     */
+    private function pullFlashData(string $key): array
     {
         if (session_status() !== PHP_SESSION_ACTIVE) {
             session_start();
         }
-        $key = 'agenda_flash_data_' . $type;
-        if (!isset($_SESSION[$key])) {
+        $fullKey = 'agenda_flash_data_' . $key;
+        if (!isset($_SESSION[$fullKey])) {
             return [];
         }
-        $value = $_SESSION[$key];
-        unset($_SESSION[$key]);
+        $value = $_SESSION[$fullKey];
+        unset($_SESSION[$fullKey]);
         return is_array($value) ? $value : [];
+    }
+
+    /**
+     * @param array<string,string> $errors
+     */
+    private function erroresComoTexto(array $errors): string
+    {
+        if (!$errors) {
+            return 'No se pudo completar la operación.';
+        }
+        $partes = [];
+        foreach ($errors as $campo => $mensaje) {
+            if (!is_string($mensaje)) {
+                continue;
+            }
+            $partes[] = ucfirst(str_replace('_', ' ', (string)$campo)) . ': ' . $mensaje;
+        }
+        return implode('. ', $partes);
     }
 }
