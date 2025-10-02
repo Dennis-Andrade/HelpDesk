@@ -61,6 +61,56 @@ final class AgendaController
         redirect('/comercial/agenda');
     }
 
+    public function edit(int $id): void
+    {
+        $item = $this->service->obtener($id);
+        if ($item === null) {
+            $this->flash('error', 'El contacto solicitado no existe.');
+            redirect('/comercial/agenda');
+            return;
+        }
+
+        $errors = $this->pullFlashData('edit_errors');
+        $old = $this->pullFlashData('edit_old');
+        if (!$old) {
+            $old = [
+                'id_cooperativa'   => $item['id_cooperativa'] ?? '',
+                'titulo'           => $item['titulo'] ?? '',
+                'fecha_evento'     => $item['fecha_evento'] ?? '',
+                'oficial_nombre'   => $item['oficial_nombre'] ?? ($item['contacto'] ?? ''),
+                'telefono_contacto'=> $item['telefono_contacto'] ?? '',
+                'oficial_correo'   => $item['oficial_correo'] ?? '',
+                'cargo'            => $item['cargo'] ?? '',
+                'nota'             => $item['nota'] ?? '',
+                'estado'           => $item['estado'] ?? 'Pendiente',
+            ];
+        }
+
+        view('comercial/agenda/edit', [
+            'layout'        => 'layout',
+            'title'         => 'Editar contacto',
+            'item'          => $item,
+            'cooperativas'  => $this->service->cooperativas(),
+            'formErrors'    => $errors,
+            'formOld'       => $old,
+        ]);
+    }
+
+    public function update(int $id): void
+    {
+        $result = $this->service->actualizar($id, $_POST);
+        if (!$result['ok']) {
+            $this->flashData('edit_errors', $result['errors']);
+            $this->flashData('edit_old', $result['data']);
+            $this->flash('error', 'Revisa los campos del formulario.');
+            redirect('/comercial/agenda/' . $id . '/editar');
+            return;
+        }
+
+        $this->flash('notice', 'Contacto actualizado correctamente.');
+        redirect('/comercial/agenda');
+    }
+
     public function changeStatus(int $id): void
     {
         $estado = (string)($_POST['estado'] ?? '');
