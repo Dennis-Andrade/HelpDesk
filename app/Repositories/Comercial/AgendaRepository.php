@@ -114,6 +114,48 @@ final class AgendaRepository extends BaseRepository
         return $row && isset($row['id']) ? (int)$row['id'] : 0;
     }
 
+    /**
+     * @param array<string,mixed> $data
+     */
+    public function actualizar(int $id, array $data): void
+    {
+        $sql = 'UPDATE ' . self::TABLE . ' SET
+                id_cooperativa = :id_cooperativa,
+                titulo = :titulo,
+                fecha_evento = :fecha_evento,
+                contacto = :contacto,
+                telefono_contacto = :telefono_contacto,
+                oficial_nombre = :oficial_nombre,
+                oficial_correo = :oficial_correo,
+                cargo = :cargo,
+                nota = :nota,
+                estado = :estado,
+                updated_at = NOW()
+            WHERE id_evento = :id';
+
+        $params = [
+            ':id_cooperativa'   => $data['id_cooperativa'] === null
+                ? [null, \PDO::PARAM_NULL]
+                : [(int)$data['id_cooperativa'], \PDO::PARAM_INT],
+            ':titulo'           => [(string)$data['titulo'], \PDO::PARAM_STR],
+            ':fecha_evento'     => [(string)$data['fecha_evento'], \PDO::PARAM_STR],
+            ':contacto'         => $this->nullableStringParam($data['contacto'] ?? null),
+            ':telefono_contacto'=> $this->nullableStringParam($data['telefono_contacto'] ?? null),
+            ':oficial_nombre'   => $this->nullableStringParam($data['oficial_nombre'] ?? null),
+            ':oficial_correo'   => $this->nullableStringParam($data['oficial_correo'] ?? null),
+            ':cargo'            => $this->nullableStringParam($data['cargo'] ?? null),
+            ':nota'             => $this->nullableStringParam($data['nota'] ?? null),
+            ':estado'           => [(string)$data['estado'], \PDO::PARAM_STR],
+            ':id'               => [$id, \PDO::PARAM_INT],
+        ];
+
+        try {
+            $this->db->execute($sql, $params);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo actualizar el contacto.', 0, $e);
+        }
+    }
+
     public function cambiarEstado(int $id, string $estado): void
     {
         $sql = 'UPDATE ' . self::TABLE
