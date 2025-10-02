@@ -75,6 +75,57 @@ final class ContactosController
     }
 
     /**
+     * Muestra el formulario para editar un contacto existente.
+     */
+    public function editForm()
+    {
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        if ($id < 1) {
+            redirect('/comercial/contactos');
+            return;
+        }
+
+        $contacto = $this->repo->find($id);
+        if ($contacto === null) {
+            redirect('/comercial/contactos');
+            return;
+        }
+
+        return view('comercial/contactos/edit', [
+            'layout'    => 'layout',
+            'title'     => 'Editar contacto',
+            'contacto'  => $contacto,
+            'entidades' => $this->listadoEntidades(),
+        ]);
+    }
+
+    /**
+     * Actualiza un contacto.
+     *
+     * @param int|string $id
+     */
+    public function update($id)
+    {
+        $id = (int)$id;
+        if ($id < 1) {
+            redirect('/comercial/contactos');
+            return;
+        }
+
+        $data = [
+            'id_cooperativa'    => (int)($_POST['id_entidad'] ?? 0),
+            'nombre'            => trim((string)($_POST['nombre'] ?? '')),
+            'titulo'            => trim((string)($_POST['titulo'] ?? '')),
+            'cargo'             => trim((string)($_POST['cargo'] ?? '')),
+            'telefono_contacto' => trim((string)($_POST['telefono'] ?? '')),
+            'email_contacto'    => trim((string)($_POST['correo'] ?? '')),
+            'nota'              => trim((string)($_POST['nota'] ?? '')),
+        ];
+        $this->repo->update($id, $data);
+        redirect('/comercial/contactos');
+    }
+
+    /**
      * Elimina un contacto identificado por su id.
      *
      * @param int|string $id Identificador del contacto a eliminar.

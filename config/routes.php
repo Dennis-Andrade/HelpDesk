@@ -75,6 +75,16 @@ $router->post(
     [ContactosController::class, 'create'],
     ['middleware'=>['auth','role:comercial']]
 );
+$router->get(
+    '/comercial/contactos/editar',
+    [ContactosController::class, 'editForm'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/contactos/{id}',
+    [ContactosController::class, 'update'],
+    ['middleware'=>['auth','role:comercial']]
+);
 $router->post(
     '/comercial/contactos/{id}/eliminar',
     [ContactosController::class, 'delete'],

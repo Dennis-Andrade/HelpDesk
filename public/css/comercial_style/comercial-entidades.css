@@ -144,8 +144,18 @@
 .ent-toolbar{
   display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin: 14px 0;
 }
-.ent-search{
+.ent-search{ 
   display:flex; gap:6px; align-items:center;
+}
+.ent-search--stack{
+  flex-wrap:wrap;
+  align-items:flex-end;
+  gap:10px;
+  margin: 18px 0 24px;
+}
+.ent-search--stack label{
+  font-weight:700;
+  color:var(--text-body, #111827);
 }
 .ent-search input[type="text"]{
   width:min(280px, 60vw);
@@ -180,6 +190,93 @@
 
 /* Número centrado */
 .ent-table .col-num { text-align:center; color:#6b7280; width: 68px; }
+
+.ent-contactos-list{ margin-top: 32px; }
+
+.contact-list{
+  width:100%;
+  border:1px solid #e5e7eb;
+  border-radius:12px;
+  overflow:hidden;
+  background:#fff;
+  box-shadow:0 1px 3px rgba(15,23,42,.08);
+}
+.contact-list__header,
+.contact-list__row{
+  display:grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(160px, 1.6fr) minmax(140px, 1.4fr) minmax(140px, 1.3fr) minmax(160px, 1.1fr);
+  gap:0;
+  align-items:center;
+}
+.contact-list__header{
+  background: var(--table-header-bg, var(--color-secondary));
+  color: var(--table-header-text, #fff);
+  font-weight:700;
+  font-size:.95rem;
+}
+.contact-list__cell{
+  padding:.75rem .9rem;
+  border-top:1px solid #eef2f6;
+  font-size:.95rem;
+  color: var(--table-row-text, #0f172a);
+}
+.contact-list__header .contact-list__cell{
+  border-top:none;
+}
+.contact-list__row:nth-of-type(odd){
+  background: var(--table-row-bg, #f9fafb);
+}
+.contact-list__row:hover{
+  background: var(--table-row-hover, #FFFAF5);
+}
+.contact-list__cell--actions{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  justify-content:flex-start;
+  flex-wrap:wrap;
+}
+.contact-list__cell--header{
+  text-transform:uppercase;
+  letter-spacing:.03em;
+}
+.contact-list__delete{
+  display:inline;
+}
+.contact-list__delete .btn{
+  padding:.55rem .85rem;
+}
+@media (max-width: 900px){
+  .contact-list__header,
+  .contact-list__row{
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+  .contact-list__header{
+    display:none;
+  }
+  .contact-list__row{
+    border-bottom:1px solid #e5e7eb;
+    padding:.45rem 0;
+  }
+  .contact-list__cell{
+    border:none;
+    padding:.55rem .75rem;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .contact-list__cell--actions{
+    flex-direction:row;
+  }
+  .contact-list__cell::before{
+    content: attr(data-label);
+    font-size:.80rem;
+    font-weight:700;
+    color:#6b7280;
+    text-transform:uppercase;
+    letter-spacing:.02em;
+  }
+}
 
 /* Estado como “píldora” */
 .status-pill{
