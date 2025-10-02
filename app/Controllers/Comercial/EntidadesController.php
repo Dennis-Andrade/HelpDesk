@@ -181,6 +181,7 @@ final class EntidadesController
             'cantones'   => $cantones,
             'segmentos'  => $repo->segmentos(),
             'servicios'  => $repo->servicios(),
+            'toastMessage' => $toastMessage,
         ]);
     }
 
@@ -214,6 +215,7 @@ final class EntidadesController
                 'errors'=>$res['errors'],
                 'old'=>$res['data'],
                 'action'=>'/comercial/entidades/' . $id,
+                'toastMessage'=>null,
             ]);
             return;
         }
