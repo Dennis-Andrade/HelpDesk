@@ -131,12 +131,18 @@ $filterEstado = agenda_h($filters['estado'] ?? '');
     </form>
   </div>
 
-  <div class="agenda-card">
-    <h2 class="agenda-card__title">Listado de contactos</h2>
-    <form method="get" class="agenda-filters" action="/comercial/agenda">
+  <header class="agenda-page__header agenda-page__header--list">
+    <div>
+      <h2>Listado de contactos</h2>
+      <p>Consulta y administra los contactos registrados.</p>
+    </div>
+  </header>
+
+  <div class="agenda-card agenda-card--list">
+    <form method="get" class="agenda-filters agenda-filters--inline" action="/comercial/agenda">
       <label>
         Buscar
-        <input type="text" name="q" value="<?= $filterText ?>" placeholder="Entidad, nombre o cargo">
+        <input type="text" name="q" value="<?= $filterText ?>" placeholder="Nombre, cargo o entidad">
       </label>
       <label>
         Entidad
@@ -148,75 +154,42 @@ $filterEstado = agenda_h($filters['estado'] ?? '');
           <?php endforeach; ?>
         </select>
       </label>
-      <label>
-        Estado
-        <select name="estado">
-          <option value="">Todos</option>
-          <?php foreach (['Pendiente','Completado','Cancelado'] as $estado): ?>
-            <?php $val = agenda_h($estado); ?>
-            <option value="<?= $val ?>" <?= $filterEstado === $val ? 'selected' : '' ?>><?= $val ?></option>
-          <?php endforeach; ?>
-        </select>
-      </label>
-      <div class="agenda-filters__actions">
-        <button type="submit" class="agenda-button agenda-button--primary"><span class="material-icons">filter_alt</span> Filtrar</button>
+      <div class="agenda-filters__actions agenda-filters__actions--list">
+        <button type="submit" class="agenda-button agenda-button--primary"><span class="material-icons">search</span> Buscar</button>
         <a class="agenda-button agenda-button--ghost" href="/comercial/agenda"><span class="material-icons">backspace</span> Limpiar</a>
       </div>
     </form>
 
-    <div class="agenda-table-wrapper">
-      <table class="agenda-table">
+    <div class="agenda-table-wrapper agenda-table-wrapper--simple">
+      <table class="agenda-table agenda-table--simple">
         <thead>
           <tr>
-            <th>Fecha</th>
-            <th>Título</th>
+            <th>Nombre</th>
             <th>Entidad</th>
-            <th>Contacto</th>
-            <th>Estado</th>
+            <th>Cargo</th>
+            <th>Teléfono</th>
             <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
         <?php if (!$items): ?>
-          <tr><td colspan="6" class="agenda-table__empty">Sin contactos registrados.</td></tr>
+          <tr><td colspan="5" class="agenda-table__empty">Sin contactos registrados.</td></tr>
         <?php else: ?>
           <?php foreach ($items as $item): ?>
             <?php
               $id = (int)($item['id'] ?? 0);
-              $fecha = agenda_h($item['fecha_evento'] ?? '');
-              $titulo = agenda_h($item['titulo'] ?? '');
-              $coopNombre = agenda_h($item['coop_nombre'] ?? '—');
-              $nombre = agenda_h($item['oficial_nombre'] ?? '');
-              $telefono = agenda_h($item['telefono_contacto'] ?? ($item['coop_telefono'] ?? ''));
-              $correo = agenda_h($item['oficial_correo'] ?? ($item['coop_email'] ?? ''));
+              $nombre = agenda_h($item['oficial_nombre'] ?? ($item['contacto'] ?? ''));
+              $entidad = agenda_h($item['coop_nombre'] ?? '—');
               $cargo = agenda_h($item['cargo'] ?? '');
-              $nota = agenda_h($item['nota'] ?? '');
-              $estado = agenda_h($item['estado'] ?? 'Pendiente');
+              $telefono = agenda_h($item['telefono_contacto'] ?? ($item['coop_telefono'] ?? ''));
             ?>
-            <tr
-              data-agenda-id="<?= $id ?>"
-              data-agenda-fecha="<?= $fecha ?>"
-              data-agenda-titulo="<?= $titulo ?>"
-              data-agenda-entidad="<?= $coopNombre ?>"
-              data-agenda-nombre="<?= $nombre ?>"
-              data-agenda-telefono="<?= $telefono ?>"
-              data-agenda-correo="<?= $correo ?>"
-              data-agenda-cargo="<?= $cargo ?>"
-              data-agenda-nota="<?= $nota ?>"
-              data-agenda-estado="<?= $estado ?>"
-            >
-              <td><?= $fecha !== '' ? $fecha : '—' ?></td>
-              <td><?= $titulo !== '' ? $titulo : '—' ?></td>
-              <td><?= $coopNombre !== '' ? $coopNombre : '—' ?></td>
-              <td>
-                <?php if ($nombre !== ''): ?><div class="agenda-table__detail"><span class="agenda-table__label">Nombre:</span> <?= $nombre ?></div><?php endif; ?>
-                <?php if ($telefono !== ''): ?><div class="agenda-table__detail"><span class="agenda-table__label">Tel:</span> <?= $telefono ?></div><?php endif; ?>
-                <?php if ($correo !== ''): ?><div class="agenda-table__detail"><span class="agenda-table__label">Correo:</span> <?= $correo ?></div><?php endif; ?>
-                <?php if ($nombre === '' && $telefono === '' && $correo === ''): ?><span class="agenda-table__detail">—</span><?php endif; ?>
-              </td>
-              <td><span class="agenda-badge agenda-badge--<?= strtolower($estado) ?>"><?= $estado ?></span></td>
+            <tr>
+              <td><?= $nombre !== '' ? $nombre : '—' ?></td>
+              <td><?= $entidad !== '' ? $entidad : '—' ?></td>
+              <td><?= $cargo !== '' ? $cargo : '—' ?></td>
+              <td><?= $telefono !== '' ? $telefono : '—' ?></td>
               <td class="agenda-table__actions">
-                <button type="button" class="agenda-button agenda-button--icon" data-agenda-open><span class="material-icons">visibility</span> Ver</button>
+                <a href="/comercial/agenda/<?= $id ?>/editar" class="agenda-button agenda-button--icon"><span class="material-icons">edit</span> Editar</a>
                 <form action="/comercial/agenda/<?= $id ?>/eliminar" method="post" class="agenda-inline-form" onsubmit="return confirm('¿Eliminar este contacto?');">
                   <button type="submit" class="agenda-button agenda-button--danger"><span class="material-icons">delete</span> Eliminar</button>
                 </form>
@@ -229,38 +202,5 @@ $filterEstado = agenda_h($filters['estado'] ?? '');
     </div>
   </div>
 </section>
-
-<div class="agenda-modal" id="agenda-modal" hidden>
-  <div class="agenda-modal__card">
-    <header class="agenda-modal__header">
-      <h3><span class="material-icons">event</span> Detalle del contacto</h3>
-      <button type="button" class="agenda-button agenda-button--icon" data-agenda-close><span class="material-icons">close</span></button>
-    </header>
-    <div class="agenda-modal__body">
-      <dl class="agenda-modal__list">
-        <div><dt>Fecha</dt><dd data-agenda-field="fecha">—</dd></div>
-        <div><dt>Título</dt><dd data-agenda-field="titulo">—</dd></div>
-        <div><dt>Entidad</dt><dd data-agenda-field="entidad">—</dd></div>
-        <div><dt>Nombre</dt><dd data-agenda-field="nombre">—</dd></div>
-        <div><dt>Teléfono</dt><dd data-agenda-field="telefono">—</dd></div>
-        <div><dt>Correo</dt><dd data-agenda-field="correo">—</dd></div>
-        <div><dt>Cargo</dt><dd data-agenda-field="cargo">—</dd></div>
-        <div class="agenda-modal__full"><dt>Nota</dt><dd data-agenda-field="nota">—</dd></div>
-        <div><dt>Estado</dt><dd data-agenda-field="estado">—</dd></div>
-      </dl>
-    </div>
-    <footer class="agenda-modal__footer">
-      <form action="" method="post" data-agenda-status-form class="agenda-inline-form">
-        <input type="hidden" name="estado" value="Completado">
-        <button type="submit" class="agenda-button agenda-button--primary"><span class="material-icons">check_circle</span> Marcar como completado</button>
-      </form>
-      <form action="" method="post" data-agenda-cancel-form class="agenda-inline-form">
-        <input type="hidden" name="estado" value="Cancelado">
-        <button type="submit" class="agenda-button agenda-button--ghost"><span class="material-icons">cancel</span> Cancelar</button>
-      </form>
-    </footer>
-  </div>
-</div>
-<div class="agenda-modal__backdrop" id="agenda-modal-backdrop" hidden></div>
 
 <script src="/js/agenda.js" defer></script>
