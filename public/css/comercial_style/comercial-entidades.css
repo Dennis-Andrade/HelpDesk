@@ -159,6 +159,7 @@
   flex-direction:column;
   gap:.35rem;
   width:min(420px, 100%);
+  flex:1 1 320px;
 }
 .ent-search--stack label{
   font-weight:700;
@@ -201,6 +202,31 @@
 .ent-search__suggestion.is-active{
   background:rgba(255,102,0,.12);
   color:var(--color-secondary, #ff6600);
+}
+.ent-search__actions{
+  display:flex;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-start;
+}
+.ent-search__actions .btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+}
+.ent-search__new .material-symbols-outlined{
+  font-size:20px;
+  line-height:1;
+}
+.ent-search--with-modal{
+  gap:16px;
+}
+.ent-search--with-modal .ent-search__help{
+  flex-basis:100%;
+}
+.ent-search--with-modal .ent-search__actions{
+  margin-left:auto;
 }
 .ent-search input[type="text"]:focus{
   border-color: var(--color-primary);
@@ -354,7 +380,6 @@
 .contact-list__delete .btn{
   padding:.55rem .85rem;
 }
-
 .ent-card-head--compact{
   display:flex;
   align-items:center;
@@ -390,6 +415,92 @@
   font-size:22px;
   line-height:1;
 }
+
+.contact-modal{
+  position:fixed;
+  inset:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+  background:rgba(15,23,42,.55);
+  z-index:200;
+}
+.contact-modal[hidden]{
+  display:none;
+}
+.contact-modal__dialog{
+  background:#fff;
+  border-radius:16px;
+  box-shadow:0 22px 45px rgba(15,23,42,.25);
+  width:min(620px, 100%);
+  max-height:calc(100vh - 60px);
+  overflow-y:auto;
+  padding:26px 30px 30px;
+  position:relative;
+}
+.contact-modal__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:18px;
+}
+.contact-modal__close{
+  background:transparent;
+  border:0;
+  width:40px;
+  height:40px;
+  border-radius:50%;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--text-body, #0f172a);
+  cursor:pointer;
+  transition:background .2s ease, color .2s ease;
+}
+.contact-modal__close:hover,
+.contact-modal__close:focus-visible{
+  background:rgba(15,23,42,.1);
+  color:var(--color-secondary);
+}
+.contact-modal__close:focus-visible{
+  outline:3px solid rgba(58,74,128,.35);
+  outline-offset:2px;
+}
+.contact-modal__form .form-row{
+  display:flex;
+  flex-direction:column;
+  gap:.45rem;
+  margin-bottom:14px;
+}
+.contact-modal__actions{
+  display:flex;
+  gap:12px;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+  margin-top:24px;
+}
+body.is-modal-open{
+  overflow:hidden;
+}
+@media (max-width: 640px){
+  .contact-modal{
+    padding:16px;
+  }
+  .contact-modal__dialog{
+    padding:20px 18px 24px;
+    border-radius:14px;
+  }
+  .contact-modal__actions{
+    justify-content:stretch;
+  }
+  .contact-modal__actions .btn{
+    flex:1 1 auto;
+    justify-content:center;
+  }
+}
+
 .u-sr-only{
   position:absolute;
   width:1px;

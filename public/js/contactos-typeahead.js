@@ -172,22 +172,86 @@
 })();
 
 (function(){
-  const button = document.querySelector('[data-contact-form-toggle]');
-  if (!button) { return; }
+  const modal = document.querySelector('[data-contact-modal]');
+  if (!modal) { return; }
 
-  const targetId = button.getAttribute('aria-controls');
-  const panel = targetId ? document.getElementById(targetId) : null;
-  if (!panel) { return; }
+  const dialog = modal.querySelector('[data-contact-modal-dialog]');
+  const openers = document.querySelectorAll('[data-contact-modal-open]');
+  const closeButtons = modal.querySelectorAll('[data-contact-modal-close]');
+  const cancelButton = modal.querySelector('[data-contact-modal-cancel]');
+  const form = modal.querySelector('form');
+  const focusTarget = modal.querySelector('[data-focus-initial]');
+  let lastFocusedElement = null;
 
-  const initiallyExpanded = button.getAttribute('aria-expanded') === 'true';
-  panel.hidden = !initiallyExpanded;
-  panel.setAttribute('aria-hidden', String(!initiallyExpanded));
+  function isModalVisible() {
+    return modal.getAttribute('aria-hidden') === 'false';
+  }
 
-  button.addEventListener('click', () => {
-    const expanded = button.getAttribute('aria-expanded') === 'true';
-    const nextState = !expanded;
-    button.setAttribute('aria-expanded', String(nextState));
-    panel.hidden = !nextState;
-    panel.setAttribute('aria-hidden', String(!nextState));
+  function openModal() {
+    lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    modal.hidden = false;
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('is-modal-open');
+
+    if (dialog instanceof HTMLElement) {
+      dialog.focus();
+    }
+
+    requestAnimationFrame(() => {
+      if (focusTarget instanceof HTMLElement) {
+        focusTarget.focus();
+      }
+    });
+  }
+
+  function closeModal() {
+    modal.hidden = true;
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('is-modal-open');
+
+    if (form instanceof HTMLFormElement) {
+      form.reset();
+    }
+
+    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+      lastFocusedElement.focus();
+    }
+  }
+
+  openers.forEach((button) => {
+    button.addEventListener('click', () => {
+      if (!isModalVisible()) {
+        openModal();
+      }
+    });
+  });
+
+  closeButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      if (isModalVisible()) {
+        closeModal();
+      }
+    });
+  });
+
+  if (cancelButton) {
+    cancelButton.addEventListener('click', () => {
+      if (isModalVisible()) {
+        closeModal();
+      }
+    });
+  }
+
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal && isModalVisible()) {
+      closeModal();
+    }
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && isModalVisible()) {
+      event.preventDefault();
+      closeModal();
+    }
   });
 })();

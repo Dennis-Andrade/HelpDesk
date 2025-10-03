@@ -62,60 +62,9 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     </div>
   </header>
 
-  <section class="card ent-container" aria-labelledby="nuevo-contacto-title">
-    <div class="ent-card-head ent-card-head--compact">
-      <h2 id="nuevo-contacto-title" class="ent-title">Nuevo contacto</h2>
-      <button type="button"
-              class="ent-card-toggle"
-              data-contact-form-toggle
-              aria-controls="nuevo-contacto-form"
-              aria-expanded="true">
-        <span class="material-symbols-outlined" aria-hidden="true">add</span>
-        <span class="u-sr-only">Mostrar u ocultar formulario de nuevo contacto</span>
-      </button>
-    </div>
-    <form id="nuevo-contacto-form" method="post" action="/comercial/contactos" class="form ent-form">
-      <div class="form-row">
-        <label for="contacto-entidad">Entidad</label>
-        <select id="contacto-entidad" name="id_entidad" required>
-          <?php foreach ($entidades as $ent): ?>
-            <option value="<?= h((string)$ent['id']) ?>"><?= h($ent['nombre']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="form-row">
-        <label for="contacto-nombre">Nombre</label>
-        <input id="contacto-nombre" type="text" name="nombre" placeholder="Juan Pérez" required>
-      </div>
-      <div class="form-row">
-        <label for="contacto-titulo">Título</label>
-        <input id="contacto-titulo" type="text" name="titulo" placeholder="Gerente de ventas">
-      </div>
-      <div class="form-row">
-        <label for="contacto-cargo">Cargo</label>
-        <input id="contacto-cargo" type="text" name="cargo" placeholder="Director">
-      </div>
-      <div class="form-row">
-        <label for="contacto-telefono">Teléfono</label>
-        <input id="contacto-telefono" type="text" name="telefono" placeholder="+593 9 9999 9999">
-      </div>
-      <div class="form-row">
-        <label for="contacto-correo">Correo</label>
-        <input id="contacto-correo" type="email" name="correo" placeholder="correo@dominio.com">
-      </div>
-      <div class="form-row">
-        <label for="contacto-nota">Nota</label>
-        <textarea id="contacto-nota" name="nota" placeholder="Observaciones adicionales"></textarea>
-      </div>
-      <div class="form-actions ent-actions">
-        <button class="btn btn-primary" type="submit">Crear contacto</button>
-      </div>
-    </form>
-  </section>
-
   <section class="ent-container ent-contactos-list" aria-labelledby="contactos-listado-title">
     <h2 id="contactos-listado-title" class="ent-title">Listado de contactos</h2>
-    <form class="ent-search ent-search--stack" action="/comercial/contactos" method="get" role="search">
+    <form class="ent-search ent-search--stack ent-search--with-modal" action="/comercial/contactos" method="get" role="search">
       <div class="ent-search__field">
         <label for="contactos-search-input">Buscar por nombre o entidad</label>
         <input id="contactos-search-input" type="text" name="q" value="<?= h($q ?? '') ?>" aria-describedby="contactos-search-help" placeholder="Nombre o entidad" autocomplete="off" autocapitalize="none" spellcheck="false">
@@ -132,7 +81,13 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
         <?php endif; ?>
       <?php endforeach; ?>
       <span id="contactos-search-help" class="ent-search__help">Escribe al menos 3 caracteres para ver sugerencias</span>
-      <button class="btn btn-outline" type="submit">Buscar</button>
+      <div class="ent-search__actions">
+        <button class="btn btn-outline" type="submit">Buscar</button>
+        <button class="btn btn-primary ent-search__new" type="button" data-contact-modal-open>
+          <span class="material-symbols-outlined" aria-hidden="true">add</span>
+          <span>Nuevo contacto</span>
+        </button>
+      </div>
     </form>
 
     <?php if (empty($items)): ?>
@@ -232,4 +187,52 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     <?php endif; ?>
   </section>
 </section>
+<div class="contact-modal" data-contact-modal hidden aria-hidden="true">
+  <div class="contact-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="nuevo-contacto-modal-title" tabindex="-1" data-contact-modal-dialog>
+    <div class="contact-modal__header">
+      <h2 id="nuevo-contacto-modal-title" class="ent-title">Nuevo contacto</h2>
+      <button type="button" class="contact-modal__close" data-contact-modal-close aria-label="Cerrar">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+    <form method="post" action="/comercial/contactos" class="form ent-form contact-modal__form">
+      <div class="form-row">
+        <label for="modal-contacto-entidad">Entidad</label>
+        <select id="modal-contacto-entidad" name="id_entidad" required data-focus-initial>
+          <?php foreach ($entidades as $ent): ?>
+            <option value="<?= h((string)$ent['id']) ?>"><?= h($ent['nombre']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="modal-contacto-nombre">Nombre</label>
+        <input id="modal-contacto-nombre" type="text" name="nombre" placeholder="Juan Pérez" required>
+      </div>
+      <div class="form-row">
+        <label for="modal-contacto-titulo">Título</label>
+        <input id="modal-contacto-titulo" type="text" name="titulo" placeholder="Gerente de ventas">
+      </div>
+      <div class="form-row">
+        <label for="modal-contacto-cargo">Cargo</label>
+        <input id="modal-contacto-cargo" type="text" name="cargo" placeholder="Director">
+      </div>
+      <div class="form-row">
+        <label for="modal-contacto-telefono">Teléfono</label>
+        <input id="modal-contacto-telefono" type="text" name="telefono" placeholder="+593 9 9999 9999">
+      </div>
+      <div class="form-row">
+        <label for="modal-contacto-correo">Correo</label>
+        <input id="modal-contacto-correo" type="email" name="correo" placeholder="correo@dominio.com">
+      </div>
+      <div class="form-row">
+        <label for="modal-contacto-nota">Nota</label>
+        <textarea id="modal-contacto-nota" name="nota" placeholder="Observaciones adicionales"></textarea>
+      </div>
+      <div class="contact-modal__actions">
+        <button class="btn btn-primary" type="submit">Crear contacto</button>
+        <button class="btn btn-cancel" type="button" data-contact-modal-cancel>Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
 <script src="/js/contactos-typeahead.js" defer></script>
