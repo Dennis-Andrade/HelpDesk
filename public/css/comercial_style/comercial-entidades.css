@@ -415,6 +415,7 @@
   font-size:22px;
   line-height:1;
 }
+
 .contact-modal{
   position:fixed;
   inset:0;
@@ -499,6 +500,7 @@ body.is-modal-open{
     justify-content:center;
   }
 }
+
 .u-sr-only{
   position:absolute;
   width:1px;
