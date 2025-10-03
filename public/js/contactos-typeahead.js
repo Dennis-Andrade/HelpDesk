@@ -151,3 +151,22 @@
     setTimeout(() => clearSuggestions(), 120);
   });
 })();
+
+(function(){
+  const toggles = document.querySelectorAll('[data-contact-toggle]');
+  if (!toggles.length) { return; }
+
+  toggles.forEach((button) => {
+    const targetId = button.getAttribute('aria-controls');
+    const panel = targetId ? document.getElementById(targetId) : null;
+    if (!panel) { return; }
+
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      const nextState = !expanded;
+      button.setAttribute('aria-expanded', String(nextState));
+      panel.hidden = !nextState;
+      panel.setAttribute('aria-hidden', String(!nextState));
+    });
+  });
+})();

@@ -128,23 +128,36 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     <?php if (empty($items)): ?>
       <div class="card" role="status" aria-live="polite">No se encontraron contactos.</div>
     <?php else: ?>
+      <?php $rowOffset = ($page - 1) * $perPage; ?>
       <div class="contact-list" role="table" aria-label="Listado de contactos">
         <div class="contact-list__header" role="row">
+          <span class="contact-list__cell contact-list__cell--header contact-list__cell--num" role="columnheader">#</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Nombre</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Entidad</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Cargo</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Teléfono</span>
           <span class="contact-list__cell contact-list__cell--header contact-list__cell--actions" role="columnheader">Acciones</span>
         </div>
-        <?php foreach ($items as $row): ?>
+        <?php foreach ($items as $index => $row): ?>
           <?php
             $contactId   = (int)($row['id'] ?? 0);
             $contactName = $row['nombre'] ?? 'Contacto';
             $entityName  = $row['entidad_nombre'] ?? '';
             $cargo       = $row['cargo'] ?? '';
             $telefono    = $row['telefono'] ?? '';
+            $titulo      = $row['titulo'] ?? '';
+            $correo      = $row['correo'] ?? '';
+            $nota        = $row['nota'] ?? '';
+            $rowNumber   = $rowOffset + $index + 1;
+            $detailsId   = 'contact-details-' . ($contactId > 0 ? $contactId : ('row-' . $rowNumber));
           ?>
           <div class="contact-list__row" role="row">
+            <span class="contact-list__cell contact-list__cell--num" data-label="Detalle" role="cell">
+              <button type="button" class="contact-list__toggle" data-contact-toggle
+                      aria-expanded="false" aria-controls="<?= h($detailsId) ?>">
+                <?= h((string)$rowNumber) ?>
+              </button>
+            </span>
             <span class="contact-list__cell" data-label="Nombre" role="cell"><?= h($contactName) ?></span>
             <span class="contact-list__cell" data-label="Entidad" role="cell"><?= $entityName !== '' ? h($entityName) : '—' ?></span>
             <span class="contact-list__cell" data-label="Cargo" role="cell"><?= $cargo !== '' ? h($cargo) : '—' ?></span>
@@ -155,6 +168,40 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
                 <button type="submit" class="btn btn-danger">Eliminar</button>
               </form>
             </span>
+          </div>
+          <div class="contact-list__details" id="<?= h($detailsId) ?>" role="row" aria-hidden="true" hidden>
+            <div class="contact-list__cell contact-list__cell--details" role="cell" data-label="Detalles">
+              <dl class="contact-details">
+                <div class="contact-details__item">
+                  <dt>Nombre</dt>
+                  <dd><?= h($contactName) ?></dd>
+                </div>
+                <div class="contact-details__item">
+                  <dt>Entidad</dt>
+                  <dd><?= $entityName !== '' ? h($entityName) : '—' ?></dd>
+                </div>
+                <div class="contact-details__item">
+                  <dt>Título</dt>
+                  <dd><?= $titulo !== '' ? h($titulo) : '—' ?></dd>
+                </div>
+                <div class="contact-details__item">
+                  <dt>Cargo</dt>
+                  <dd><?= $cargo !== '' ? h($cargo) : '—' ?></dd>
+                </div>
+                <div class="contact-details__item">
+                  <dt>Teléfono</dt>
+                  <dd><?= $telefono !== '' ? h($telefono) : '—' ?></dd>
+                </div>
+                <div class="contact-details__item">
+                  <dt>Correo</dt>
+                  <dd><?= $correo !== '' ? h($correo) : '—' ?></dd>
+                </div>
+                <div class="contact-details__item contact-details__item--full">
+                  <dt>Nota</dt>
+                  <dd><?= $nota !== '' ? nl2br(h($nota)) : '—' ?></dd>
+                </div>
+              </dl>
+            </div>
           </div>
         <?php endforeach; ?>
       </div>
