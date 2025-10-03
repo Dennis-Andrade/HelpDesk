@@ -62,8 +62,7 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     </div>
   </header>
 
-  <section class="ent-container ent-contactos-list" aria-labelledby="contactos-listado-title">
-    <h2 id="contactos-listado-title" class="ent-title">Listado de contactos</h2>
+  <section class="ent-container ent-contactos-list" aria-label="Contactos registrados">
     <form class="ent-search ent-search--stack ent-search--with-modal" action="/comercial/contactos" method="get" role="search">
       <div class="ent-search__field">
         <label for="contactos-search-input">Buscar por nombre o entidad</label>
@@ -83,7 +82,7 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
       <span id="contactos-search-help" class="ent-search__help">Escribe al menos 3 caracteres para ver sugerencias</span>
       <div class="ent-search__actions">
         <button class="btn btn-outline" type="submit">Buscar</button>
-        <button class="btn btn-primary ent-search__new" type="button" data-contact-modal-open>
+        <button class="btn btn-primary ent-search__new" type="button" data-modal-open="contacto-crear-modal">
           <span class="material-symbols-outlined" aria-hidden="true">add</span>
           <span>Nuevo contacto</span>
         </button>
@@ -128,7 +127,22 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
             <span class="contact-list__cell" data-label="Cargo" role="cell"><?= $cargo !== '' ? h($cargo) : '—' ?></span>
             <span class="contact-list__cell" data-label="Teléfono" role="cell"><?= $telefono !== '' ? h($telefono) : '—' ?></span>
             <span class="contact-list__cell contact-list__cell--actions" data-label="Acciones" role="cell">
-              <a class="btn btn-primary" href="/comercial/contactos/editar?id=<?= h((string)$contactId) ?>" target="_blank" rel="noopener">Editar</a>
+              <button
+                class="btn btn-primary"
+                type="button"
+                data-contact-edit
+                data-modal-open="contacto-editar-modal"
+                data-contact-id="<?= h((string)$contactId) ?>"
+                data-contact-entidad="<?= isset($row['id_entidad']) ? h((string)$row['id_entidad']) : '' ?>"
+                data-contact-nombre="<?= h($contactName) ?>"
+                data-contact-titulo="<?= h($titulo) ?>"
+                data-contact-cargo="<?= h($cargo) ?>"
+                data-contact-telefono="<?= h($telefono) ?>"
+                data-contact-correo="<?= h($correo) ?>"
+                data-contact-nota="<?= h($nota) ?>"
+              >
+                Editar
+              </button>
               <form method="post" action="/comercial/contactos/<?= h((string)$contactId) ?>/eliminar" class="contact-list__delete" onsubmit="return confirm('¿Deseas eliminar este contacto?');">
                 <button type="submit" class="btn btn-danger">Eliminar</button>
               </form>
@@ -187,11 +201,11 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     <?php endif; ?>
   </section>
 </section>
-<div class="contact-modal" data-contact-modal hidden aria-hidden="true">
-  <div class="contact-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="nuevo-contacto-modal-title" tabindex="-1" data-contact-modal-dialog>
+<div class="contact-modal" id="contacto-crear-modal" data-modal hidden aria-hidden="true">
+  <div class="contact-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="nuevo-contacto-modal-title" tabindex="-1" data-modal-dialog>
     <div class="contact-modal__header">
       <h2 id="nuevo-contacto-modal-title" class="ent-title">Nuevo contacto</h2>
-      <button type="button" class="contact-modal__close" data-contact-modal-close aria-label="Cerrar">
+      <button type="button" class="contact-modal__close" data-modal-close aria-label="Cerrar">
         <span class="material-symbols-outlined" aria-hidden="true">close</span>
       </button>
     </div>
@@ -230,7 +244,55 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
       </div>
       <div class="contact-modal__actions">
         <button class="btn btn-primary" type="submit">Crear contacto</button>
-        <button class="btn btn-cancel" type="button" data-contact-modal-cancel>Cancelar</button>
+        <button class="btn btn-cancel" type="button" data-modal-cancel>Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="contact-modal" id="contacto-editar-modal" data-modal hidden aria-hidden="true">
+  <div class="contact-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="editar-contacto-modal-title" tabindex="-1" data-modal-dialog>
+    <div class="contact-modal__header">
+      <h2 id="editar-contacto-modal-title" class="ent-title">Editar contacto</h2>
+      <button type="button" class="contact-modal__close" data-modal-close aria-label="Cerrar">
+        <span class="material-symbols-outlined" aria-hidden="true">close</span>
+      </button>
+    </div>
+    <form method="post" action="/comercial/contactos" class="form ent-form contact-modal__form" data-contact-edit-form>
+      <div class="form-row">
+        <label for="modal-editar-contacto-entidad">Entidad</label>
+        <select id="modal-editar-contacto-entidad" name="id_entidad" required>
+          <?php foreach ($entidades as $ent): ?>
+            <option value="<?= h((string)$ent['id']) ?>"><?= h($ent['nombre']) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+      <div class="form-row">
+        <label for="modal-editar-contacto-nombre">Nombre</label>
+        <input id="modal-editar-contacto-nombre" type="text" name="nombre" required data-focus-initial>
+      </div>
+      <div class="form-row">
+        <label for="modal-editar-contacto-titulo">Título</label>
+        <input id="modal-editar-contacto-titulo" type="text" name="titulo">
+      </div>
+      <div class="form-row">
+        <label for="modal-editar-contacto-cargo">Cargo</label>
+        <input id="modal-editar-contacto-cargo" type="text" name="cargo">
+      </div>
+      <div class="form-row">
+        <label for="modal-editar-contacto-telefono">Teléfono</label>
+        <input id="modal-editar-contacto-telefono" type="text" name="telefono">
+      </div>
+      <div class="form-row">
+        <label for="modal-editar-contacto-correo">Correo</label>
+        <input id="modal-editar-contacto-correo" type="email" name="correo">
+      </div>
+      <div class="form-row">
+        <label for="modal-editar-contacto-nota">Nota</label>
+        <textarea id="modal-editar-contacto-nota" name="nota"></textarea>
+      </div>
+      <div class="contact-modal__actions">
+        <button class="btn btn-primary" type="submit">Guardar cambios</button>
+        <button class="btn btn-cancel" type="button" data-modal-cancel>Cancelar</button>
       </div>
     </form>
   </div>

@@ -172,86 +172,174 @@
 })();
 
 (function(){
-  const modal = document.querySelector('[data-contact-modal]');
-  if (!modal) { return; }
+  const registry = new Map();
 
-  const dialog = modal.querySelector('[data-contact-modal-dialog]');
-  const openers = document.querySelectorAll('[data-contact-modal-open]');
-  const closeButtons = modal.querySelectorAll('[data-contact-modal-close]');
-  const cancelButton = modal.querySelector('[data-contact-modal-cancel]');
-  const form = modal.querySelector('form');
-  const focusTarget = modal.querySelector('[data-focus-initial]');
-  let lastFocusedElement = null;
-
-  function isModalVisible() {
-    return modal.getAttribute('aria-hidden') === 'false';
+  function anyModalVisible() {
+    for (const modal of registry.values()) {
+      if (modal.isVisible()) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  function openModal() {
-    lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    modal.hidden = false;
-    modal.setAttribute('aria-hidden', 'false');
-    document.body.classList.add('is-modal-open');
+  function setupModal(modalElement) {
+    const dialog = modalElement.querySelector('[data-modal-dialog]');
+    const closeButtons = modalElement.querySelectorAll('[data-modal-close]');
+    const cancelButtons = modalElement.querySelectorAll('[data-modal-cancel]');
+    const form = modalElement.querySelector('form');
+    const focusTarget = modalElement.querySelector('[data-focus-initial]');
+    let lastFocusedElement = null;
 
-    if (dialog instanceof HTMLElement) {
-      dialog.focus();
+    function isVisible() {
+      return modalElement.getAttribute('aria-hidden') === 'false';
     }
 
-    requestAnimationFrame(() => {
-      if (focusTarget instanceof HTMLElement) {
-        focusTarget.focus();
+    function show(trigger) {
+      lastFocusedElement = trigger instanceof HTMLElement
+        ? trigger
+        : (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+
+      modalElement.hidden = false;
+      modalElement.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('is-modal-open');
+
+      if (dialog instanceof HTMLElement) {
+        dialog.focus();
+      }
+
+      requestAnimationFrame(() => {
+        if (focusTarget instanceof HTMLElement) {
+          focusTarget.focus();
+        }
+      });
+    }
+
+    function hide() {
+      modalElement.hidden = true;
+      modalElement.setAttribute('aria-hidden', 'true');
+
+      if (form instanceof HTMLFormElement && modalElement.getAttribute('data-modal-reset') !== 'false') {
+        form.reset();
+      }
+
+      if (!anyModalVisible()) {
+        document.body.classList.remove('is-modal-open');
+      }
+
+      if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
+        lastFocusedElement.focus();
+      }
+    }
+
+    closeButtons.forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (isVisible()) {
+          hide();
+        }
+      });
+    });
+
+    cancelButtons.forEach((button) => {
+      button.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (isVisible()) {
+          hide();
+        }
+      });
+    });
+
+    modalElement.addEventListener('click', (event) => {
+      if (event.target === modalElement && isVisible()) {
+        hide();
       }
     });
+
+    return {
+      show,
+      hide,
+      isVisible,
+    };
   }
 
-  function closeModal() {
-    modal.hidden = true;
-    modal.setAttribute('aria-hidden', 'true');
-    document.body.classList.remove('is-modal-open');
-
-    if (form instanceof HTMLFormElement) {
-      form.reset();
-    }
-
-    if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-      lastFocusedElement.focus();
-    }
-  }
-
-  openers.forEach((button) => {
-    button.addEventListener('click', () => {
-      if (!isModalVisible()) {
-        openModal();
-      }
-    });
+  document.querySelectorAll('[data-modal]').forEach((modalElement) => {
+    const instance = setupModal(modalElement);
+    const key = modalElement.id || modalElement.getAttribute('data-modal-id');
+    if (!key) { return; }
+    registry.set(key, instance);
   });
 
-  closeButtons.forEach((button) => {
-    button.addEventListener('click', () => {
-      if (isModalVisible()) {
-        closeModal();
-      }
-    });
-  });
+  document.querySelectorAll('[data-modal-open]').forEach((button) => {
+    const targetId = button.getAttribute('data-modal-open');
+    if (!targetId) { return; }
+    const modal = registry.get(targetId);
+    if (!modal) { return; }
 
-  if (cancelButton) {
-    cancelButton.addEventListener('click', () => {
-      if (isModalVisible()) {
-        closeModal();
-      }
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      modal.show(button);
     });
-  }
-
-  modal.addEventListener('click', (event) => {
-    if (event.target === modal && isModalVisible()) {
-      closeModal();
-    }
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && isModalVisible()) {
-      event.preventDefault();
-      closeModal();
+    if (event.key === 'Escape') {
+      let handled = false;
+      registry.forEach((modal) => {
+        if (modal.isVisible()) {
+          modal.hide();
+          handled = true;
+        }
+      });
+      if (handled) {
+        event.preventDefault();
+      }
     }
+  });
+
+  window.contactModals = {
+    get(id) {
+      return registry.get(id) || null;
+    },
+  };
+})();
+
+(function(){
+  const editModalId = 'contacto-editar-modal';
+  const modal = document.getElementById(editModalId);
+  if (!modal) { return; }
+
+  const form = modal.querySelector('[data-contact-edit-form]');
+  const entidad = modal.querySelector('#modal-editar-contacto-entidad');
+  const nombre = modal.querySelector('#modal-editar-contacto-nombre');
+  const titulo = modal.querySelector('#modal-editar-contacto-titulo');
+  const cargo = modal.querySelector('#modal-editar-contacto-cargo');
+  const telefono = modal.querySelector('#modal-editar-contacto-telefono');
+  const correo = modal.querySelector('#modal-editar-contacto-correo');
+  const nota = modal.querySelector('#modal-editar-contacto-nota');
+
+  function setValue(field, value) {
+    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+      field.value = value || '';
+    }
+  }
+
+  document.querySelectorAll('[data-contact-edit]').forEach((button) => {
+    button.addEventListener('click', (event) => {
+      if (!(form instanceof HTMLFormElement)) { return; }
+
+      const contactId = button.getAttribute('data-contact-id') || '';
+      if (contactId === '') { return; }
+
+      form.setAttribute('action', '/comercial/contactos/' + encodeURIComponent(contactId));
+      setValue(entidad, button.getAttribute('data-contact-entidad') || '');
+      setValue(nombre, button.getAttribute('data-contact-nombre') || '');
+      setValue(titulo, button.getAttribute('data-contact-titulo') || '');
+      setValue(cargo, button.getAttribute('data-contact-cargo') || '');
+      setValue(telefono, button.getAttribute('data-contact-telefono') || '');
+      setValue(correo, button.getAttribute('data-contact-correo') || '');
+      setValue(nota, button.getAttribute('data-contact-nota') || '');
+
+    }, { capture: true });
   });
 })();
