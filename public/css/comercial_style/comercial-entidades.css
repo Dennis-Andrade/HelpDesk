@@ -781,7 +781,7 @@ body.is-modal-open{
 }
 
 .comercial-dashboard__stat--activas {
-  background: linear-gradient(135deg, #2ec4b6, #48dbcb);
+  background: linear-gradient(135deg, var(--color-secondary-dark, #1A2040), var(--color-secondary-light, #3A4A80));
 }
 
 .comercial-dashboard__stat--inactivas {
@@ -789,7 +789,7 @@ body.is-modal-open{
 }
 
 .comercial-dashboard__stat--ultimo {
-  background: linear-gradient(135deg, #5c2dd5, #7f56d9);
+  background: linear-gradient(135deg, var(--color-primary-dark, #CC5200), var(--color-primary-light, #FF8533));
 }
 
 .comercial-dashboard__charts {

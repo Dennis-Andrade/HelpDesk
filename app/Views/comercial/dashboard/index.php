@@ -95,16 +95,15 @@ $errorMsg = isset($error) && $error ? (string)$error : '';
     </article>
   </div>
 
-  <section class="card comercial-dashboard__chart comercial-dashboard__chart--full">
-    <header class="comercial-dashboard__chart-header">
-      <h3><span class="material-symbols-outlined">donut_small</span> Distribución por segmento</h3>
-    </header>
-    <div class="comercial-dashboard__canvas">
-      <canvas id="segmentoChart" width="400" height="400"></canvas>
-    </div>
-  </section>
-
   <div class="comercial-dashboard__charts">
+    <section class="card comercial-dashboard__chart">
+      <header class="comercial-dashboard__chart-header">
+        <h3><span class="material-symbols-outlined">donut_small</span> Distribución por segmento</h3>
+      </header>
+      <div class="comercial-dashboard__canvas">
+        <canvas id="segmentoChart" width="400" height="320"></canvas>
+      </div>
+    </section>
     <section class="card comercial-dashboard__chart">
       <header class="comercial-dashboard__chart-header">
         <h3><span class="material-symbols-outlined">show_chart</span> Registros mensuales</h3>
