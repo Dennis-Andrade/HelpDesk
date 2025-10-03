@@ -63,8 +63,18 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
   </header>
 
   <section class="card ent-container" aria-labelledby="nuevo-contacto-title">
-    <h2 id="nuevo-contacto-title" class="ent-title">Nuevo contacto</h2>
-    <form method="post" action="/comercial/contactos" class="form ent-form">
+    <div class="ent-card-head ent-card-head--compact">
+      <h2 id="nuevo-contacto-title" class="ent-title">Nuevo contacto</h2>
+      <button type="button"
+              class="ent-card-toggle"
+              data-contact-form-toggle
+              aria-controls="nuevo-contacto-form"
+              aria-expanded="true">
+        <span class="material-symbols-outlined" aria-hidden="true">add</span>
+        <span class="u-sr-only">Mostrar u ocultar formulario de nuevo contacto</span>
+      </button>
+    </div>
+    <form id="nuevo-contacto-form" method="post" action="/comercial/contactos" class="form ent-form">
       <div class="form-row">
         <label for="contacto-entidad">Entidad</label>
         <select id="contacto-entidad" name="id_entidad" required>

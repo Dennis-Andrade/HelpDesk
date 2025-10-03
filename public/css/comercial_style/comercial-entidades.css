@@ -307,8 +307,11 @@
   outline-offset:2px;
 }
 .contact-list__details{
-  display:grid;
+  display:none;
   grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.contact-list__details[aria-hidden="false"]{
+  display:grid;
 }
 .contact-list__cell--details{
   grid-column: 1 / -1;
@@ -350,6 +353,52 @@
 }
 .contact-list__delete .btn{
   padding:.55rem .85rem;
+}
+
+.ent-card-head--compact{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:0;
+  border-bottom:0;
+  margin-bottom:12px;
+}
+.ent-card-toggle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  border:1px solid rgba(15,23,42,.15);
+  background:var(--color-secondary);
+  color:#fff;
+  cursor:pointer;
+  transition:background .2s ease, color .2s ease, transform .2s ease;
+}
+.ent-card-toggle:hover,
+.ent-card-toggle:focus-visible{
+  background:var(--color-secondary-dark, #1e3a8a);
+  color:#fff;
+}
+.ent-card-toggle:focus-visible{
+  outline:3px solid rgba(30,64,175,.35);
+  outline-offset:2px;
+}
+.ent-card-toggle .material-symbols-outlined{
+  font-size:22px;
+  line-height:1;
+}
+.u-sr-only{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  border:0;
 }
 @media (max-width: 900px){
   .contact-list__header,

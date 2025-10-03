@@ -170,3 +170,24 @@
     });
   });
 })();
+
+(function(){
+  const button = document.querySelector('[data-contact-form-toggle]');
+  if (!button) { return; }
+
+  const targetId = button.getAttribute('aria-controls');
+  const panel = targetId ? document.getElementById(targetId) : null;
+  if (!panel) { return; }
+
+  const initiallyExpanded = button.getAttribute('aria-expanded') === 'true';
+  panel.hidden = !initiallyExpanded;
+  panel.setAttribute('aria-hidden', String(!initiallyExpanded));
+
+  button.addEventListener('click', () => {
+    const expanded = button.getAttribute('aria-expanded') === 'true';
+    const nextState = !expanded;
+    button.setAttribute('aria-expanded', String(nextState));
+    panel.hidden = !nextState;
+    panel.setAttribute('aria-hidden', String(!nextState));
+  });
+})();
