@@ -9,6 +9,7 @@ use App\Controllers\Administrador\DashboardController as AdminDashboard;
 use App\Controllers\Comercial\EntidadesController;
 use App\Controllers\Comercial\AgendaController;
 use App\Controllers\Comercial\ContactosController;
+use App\Controllers\Comercial\IncidenciasController;
 
 // ---------- Auth ----------
 $router->get('/login',  [LoginController::class, 'show']);
@@ -93,5 +94,26 @@ $router->post(
 $router->post(
     '/comercial/contactos/{id}/eliminar',
     [ContactosController::class, 'delete'],
+    ['middleware'=>['auth','role:comercial']]
+);
+
+$router->get(
+    '/comercial/incidencias',
+    [IncidenciasController::class, 'index'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/incidencias',
+    [IncidenciasController::class, 'store'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/incidencias/{id}',
+    [IncidenciasController::class, 'update'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/incidencias/{id}/eliminar',
+    [IncidenciasController::class, 'delete'],
     ['middleware'=>['auth','role:comercial']]
 );
