@@ -780,7 +780,6 @@ body.is-modal-open{
   background: linear-gradient(135deg, #212a53, #3a4a80);
 }
 
-
 .comercial-dashboard__stat--activas {
   background: linear-gradient(135deg, var(--color-secondary-dark, #1A2040), var(--color-secondary-light, #3A4A80));
 }
@@ -858,7 +857,6 @@ body.is-modal-open{
     grid-template-columns: 1fr;
   }
 }
-
 /* ===== Incidencias para sistemas ===== */
 .ent-incidencias {
   margin-top: 1.5rem;

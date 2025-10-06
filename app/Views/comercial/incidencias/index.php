@@ -253,7 +253,6 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
     </form>
   </div>
 </div>
-
 <div class="incidencias-modal" id="incidencias-modal" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
   <div class="incidencias-modal__overlay" data-incidencia-close></div>
   <div class="incidencias-modal__card" role="document">
