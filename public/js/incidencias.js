@@ -1,54 +1,122 @@
 (function() {
-  function setupFormToggle() {
-    const layout = document.querySelector('[data-incidencia-layout]');
-    const formCard = document.querySelector('[data-incidencia-form]');
-    const toggleButton = document.querySelector('[data-incidencia-form-toggle]');
+  const body = document.body;
+  let activeController = null;
 
-    if (!layout || !formCard || !toggleButton) {
-      return;
+  function attachModal(modal, options) {
+    if (!modal) {
+      return null;
     }
 
-    const firstInput = formCard.querySelector('input, select, textarea');
+    const overlay = modal.querySelector('.incidencias-modal__overlay');
+    const closeButtons = modal.querySelectorAll('[data-incidencia-close]');
+    const opts = options || {};
 
-    function setExpanded(expanded, options) {
-      const shouldFocusToggle = !(options && options.focusToggle === false);
-
-      if (expanded) {
-        formCard.removeAttribute('hidden');
-        layout.classList.remove('incidencias-layout--collapsed');
-        toggleButton.setAttribute('aria-expanded', 'true');
-        if (firstInput) {
-          window.requestAnimationFrame(function() {
-            firstInput.focus();
-          });
+    const controller = {
+      modal: modal,
+      open: function() {
+        if (typeof opts.onBeforeOpen === 'function') {
+          opts.onBeforeOpen(controller);
         }
-      } else {
-        formCard.setAttribute('hidden', 'hidden');
-        layout.classList.add('incidencias-layout--collapsed');
-        toggleButton.setAttribute('aria-expanded', 'false');
-        if (shouldFocusToggle) {
-          toggleButton.focus();
+
+        modal.setAttribute('aria-hidden', 'false');
+        modal.classList.add('is-active');
+        activeController = controller;
+        body.classList.add('modal-open');
+
+        window.requestAnimationFrame(function() {
+          if (typeof opts.onAfterOpen === 'function') {
+            opts.onAfterOpen(controller);
+          }
+
+          if (!modal.contains(document.activeElement)) {
+            modal.focus();
+          }
+        });
+      },
+      close: function() {
+        modal.setAttribute('aria-hidden', 'true');
+        modal.classList.remove('is-active');
+
+        if (typeof opts.onAfterClose === 'function') {
+          opts.onAfterClose(controller);
+        }
+
+        if (activeController === controller) {
+          activeController = null;
+        }
+
+        if (!document.querySelector('.incidencias-modal.is-active')) {
+          body.classList.remove('modal-open');
         }
       }
+    };
+
+    if (overlay) {
+      overlay.addEventListener('click', controller.close);
     }
 
-    toggleButton.addEventListener('click', function() {
-      const shouldExpand = formCard.hasAttribute('hidden');
-      setExpanded(shouldExpand);
+    closeButtons.forEach(function(btn) {
+      btn.addEventListener('click', controller.close);
     });
 
-    setExpanded(!formCard.hasAttribute('hidden'), { focusToggle: false });
+    modal.addEventListener('click', function(evt) {
+      if (evt.target === modal) {
+        controller.close();
+      }
+    });
+
+    return controller;
   }
 
-  setupFormToggle();
+  const createForm = document.getElementById('incidencias-create-form');
+  const createModalController = attachModal(document.getElementById('incidencias-create-modal'), {
+    onBeforeOpen: function() {
+      if (createForm && typeof createForm.reset === 'function') {
+        createForm.reset();
+      }
+    },
+    onAfterOpen: function() {
+      if (!createForm) {
+        return;
+      }
+      const firstField = createForm.querySelector('input, select, textarea');
+      if (firstField) {
+        firstField.focus();
+      }
+    },
+    onAfterClose: function() {
+      if (createForm && typeof createForm.reset === 'function') {
+        createForm.reset();
+      }
+    }
+  });
 
-  const modal = document.getElementById('incidencias-modal');
-  if (!modal) {
+  const createButton = document.querySelector('[data-incidencia-create-open]');
+  if (createButton && createModalController) {
+    createButton.addEventListener('click', function() {
+      createModalController.open();
+    });
+  }
+
+  document.addEventListener('keydown', function(evt) {
+    if (evt.key === 'Escape' && activeController) {
+      evt.preventDefault();
+      activeController.close();
+    }
+  });
+
+  const detailModalController = attachModal(document.getElementById('incidencias-modal'), {
+    onAfterClose: function() {
+      setEditable(false);
+      currentId = null;
+    }
+  });
+
+  if (!detailModalController) {
     return;
   }
 
-  const overlay = modal.querySelector('.incidencias-modal__overlay');
-  const closeButtons = modal.querySelectorAll('[data-incidencia-close]');
+  const modal = detailModalController.modal;
   const form = document.getElementById('incidencias-modal-form');
   const deleteForm = document.getElementById('incidencias-delete-form');
   const editButton = modal.querySelector('[data-incidencia-edit]');
@@ -171,40 +239,12 @@
     setEditable(false);
   }
 
-  function openModal(row) {
-    fillModal(row);
-    modal.setAttribute('aria-hidden', 'false');
-    modal.classList.add('is-active');
-    document.body.classList.add('modal-open');
-    modal.focus();
-  }
-
-  function closeModal() {
-    modal.setAttribute('aria-hidden', 'true');
-    modal.classList.remove('is-active');
-    document.body.classList.remove('modal-open');
-    setEditable(false);
-    currentId = null;
-  }
-
-  if (overlay) {
-    overlay.addEventListener('click', closeModal);
-  }
-  closeButtons.forEach(function(btn) {
-    btn.addEventListener('click', closeModal);
-  });
-
-  document.addEventListener('keydown', function(evt) {
-    if (evt.key === 'Escape' && modal.classList.contains('is-active')) {
-      closeModal();
-    }
-  });
-
   document.querySelectorAll('[data-incidencia-open]').forEach(function(button) {
     button.addEventListener('click', function() {
       const row = button.closest('.incidencias-row');
       if (row) {
-        openModal(row);
+        fillModal(row);
+        detailModalController.open();
       }
     });
   });

@@ -54,55 +54,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
     </div>
   </header>
 
-  <div class="incidencias-layout incidencias-layout--collapsed" data-incidencia-layout>
-    <section class="card incidencias-card incidencias-card--form" aria-labelledby="incidencia-form-title" id="incidencia-form-card" data-incidencia-form hidden>
-      <header class="incidencias-card__header">
-        <h2 id="incidencia-form-title"><span class="material-symbols-outlined" aria-hidden="true">add_circle</span> Nueva incidencia</h2>
-      </header>
-      <form class="incidencias-form" method="post" action="/comercial/incidencias" autocomplete="off">
-        <div class="incidencias-form__field">
-          <label for="incidencia-cooperativa">Cooperativa</label>
-          <select id="incidencia-cooperativa" name="id_cooperativa" required>
-            <option value="">Seleccione</option>
-            <?php foreach ($cooperativas as $coop): ?>
-              <option value="<?= h((string)($coop['id'] ?? '')) ?>"><?= h($coop['nombre'] ?? '') ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="incidencias-form__field">
-          <label for="incidencia-asunto">Asunto</label>
-          <input id="incidencia-asunto" type="text" name="asunto" required maxlength="180" placeholder="Resumen de la incidencia">
-        </div>
-        <div class="incidencias-form__field">
-          <label for="incidencia-tipo">Incidencia</label>
-          <select id="incidencia-tipo" name="tipo_incidencia" required>
-            <?php foreach ($tipos as $tipo): ?>
-              <option value="<?= h($tipo) ?>"><?= h($tipo) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="incidencias-form__field">
-          <label for="incidencia-prioridad">Prioridad</label>
-          <select id="incidencia-prioridad" name="prioridad" required>
-            <?php foreach ($prioridades as $prioridad): ?>
-              <option value="<?= h($prioridad) ?>"><?= h($prioridad) ?></option>
-            <?php endforeach; ?>
-          </select>
-        </div>
-        <div class="incidencias-form__field incidencias-form__field--full">
-          <label for="incidencia-descripcion">Descripción</label>
-          <textarea id="incidencia-descripcion" name="descripcion" rows="3" placeholder="Detalles adicionales"></textarea>
-        </div>
-        <div class="incidencias-form__actions">
-          <button type="submit" class="btn btn-primary">
-            <span class="material-symbols-outlined" aria-hidden="true">save</span>
-            Guardar
-          </button>
-        </div>
-      </form>
-    </section>
-
-    <section class="incidencias-card incidencias-card--list">
+  <section class="incidencias-card incidencias-card--list">
       <form class="incidencias-filters" method="get" action="/comercial/incidencias" role="search">
         <div class="incidencias-filters__field">
           <label for="incidencias-ticket"># de ticket</label>
@@ -138,9 +90,9 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
           </a>
           <button type="button"
                   class="btn btn-secondary"
-                  data-incidencia-form-toggle
-                  aria-controls="incidencia-form-card"
-                  aria-expanded="false">
+                  data-incidencia-create-open
+                  aria-haspopup="dialog"
+                  aria-controls="incidencias-create-modal">
             <span class="material-symbols-outlined" aria-hidden="true">note_add</span>
             Nueva
           </button>
@@ -240,9 +192,65 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
           </nav>
         <?php endif; ?>
       <?php endif; ?>
-    </section>
-  </div>
+  </section>
 </section>
+
+<div class="incidencias-modal" id="incidencias-create-modal" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
+  <div class="incidencias-modal__overlay" data-incidencia-close></div>
+  <div class="incidencias-modal__card" role="document">
+    <header class="incidencias-modal__header">
+      <h2><span class="material-symbols-outlined" aria-hidden="true">note_add</span> Nueva incidencia</h2>
+      <button type="button" class="incidencias-modal__close" aria-label="Cerrar" data-incidencia-close>&times;</button>
+    </header>
+    <form class="incidencias-modal__form" id="incidencias-create-form" method="post" action="/comercial/incidencias" autocomplete="off">
+      <div class="incidencias-modal__grid">
+        <div class="incidencias-modal__field">
+          <label for="create-cooperativa">Cooperativa</label>
+          <select id="create-cooperativa" name="id_cooperativa" required>
+            <option value="">Seleccione</option>
+            <?php foreach ($cooperativas as $coop): ?>
+              <option value="<?= h((string)($coop['id'] ?? '')) ?>"><?= h($coop['nombre'] ?? '') ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="incidencias-modal__field">
+          <label for="create-asunto">Asunto</label>
+          <input id="create-asunto" type="text" name="asunto" required maxlength="180" placeholder="Resumen de la incidencia">
+        </div>
+        <div class="incidencias-modal__field">
+          <label for="create-tipo">Incidencia</label>
+          <select id="create-tipo" name="tipo_incidencia" required>
+            <?php foreach ($tipos as $tipo): ?>
+              <option value="<?= h($tipo) ?>"><?= h($tipo) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="incidencias-modal__field">
+          <label for="create-prioridad">Prioridad</label>
+          <select id="create-prioridad" name="prioridad" required>
+            <?php foreach ($prioridades as $prioridad): ?>
+              <option value="<?= h($prioridad) ?>"><?= h($prioridad) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="incidencias-modal__field incidencias-modal__field--full">
+          <label for="create-descripcion">Descripción</label>
+          <textarea id="create-descripcion" name="descripcion" rows="3" placeholder="Detalles adicionales"></textarea>
+        </div>
+      </div>
+      <div class="incidencias-modal__actions">
+        <button class="btn btn-outline" type="button" data-incidencia-close>
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          Cancelar
+        </button>
+        <button class="btn btn-primary" type="submit">
+          <span class="material-symbols-outlined" aria-hidden="true">save</span>
+          Guardar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <div class="incidencias-modal" id="incidencias-modal" role="dialog" aria-modal="true" aria-hidden="true" tabindex="-1">
   <div class="incidencias-modal__overlay" data-incidencia-close></div>
