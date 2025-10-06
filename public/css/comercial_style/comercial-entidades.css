@@ -779,6 +779,7 @@ body.is-modal-open{
 .comercial-dashboard__stat--total {
   background: linear-gradient(135deg, #212a53, #3a4a80);
 }
+
 .comercial-dashboard__stat--activas {
   background: linear-gradient(135deg, var(--color-secondary-dark, #1A2040), var(--color-secondary-light, #3A4A80));
 }
