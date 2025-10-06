@@ -54,8 +54,8 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
     </div>
   </header>
 
-  <div class="incidencias-layout">
-    <section class="card incidencias-card incidencias-card--form" aria-labelledby="incidencia-form-title">
+  <div class="incidencias-layout incidencias-layout--collapsed" data-incidencia-layout>
+    <section class="card incidencias-card incidencias-card--form" aria-labelledby="incidencia-form-title" id="incidencia-form-card" data-incidencia-form hidden>
       <header class="incidencias-card__header">
         <h2 id="incidencia-form-title"><span class="material-symbols-outlined" aria-hidden="true">add_circle</span> Nueva incidencia</h2>
       </header>
@@ -136,6 +136,14 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
             <span class="material-symbols-outlined" aria-hidden="true">refresh</span>
             Limpiar
           </a>
+          <button type="button"
+                  class="btn btn-secondary"
+                  data-incidencia-form-toggle
+                  aria-controls="incidencia-form-card"
+                  aria-expanded="false">
+            <span class="material-symbols-outlined" aria-hidden="true">note_add</span>
+            Nueva
+          </button>
         </div>
       </form>
 
@@ -146,7 +154,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
           <div class="incidencias-row incidencias-row--header" role="row">
             <span class="incidencias-cell incidencias-cell--fecha" role="columnheader">Fecha</span>
             <span class="incidencias-cell" role="columnheader">Cooperativa</span>
-            <span class="incidencias-cell" role="columnheader">Asunto</span>
+            <span class="incidencias-cell incidencias-cell--asunto" role="columnheader">Asunto</span>
             <span class="incidencias-cell" role="columnheader">Prioridad</span>
             <span class="incidencias-cell" role="columnheader">Estado</span>
             <span class="incidencias-cell" role="columnheader">Ticket</span>
@@ -192,7 +200,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
                  data-contacto-fecha="<?= h($contactoFecha) ?>">
               <span class="incidencias-cell incidencias-cell--fecha" role="cell" data-label="Fecha"><?= h($fechaMostrar) ?></span>
               <span class="incidencias-cell" role="cell" data-label="Cooperativa"><?= h($coopNombre) ?></span>
-              <span class="incidencias-cell" role="cell" data-label="Asunto"><?= h($asunto) ?></span>
+              <span class="incidencias-cell incidencias-cell--asunto" role="cell" data-label="Asunto"><?= h($asunto) ?></span>
               <span class="incidencias-cell" role="cell" data-label="Prioridad"><?= h($prioridad) ?></span>
               <span class="incidencias-cell" role="cell" data-label="Estado">
                 <span class="incidencias-badge incidencias-badge--<?= strtolower(str_replace(' ', '-', $estadoActual)) ?>"><?= h($estadoActual) ?></span>

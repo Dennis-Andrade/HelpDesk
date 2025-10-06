@@ -1,4 +1,47 @@
 (function() {
+  function setupFormToggle() {
+    const layout = document.querySelector('[data-incidencia-layout]');
+    const formCard = document.querySelector('[data-incidencia-form]');
+    const toggleButton = document.querySelector('[data-incidencia-form-toggle]');
+
+    if (!layout || !formCard || !toggleButton) {
+      return;
+    }
+
+    const firstInput = formCard.querySelector('input, select, textarea');
+
+    function setExpanded(expanded, options) {
+      const shouldFocusToggle = !(options && options.focusToggle === false);
+
+      if (expanded) {
+        formCard.removeAttribute('hidden');
+        layout.classList.remove('incidencias-layout--collapsed');
+        toggleButton.setAttribute('aria-expanded', 'true');
+        if (firstInput) {
+          window.requestAnimationFrame(function() {
+            firstInput.focus();
+          });
+        }
+      } else {
+        formCard.setAttribute('hidden', 'hidden');
+        layout.classList.add('incidencias-layout--collapsed');
+        toggleButton.setAttribute('aria-expanded', 'false');
+        if (shouldFocusToggle) {
+          toggleButton.focus();
+        }
+      }
+    }
+
+    toggleButton.addEventListener('click', function() {
+      const shouldExpand = formCard.hasAttribute('hidden');
+      setExpanded(shouldExpand);
+    });
+
+    setExpanded(!formCard.hasAttribute('hidden'), { focusToggle: false });
+  }
+
+  setupFormToggle();
+
   const modal = document.getElementById('incidencias-modal');
   if (!modal) {
     return;
