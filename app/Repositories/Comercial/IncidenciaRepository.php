@@ -104,7 +104,7 @@ final class IncidenciaRepository extends BaseRepository
                 i.' . self::COL_COOP . ' AS id_cooperativa,
                 c.' . self::COOP_NOMBRE . ' AS cooperativa,
                 i.' . self::COL_ASUNTO . ' AS asunto,
-                i.' . self::COL_PRIOR . ' AS tipo_incidencia,
+                i.' . self::COL_TIPO . ' AS tipo_incidencia,
                 i.' . self::COL_PRIOR . ' AS prioridad,
                 i.' . self::COL_ESTADO . ' AS estado,
                 i.' . self::COL_DESCRIP . ' AS descripcion,
@@ -165,6 +165,7 @@ final class IncidenciaRepository extends BaseRepository
             INSERT INTO ' . self::T_INCIDENCIA . ' (
                 ' . self::COL_COOP . ',
                 ' . self::COL_ASUNTO . ',
+                ' . self::COL_TIPO . ',
                 ' . self::COL_DESCRIP . ',
                 ' . self::COL_PRIOR . ',
                 ' . self::COL_ESTADO . ',
@@ -172,6 +173,7 @@ final class IncidenciaRepository extends BaseRepository
             ) VALUES (
                 :coop,
                 :asunto,
+                :tipo,
                 :descripcion,
                 :prioridad,
                 :estado,
@@ -188,8 +190,9 @@ final class IncidenciaRepository extends BaseRepository
         $params = [
             ':coop'        => [$data['id_cooperativa'] ?? 0, PDO::PARAM_INT],
             ':asunto'      => [$data['asunto'] ?? '', PDO::PARAM_STR],
+            ':tipo'        => [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR],
             ':descripcion' => $descripcionParam,
-            ':prioridad'   => [$data['tipo_incidencia'] ?? ($data['prioridad'] ?? ''), PDO::PARAM_STR],
+            ':prioridad'   => [$data['prioridad'] ?? '', PDO::PARAM_STR],
             ':estado'      => [$data['estado'] ?? 'Enviado', PDO::PARAM_STR],
             ':usuario'     => [$data['creado_por'] ?? null, isset($data['creado_por']) ? PDO::PARAM_INT : PDO::PARAM_NULL],
         ];
@@ -215,6 +218,7 @@ final class IncidenciaRepository extends BaseRepository
             UPDATE ' . self::T_INCIDENCIA . '
             SET
                 ' . self::COL_ASUNTO . ' = :asunto,
+                ' . self::COL_TIPO . ' = :tipo,
                 ' . self::COL_PRIOR . ' = :prioridad,
                 ' . self::COL_ESTADO . ' = :estado,
                 ' . self::COL_DESCRIP . ' = :descripcion,
@@ -273,7 +277,7 @@ final class IncidenciaRepository extends BaseRepository
                 i.' . self::COL_COOP . ' AS id_cooperativa,
                 c.' . self::COOP_NOMBRE . ' AS cooperativa,
                 i.' . self::COL_ASUNTO . ' AS asunto,
-                i.' . self::COL_PRIOR . ' AS tipo_incidencia,
+                i.' . self::COL_TIPO . ' AS tipo_incidencia,
                 i.' . self::COL_PRIOR . ' AS prioridad,
                 i.' . self::COL_ESTADO . ' AS estado,
                 i.' . self::COL_DESCRIP . ' AS descripcion,
