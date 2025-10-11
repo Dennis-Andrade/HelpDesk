@@ -137,17 +137,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
       <?php if (empty($items)): ?>
         <div class="card incidencias-empty" role="status">No hay incidencias registradas con los filtros seleccionados.</div>
       <?php else: ?>
-        <div class="incidencias-table" role="table" aria-label="Listado de incidencias">
-          <div class="incidencias-row incidencias-row--header" role="row">
-            <span class="incidencias-cell incidencias-cell--fecha" role="columnheader">Fecha</span>
-            <span class="incidencias-cell" role="columnheader">Cooperativa</span>
-            <span class="incidencias-cell incidencias-cell--departamento" role="columnheader">Departamento</span>
-            <span class="incidencias-cell incidencias-cell--asunto" role="columnheader">Asunto</span>
-            <span class="incidencias-cell" role="columnheader">Prioridad</span>
-            <span class="incidencias-cell" role="columnheader">Estado</span>
-            <span class="incidencias-cell" role="columnheader">Ticket</span>
-            <span class="incidencias-cell incidencias-cell--acciones" role="columnheader">Acciones</span>
-          </div>
+        <div class="incidencias-cards" role="list" aria-label="Listado de incidencias">
           <?php foreach ($items as $row): ?>
             <?php
               $id            = isset($row['id']) ? (int)$row['id'] : 0;
@@ -174,7 +164,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
               $contactoCargo = (string)($row['cargo'] ?? '');
               $contactoFecha = (string)($row['fecha_evento'] ?? '');
             ?>
-              <div class="incidencias-row" role="row"
+              <article class="incidencias-card-item incidencias-row" role="listitem"
                  data-id="<?= h((string)$id) ?>"
                  data-fecha="<?= h($fechaMostrar) ?>"
                  data-cooperativa="<?= h($coopNombre) ?>"
@@ -192,28 +182,63 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
                  data-contacto-telefono="<?= h($contactoTel) ?>"
                  data-contacto-cargo="<?= h($contactoCargo) ?>"
                  data-contacto-fecha="<?= h($contactoFecha) ?>">
-              <span class="incidencias-cell incidencias-cell--fecha" role="cell" data-label="Fecha"><?= h($fechaMostrar) ?></span>
-              <span class="incidencias-cell" role="cell" data-label="Cooperativa"><?= h($coopNombre) ?></span>
-              <span class="incidencias-cell" role="cell" data-label="Departamento"><?= h($departamentoNombre) ?></span>
-              <span class="incidencias-cell incidencias-cell--asunto" role="cell" data-label="Asunto"><?= h($asunto) ?></span>
-              <span class="incidencias-cell" role="cell" data-label="Prioridad"><?= h($prioridad) ?></span>
-              <span class="incidencias-cell" role="cell" data-label="Estado">
-                <span class="incidencias-badge incidencias-badge--<?= strtolower(str_replace(' ', '-', $estadoActual)) ?>"><?= h($estadoActual) ?></span>
-              </span>
-              <span class="incidencias-cell" role="cell" data-label="Ticket"><?= h($ticketDisplay) ?></span>
-              <span class="incidencias-cell incidencias-cell--acciones" role="cell" data-label="Acciones">
-                <button class="btn btn-outline" type="button" data-incidencia-open>
-                  <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
-                  Ver
-                </button>
-                <form method="post" action="/comercial/incidencias/<?= h((string)$id) ?>/eliminar" class="incidencias-delete" onsubmit="return confirm('¿Deseas eliminar esta incidencia?');">
-                  <button class="btn btn-danger" type="submit">
-                    <span class="material-symbols-outlined" aria-hidden="true">delete</span>
-                    Eliminar
-                  </button>
-                </form>
-              </span>
-            </div>
+                <header class="incidencias-card-item__header">
+                  <div class="incidencias-card-item__title">
+                    <span class="incidencias-card-item__label">Asunto</span>
+                    <h3><?= h($asunto) ?></h3>
+                  </div>
+                  <span class="incidencias-badge incidencias-badge--<?= strtolower(str_replace(' ', '-', $estadoActual)) ?>"><?= h($estadoActual) ?></span>
+                </header>
+
+                <div class="incidencias-card-item__meta">
+                  <div>
+                    <span class="incidencias-card-item__label">Fecha</span>
+                    <span class="incidencias-card-item__value"><?= h($fechaMostrar) ?></span>
+                  </div>
+                  <div>
+                    <span class="incidencias-card-item__label">Ticket</span>
+                    <span class="incidencias-card-item__value incidencias-card-item__value--ticket"><?= h($ticketDisplay) ?></span>
+                  </div>
+                  <div>
+                    <span class="incidencias-card-item__label">Prioridad</span>
+                    <span class="incidencias-card-item__value"><?= h($prioridad) ?></span>
+                  </div>
+                </div>
+
+                <div class="incidencias-card-item__grid">
+                  <div>
+                    <span class="incidencias-card-item__label">Cooperativa</span>
+                    <p><?= h($coopNombre) ?></p>
+                  </div>
+                  <div>
+                    <span class="incidencias-card-item__label">Departamento</span>
+                    <p><?= h($departamentoNombre) ?></p>
+                  </div>
+                  <div>
+                    <span class="incidencias-card-item__label">Tipo de incidencia</span>
+                    <p><?= h($tipo !== '' ? $tipo : '—') ?></p>
+                  </div>
+                </div>
+
+                <footer class="incidencias-card-item__footer">
+                  <div class="incidencias-card-item__ticket">
+                    <span class="material-symbols-outlined" aria-hidden="true">description</span>
+                    <span><?= h($ticketDisplay) ?></span>
+                  </div>
+                  <div class="incidencias-card-item__actions">
+                    <button class="btn btn-outline" type="button" data-incidencia-open>
+                      <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+                      Ver
+                    </button>
+                    <form method="post" action="/comercial/incidencias/<?= h((string)$id) ?>/eliminar" class="incidencias-delete" onsubmit="return confirm('¿Deseas eliminar esta incidencia?');">
+                      <button class="btn btn-danger" type="submit">
+                        <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+                        Eliminar
+                      </button>
+                    </form>
+                  </div>
+                </footer>
+              </article>
           <?php endforeach; ?>
         </div>
 
