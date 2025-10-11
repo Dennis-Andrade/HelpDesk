@@ -11,9 +11,10 @@ if (!function_exists('h')) {
 $items        = isset($items) && is_array($items) ? $items : [];
 $filters      = isset($filters) && is_array($filters) ? $filters : [];
 $cooperativas = isset($cooperativas) && is_array($cooperativas) ? $cooperativas : [];
-$tipos        = isset($tipos) && is_array($tipos) ? $tipos : [];
 $prioridades  = isset($prioridades) && is_array($prioridades) ? $prioridades : [];
 $estados      = isset($estados) && is_array($estados) ? $estados : [];
+$departamentos = isset($departamentos) && is_array($departamentos) ? $departamentos : [];
+$tiposPorDepartamento = isset($tiposPorDepartamento) && is_array($tiposPorDepartamento) ? $tiposPorDepartamento : [];
 
 $page    = isset($page) ? (int)$page : 1;
 $perPage = isset($perPage) ? (int)$perPage : 10;
@@ -30,9 +31,33 @@ $pages   = $pagination->pages();
 $prev    = max(1, $page - 1);
 $next    = min($pages, $page + 1);
 
-$estadoFiltro = isset($filters['estado']) ? (string)$filters['estado'] : '';
-$coopFiltro   = isset($filters['coop']) ? (string)$filters['coop'] : '';
-$ticketFiltro = isset($filters['ticket']) ? (string)$filters['ticket'] : '';
+$estadoFiltro        = isset($filters['estado']) ? (string)$filters['estado'] : '';
+$coopFiltro          = isset($filters['coop']) ? (string)$filters['coop'] : '';
+$ticketFiltro        = isset($filters['ticket']) ? (string)$filters['ticket'] : '';
+$departamentoFiltro  = isset($filters['departamento']) ? (string)$filters['departamento'] : '';
+
+$tiposConfig = [];
+foreach ($tiposPorDepartamento as $deptId => $listaTipos) {
+    if (!is_array($listaTipos)) {
+        continue;
+    }
+    $deptKey = (string)$deptId;
+    $tiposConfig[$deptKey] = [];
+    foreach ($listaTipos as $tipoItem) {
+        if (!is_array($tipoItem)) {
+            continue;
+        }
+        $tiposConfig[$deptKey][] = [
+            'id'     => isset($tipoItem['id']) ? (int)$tipoItem['id'] : 0,
+            'nombre' => isset($tipoItem['nombre']) ? (string)$tipoItem['nombre'] : '',
+        ];
+    }
+}
+
+$tiposJson = json_encode($tiposConfig, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+if ($tiposJson === false) {
+    $tiposJson = '{}';
+}
 
 function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage): string
 {
@@ -66,6 +91,16 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
             <option value="">Todos</option>
             <?php foreach ($estados as $estadoItem): ?>
               <option value="<?= h($estadoItem) ?>" <?= $estadoItem === $estadoFiltro ? 'selected' : '' ?>><?= h($estadoItem) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="incidencias-filters__field">
+          <label for="incidencias-departamento">Departamento</label>
+          <select id="incidencias-departamento" name="departamento">
+            <option value="">Todos</option>
+            <?php foreach ($departamentos as $departamento): ?>
+              <?php $depValue = isset($departamento['id']) ? (string)$departamento['id'] : ''; ?>
+              <option value="<?= h($depValue) ?>" <?= $depValue === $departamentoFiltro ? 'selected' : '' ?>><?= h($departamento['nombre'] ?? '') ?></option>
             <?php endforeach; ?>
           </select>
         </div>
@@ -106,6 +141,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
           <div class="incidencias-row incidencias-row--header" role="row">
             <span class="incidencias-cell incidencias-cell--fecha" role="columnheader">Fecha</span>
             <span class="incidencias-cell" role="columnheader">Cooperativa</span>
+            <span class="incidencias-cell incidencias-cell--departamento" role="columnheader">Departamento</span>
             <span class="incidencias-cell incidencias-cell--asunto" role="columnheader">Asunto</span>
             <span class="incidencias-cell" role="columnheader">Prioridad</span>
             <span class="incidencias-cell" role="columnheader">Estado</span>
@@ -118,6 +154,9 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
               $fecha         = isset($row['creado_en']) ? (string)$row['creado_en'] : '';
               $fechaMostrar  = $fecha !== '' ? date('Y-m-d', strtotime($fecha)) : date('Y-m-d');
               $coopNombre    = (string)($row['cooperativa'] ?? '');
+              $departamentoNombre = (string)($row['departamento_nombre'] ?? '');
+              $departamentoId     = isset($row['departamento_id']) ? (int)$row['departamento_id'] : 0;
+              $tipoDepartamentoId = isset($row['tipo_departamento_id']) ? (int)$row['tipo_departamento_id'] : 0;
               $asunto        = (string)($row['asunto'] ?? '');
               $prioridad     = (string)($row['prioridad'] ?? '');
               $estadoActual  = (string)($row['estado'] ?? '');
@@ -135,14 +174,17 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
               $contactoCargo = (string)($row['cargo'] ?? '');
               $contactoFecha = (string)($row['fecha_evento'] ?? '');
             ?>
-            <div class="incidencias-row" role="row"
+              <div class="incidencias-row" role="row"
                  data-id="<?= h((string)$id) ?>"
                  data-fecha="<?= h($fechaMostrar) ?>"
                  data-cooperativa="<?= h($coopNombre) ?>"
+                 data-departamento="<?= h($departamentoNombre) ?>"
+                 data-departamento-id="<?= h((string)$departamentoId) ?>"
                  data-asunto="<?= h($asunto) ?>"
                  data-prioridad="<?= h($prioridad) ?>"
                  data-estado="<?= h($estadoActual) ?>"
                  data-ticket="<?= h($ticketDisplay) ?>"
+                 data-tipo-id="<?= h((string)$tipoDepartamentoId) ?>"
                  data-tipo="<?= h($tipo) ?>"
                  data-descripcion="<?= h($descripcion) ?>"
                  data-contacto-nombre="<?= h($contactoNombre) ?>"
@@ -152,6 +194,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
                  data-contacto-fecha="<?= h($contactoFecha) ?>">
               <span class="incidencias-cell incidencias-cell--fecha" role="cell" data-label="Fecha"><?= h($fechaMostrar) ?></span>
               <span class="incidencias-cell" role="cell" data-label="Cooperativa"><?= h($coopNombre) ?></span>
+              <span class="incidencias-cell" role="cell" data-label="Departamento"><?= h($departamentoNombre) ?></span>
               <span class="incidencias-cell incidencias-cell--asunto" role="cell" data-label="Asunto"><?= h($asunto) ?></span>
               <span class="incidencias-cell" role="cell" data-label="Prioridad"><?= h($prioridad) ?></span>
               <span class="incidencias-cell" role="cell" data-label="Estado">
@@ -214,15 +257,22 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
           </select>
         </div>
         <div class="incidencias-modal__field">
+          <label for="create-departamento">Departamento</label>
+          <select id="create-departamento" name="departamento_id" required>
+            <option value="">Seleccione</option>
+            <?php foreach ($departamentos as $departamento): ?>
+              <option value="<?= h((string)($departamento['id'] ?? '')) ?>"><?= h($departamento['nombre'] ?? '') ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="incidencias-modal__field">
           <label for="create-asunto">Asunto</label>
           <input id="create-asunto" type="text" name="asunto" required maxlength="180" placeholder="Resumen de la incidencia">
         </div>
         <div class="incidencias-modal__field">
           <label for="create-tipo">Incidencia</label>
-          <select id="create-tipo" name="tipo_incidencia" required>
-            <?php foreach ($tipos as $tipo): ?>
-              <option value="<?= h($tipo) ?>"><?= h($tipo) ?></option>
-            <?php endforeach; ?>
+          <select id="create-tipo" name="tipo_incidencia_id" required disabled>
+            <option value="">Seleccione un departamento</option>
           </select>
         </div>
         <div class="incidencias-modal__field">
@@ -274,15 +324,22 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
           <input id="modal-cooperativa" type="text" readonly>
         </div>
         <div class="incidencias-modal__field">
+          <label for="modal-departamento">Departamento</label>
+          <select id="modal-departamento" name="departamento_id" disabled>
+            <option value="">Seleccione</option>
+            <?php foreach ($departamentos as $departamento): ?>
+              <option value="<?= h((string)($departamento['id'] ?? '')) ?>"><?= h($departamento['nombre'] ?? '') ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="incidencias-modal__field">
           <label for="modal-asunto">Asunto</label>
           <input id="modal-asunto" name="asunto" type="text" readonly required>
         </div>
         <div class="incidencias-modal__field">
           <label for="modal-tipo">Incidencia</label>
-          <select id="modal-tipo" name="tipo_incidencia" disabled>
-            <?php foreach ($tipos as $tipo): ?>
-              <option value="<?= h($tipo) ?>"><?= h($tipo) ?></option>
-            <?php endforeach; ?>
+          <select id="modal-tipo" name="tipo_incidencia_id" disabled>
+            <option value="">Seleccione un departamento</option>
           </select>
         </div>
         <div class="incidencias-modal__field">
@@ -352,4 +409,9 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
 
 <form method="post" action="" id="incidencias-delete-form" style="display:none;"></form>
 
+<script>
+  window.__INCIDENCIAS_CONFIG__ = Object.assign({}, window.__INCIDENCIAS_CONFIG__ || {}, {
+    tipos: <?= $tiposJson ?>
+  });
+</script>
 <script src="/js/incidencias.js" defer></script>

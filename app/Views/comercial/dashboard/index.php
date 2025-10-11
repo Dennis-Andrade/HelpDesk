@@ -104,6 +104,7 @@ $errorMsg = isset($error) && $error ? (string)$error : '';
         <canvas id="segmentoChart" width="400" height="320"></canvas>
       </div>
     </section>
+
     <section class="card comercial-dashboard__chart">
       <header class="comercial-dashboard__chart-header">
         <h3><span class="material-symbols-outlined">show_chart</span> Registros mensuales</h3>

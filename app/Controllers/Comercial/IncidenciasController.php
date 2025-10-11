@@ -20,7 +20,8 @@ final class IncidenciasController
     {
         $filters = is_array($_GET) ? $_GET : [];
         $pager   = Pagination::fromRequest($filters, 1, 10, 0);
-
+        $departamentos = $this->repo->catalogoDepartamentos();
+        $tiposPorDepartamento = $this->repo->catalogoTiposPorDepartamento();
         $result = $this->repo->paginate($filters, $pager->page, $pager->perPage);
 
         view('comercial/incidencias/index', [
@@ -32,7 +33,8 @@ final class IncidenciasController
             'perPage'      => $result['perPage'],
             'filters'      => $filters,
             'cooperativas' => $this->repo->listadoCooperativas(),
-            'tipos'        => $this->repo->catalogoIncidencias(),
+            'departamentos' => $departamentos,
+            'tiposPorDepartamento' => $tiposPorDepartamento,
             'prioridades'  => $this->repo->catalogoPrioridades(),
             'estados'      => $this->repo->catalogoEstados(),
         ]);
@@ -43,20 +45,38 @@ final class IncidenciasController
         $data = [
             'id_cooperativa'   => (int)($_POST['id_cooperativa'] ?? 0),
             'asunto'           => trim((string)($_POST['asunto'] ?? '')),
-            'tipo_incidencia'  => trim((string)($_POST['tipo_incidencia'] ?? '')),
             'prioridad'        => trim((string)($_POST['prioridad'] ?? '')),
             'descripcion'      => trim((string)($_POST['descripcion'] ?? '')),
             'estado'           => 'Enviado',
             'creado_por'       => $this->currentUserId(),
         ];
 
+        $departamentoId = (int)($_POST['departamento_id'] ?? 0);
+        $tipoId = (int)($_POST['tipo_incidencia_id'] ?? 0);
+        $tipo = $this->repo->findTipoPorId($tipoId);
+
+        if ($tipo === null && $departamentoId > 0) {
+            $tipo = $this->repo->findPrimerTipoPorDepartamento($departamentoId);
+        }
+
+        if ($tipo !== null) {
+            $departamentoId = $departamentoId > 0 ? $departamentoId : (int)$tipo['departamento_id'];
+            if ((int)$tipo['departamento_id'] !== $departamentoId) {
+                $departamentoId = (int)$tipo['departamento_id'];
+            }
+        }
         if (!in_array($data['prioridad'], $this->repo->catalogoPrioridades(), true)) {
             $data['prioridad'] = 'Medio';
         }
 
-        if (!in_array($data['tipo_incidencia'], $this->repo->catalogoIncidencias(), true)) {
-            $data['tipo_incidencia'] = 'Consulta operativa';
+        if ($departamentoId < 1 || $tipo === null) {
+            redirect('/comercial/incidencias');
+            return;
         }
+
+        $data['departamento_id'] = $departamentoId;
+        $data['tipo_incidencia'] = $tipo['nombre'];
+        $data['tipo_incidencia_id'] = (int)$tipo['id'];
 
         if ($data['asunto'] === '' || $data['id_cooperativa'] < 1) {
             redirect('/comercial/incidencias');
@@ -77,12 +97,39 @@ final class IncidenciasController
 
         $data = [
             'asunto'          => trim((string)($_POST['asunto'] ?? '')),
-            'tipo_incidencia' => trim((string)($_POST['tipo_incidencia'] ?? '')),
             'prioridad'       => trim((string)($_POST['prioridad'] ?? '')),
             'estado'          => trim((string)($_POST['estado'] ?? '')),
             'descripcion'     => trim((string)($_POST['descripcion'] ?? '')),
         ];
+        $departamentoId = (int)($_POST['departamento_id'] ?? 0);
+        $tipoId = (int)($_POST['tipo_incidencia_id'] ?? 0);
+        $tipo = $this->repo->findTipoPorId($tipoId);
 
+        $detalle = $this->repo->findWithContacto($id);
+
+        if ($departamentoId < 1 && isset($detalle['departamento_id'])) {
+            $departamentoId = (int)$detalle['departamento_id'];
+        }
+
+        if ($tipo === null && $departamentoId > 0) {
+            $tipo = $this->repo->findPrimerTipoPorDepartamento($departamentoId);
+        }
+
+        if ($tipo === null && isset($detalle['tipo_departamento_id'], $detalle['tipo_incidencia'])) {
+            $tipo = [
+                'id'              => (int)$detalle['tipo_departamento_id'],
+                'departamento_id' => $departamentoId,
+                'nombre'          => (string)$detalle['tipo_incidencia'],
+            ];
+        }
+
+        if ($tipo !== null) {
+            $departamentoId = $departamentoId > 0 ? $departamentoId : (int)$tipo['departamento_id'];
+            if ((int)$tipo['departamento_id'] !== $departamentoId) {
+                $departamentoId = (int)$tipo['departamento_id'];
+            }
+        }
+      
         if (!in_array($data['prioridad'], $this->repo->catalogoPrioridades(), true)) {
             $data['prioridad'] = 'Medio';
         }
@@ -91,13 +138,22 @@ final class IncidenciasController
             $data['estado'] = 'Enviado';
         }
 
-        if (!in_array($data['tipo_incidencia'], $this->repo->catalogoIncidencias(), true)) {
-            $data['tipo_incidencia'] = 'Consulta operativa';
+        if ($data['asunto'] === '') {
+            $data['asunto'] = $detalle['asunto'] ?? 'Incidencia';
         }
 
-        if ($data['asunto'] === '') {
-            $detalle = $this->repo->findWithContacto($id);
-            $data['asunto'] = $detalle['asunto'] ?? 'Incidencia';
+        if ($tipo !== null) {
+            $data['tipo_incidencia'] = $tipo['nombre'];
+            $data['tipo_incidencia_id'] = (int)$tipo['id'];
+        } else {
+            $data['tipo_incidencia'] = isset($detalle['tipo_incidencia']) ? (string)$detalle['tipo_incidencia'] : 'Consulta operativa';
+            if (isset($detalle['tipo_departamento_id'])) {
+                $data['tipo_incidencia_id'] = (int)$detalle['tipo_departamento_id'];
+            }
+        }
+
+        if ($departamentoId > 0) {
+            $data['departamento_id'] = $departamentoId;
         }
 
         $this->repo->update($id, $data);

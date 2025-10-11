@@ -1,6 +1,95 @@
 (function() {
   const body = document.body;
+  const config = window.__INCIDENCIAS_CONFIG__ || {};
+  const tiposPorDepartamento = config.tipos || {};
   let activeController = null;
+
+  function obtenerTipos(departamentoId) {
+    if (!departamentoId) {
+      return [];
+    }
+    const key = String(departamentoId);
+    const lista = tiposPorDepartamento[key];
+    return Array.isArray(lista) ? lista : [];
+  }
+
+  function renderTipoOptions(select, departamentoId, selectedId, selectedNombre) {
+    if (!select) {
+      return false;
+    }
+
+    const tipos = obtenerTipos(departamentoId);
+    const doc = select.ownerDocument;
+    const normalizedId = selectedId !== undefined && selectedId !== null && selectedId !== ''
+      ? String(selectedId)
+      : '';
+    const normalizedNombre = selectedNombre ? String(selectedNombre).toLowerCase() : '';
+
+    select.innerHTML = '';
+
+    const placeholder = doc.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = departamentoId
+      ? (tipos.length ? 'Seleccione' : 'Sin tipos disponibles')
+      : 'Seleccione un departamento';
+    select.appendChild(placeholder);
+
+    let matched = false;
+    tipos.forEach(function(tipo) {
+      if (!tipo) {
+        return;
+      }
+      const option = doc.createElement('option');
+      const value = typeof tipo.id !== 'undefined' ? String(tipo.id) : '';
+      option.value = value;
+      option.textContent = typeof tipo.nombre === 'string' ? tipo.nombre : '';
+      if (!matched && normalizedId && value === normalizedId) {
+        option.selected = true;
+        matched = true;
+      } else if (!matched && normalizedNombre && option.textContent.toLowerCase() === normalizedNombre) {
+        option.selected = true;
+        matched = true;
+      }
+      select.appendChild(option);
+    });
+
+    if (!matched) {
+      placeholder.selected = true;
+    }
+
+    const hasOptions = !!departamentoId && tipos.length > 0;
+    select.disabled = !hasOptions;
+    if (!hasOptions) {
+      select.setAttribute('aria-disabled', 'true');
+    } else {
+      select.removeAttribute('aria-disabled');
+    }
+
+    return hasOptions;
+  }
+
+  function syncDepartamentoSelect(select, departamentoId, nombre) {
+    if (!select) {
+      return;
+    }
+
+    if (departamentoId && select.querySelector('option[value="' + String(departamentoId) + '"]')) {
+      select.value = String(departamentoId);
+      return;
+    }
+
+    if (!nombre) {
+      select.value = '';
+      return;
+    }
+
+    const lowerName = String(nombre).toLowerCase();
+    Array.from(select.options).forEach(function(option) {
+      if (option.textContent && option.textContent.toLowerCase() === lowerName) {
+        option.selected = true;
+      }
+    });
+  }
 
   function attachModal(modal, options) {
     if (!modal) {
@@ -80,11 +169,24 @@
   }
 
   const createForm = document.getElementById('incidencias-create-form');
+  const createDeptSelect = document.getElementById('create-departamento');
+  const createTipoSelect = document.getElementById('create-tipo');
+
+  function resetCreateControls() {
+    if (createDeptSelect) {
+      createDeptSelect.value = '';
+    }
+    if (createTipoSelect) {
+      renderTipoOptions(createTipoSelect, '', '', '');
+    }
+  }
+
   const createModalController = attachModal(document.getElementById('incidencias-create-modal'), {
     onBeforeOpen: function() {
       if (createForm && typeof createForm.reset === 'function') {
         createForm.reset();
       }
+      resetCreateControls();
     },
     onAfterOpen: function() {
       if (!createForm) {
@@ -99,8 +201,16 @@
       if (createForm && typeof createForm.reset === 'function') {
         createForm.reset();
       }
+      resetCreateControls();
     }
   });
+
+  if (createDeptSelect && createTipoSelect) {
+    createDeptSelect.addEventListener('change', function() {
+      const deptoId = createDeptSelect.value;
+      renderTipoOptions(createTipoSelect, deptoId, '', '');
+    });
+  }
 
   const createButton = document.querySelector('[data-incidencia-create-open]');
   if (createButton && createModalController) {
@@ -138,6 +248,7 @@
     fecha: document.getElementById('modal-fecha'),
     ticket: document.getElementById('modal-ticket'),
     cooperativa: document.getElementById('modal-cooperativa'),
+    departamento: document.getElementById('modal-departamento'),
     asunto: document.getElementById('modal-asunto'),
     tipo: document.getElementById('modal-tipo'),
     prioridad: document.getElementById('modal-prioridad'),
@@ -166,6 +277,16 @@
     fieldMap.estado.disabled = !editable;
     fieldMap.tipo.disabled = !editable;
     fieldMap.prioridad.disabled = !editable;
+    if (fieldMap.departamento) {
+      fieldMap.departamento.disabled = !editable;
+    }
+
+    if (editable) {
+      const deptoId = fieldMap.departamento ? fieldMap.departamento.value : '';
+      const currentTypeId = fieldMap.tipo ? fieldMap.tipo.value : '';
+      const currentTypeName = fieldMap.tipo && fieldMap.tipo.dataset ? fieldMap.tipo.dataset.currentName || '' : '';
+      renderTipoOptions(fieldMap.tipo, deptoId, currentTypeId, currentTypeName);
+    }
 
     if (editable) {
       editButton.setAttribute('hidden', 'hidden');
@@ -190,7 +311,10 @@
       fecha: row.getAttribute('data-fecha') || '',
       ticket: row.getAttribute('data-ticket') || '',
       cooperativa: row.getAttribute('data-cooperativa') || '',
+      departamentoId: row.getAttribute('data-departamento-id') || '',
+      departamentoNombre: row.getAttribute('data-departamento') || '',
       asunto: row.getAttribute('data-asunto') || '',
+      tipoId: row.getAttribute('data-tipo-id') || '',
       tipo: row.getAttribute('data-tipo') || '',
       prioridad: row.getAttribute('data-prioridad') || '',
       estado: row.getAttribute('data-estado') || '',
@@ -205,21 +329,15 @@
     if (fieldMap.fecha) fieldMap.fecha.value = values.fecha;
     if (fieldMap.ticket) fieldMap.ticket.value = values.ticket;
     if (fieldMap.cooperativa) fieldMap.cooperativa.value = values.cooperativa;
+    if (fieldMap.departamento) {
+      syncDepartamentoSelect(fieldMap.departamento, values.departamentoId, values.departamentoNombre);
+    }
     if (fieldMap.asunto) fieldMap.asunto.value = values.asunto;
     if (fieldMap.descripcion) fieldMap.descripcion.value = values.descripcion;
 
     if (fieldMap.tipo) {
-      const opciones = Array.from(fieldMap.tipo.options);
-      const coincide = opciones.some(function(opt) {
-        if (opt.value === values.tipo) {
-          opt.selected = true;
-          return true;
-        }
-        return false;
-      });
-      if (!coincide && opciones.length > 0) {
-        opciones[0].selected = true;
-      }
+      fieldMap.tipo.dataset.currentName = values.tipo || '';
+      renderTipoOptions(fieldMap.tipo, values.departamentoId, values.tipoId, values.tipo);
     }
 
     if (fieldMap.prioridad) {
@@ -265,6 +383,22 @@
       setEditable(true);
       if (fieldMap.asunto) {
         fieldMap.asunto.focus();
+      }
+    });
+  }
+
+  if (fieldMap.departamento) {
+    fieldMap.departamento.addEventListener('change', function() {
+      if (fieldMap.departamento.disabled) {
+        return;
+      }
+      const deptoId = fieldMap.departamento.value;
+      if (fieldMap.tipo && fieldMap.tipo.dataset) {
+        fieldMap.tipo.dataset.currentName = '';
+      }
+      const hasOptions = renderTipoOptions(fieldMap.tipo, deptoId, '', '');
+      if (!hasOptions && fieldMap.tipo) {
+        fieldMap.tipo.value = '';
       }
     });
   }

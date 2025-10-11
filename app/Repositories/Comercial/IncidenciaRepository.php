@@ -13,11 +13,13 @@ final class IncidenciaRepository extends BaseRepository
     private const T_INCIDENCIA = 'public.incidencias_comercial';
     private const COL_ID       = 'id_incidencia';
     private const COL_COOP     = 'id_cooperativa';
+    private const COL_DEPTO    = 'departamento_id';
     private const COL_ASUNTO   = 'asunto';
     private const COL_DESCRIP  = 'descripcion';
     private const COL_PRIOR    = 'prioridad';
     private const COL_ESTADO   = 'estado';
     private const COL_TIPO     = 'tipo_incidencia';
+    private const COL_TIPO_DEP = 'tipo_incidencia_departamento_id';
     private const COL_TICKET   = 'id_ticket';
     private const COL_CREATED  = 'created_at';
     private const COL_UPDATED  = 'updated_at';
@@ -29,6 +31,20 @@ final class IncidenciaRepository extends BaseRepository
 
     private const T_CONTACTOS  = 'public.agenda_contactos';
     private const CONTACT_COOP = 'id_cooperativa';
+
+    private const T_DEPARTAMENTOS = 'public.departamentos';
+    private const DEP_ID          = 'id';
+    private const DEP_CLAVE       = 'clave';
+    private const DEP_NOMBRE      = 'nombre';
+
+    private const T_TIPOS_DEP = 'public.tipos_incidencias_departamento';
+    private const TIPO_ID     = 'id';
+    private const TIPO_DEPTO  = 'departamento_id';
+    private const TIPO_NOMBRE = 'nombre';
+    private const TIPO_ORDEN  = 'orden';
+
+    /** @var array<string,bool>|null */
+    private $incidenciaColumns = null;
 
     /**
      * Obtiene un listado paginado de incidencias según filtros.
@@ -44,10 +60,11 @@ final class IncidenciaRepository extends BaseRepository
         $perPage = max(1, min(60, $perPage));
         $offset  = ($page - 1) * $perPage;
 
-        $estado   = isset($filters['estado']) ? trim((string)$filters['estado']) : '';
-        $coopId   = isset($filters['coop']) ? (int)$filters['coop'] : 0;
-        $ticket   = isset($filters['ticket']) ? trim((string)$filters['ticket']) : '';
-        $ticketId = (int)preg_replace('/\D+/', '', $ticket);
+        $estado        = isset($filters['estado']) ? trim((string)$filters['estado']) : '';
+        $coopId        = isset($filters['coop']) ? (int)$filters['coop'] : 0;
+        $departamento  = isset($filters['departamento']) ? (int)$filters['departamento'] : 0;
+        $ticket        = isset($filters['ticket']) ? trim((string)$filters['ticket']) : '';
+        $ticketId      = (int)preg_replace('/\D+/', '', $ticket);
 
         $ticketExpr = "CONCAT('INC-', TO_CHAR(COALESCE(i." . self::COL_CREATED . ", CURRENT_DATE), 'YYYY'), '-', LPAD(i." . self::COL_ID . "::text, 5, '0'))";
 
@@ -62,6 +79,11 @@ final class IncidenciaRepository extends BaseRepository
         if ($coopId > 0) {
             $where[] = 'i.' . self::COL_COOP . ' = :coop_id';
             $bindings[':coop_id'] = [$coopId, PDO::PARAM_INT];
+        }
+
+        if ($departamento > 0 && $this->incidenciaHasColumn(self::COL_DEPTO)) {
+            $where[] = 'i.' . self::COL_DEPTO . ' = :departamento_id';
+            $bindings[':departamento_id'] = [$departamento, PDO::PARAM_INT];
         }
 
         if ($ticket !== '') {
@@ -102,9 +124,12 @@ final class IncidenciaRepository extends BaseRepository
             SELECT
                 i.' . self::COL_ID . ' AS id,
                 i.' . self::COL_COOP . ' AS id_cooperativa,
+                i.' . self::COL_DEPTO . ' AS departamento_id,
+                dep.' . self::DEP_NOMBRE . ' AS departamento_nombre,
                 c.' . self::COOP_NOMBRE . ' AS cooperativa,
                 i.' . self::COL_ASUNTO . ' AS asunto,
                 i.' . self::COL_TIPO . ' AS tipo_incidencia,
+                tipo.' . self::TIPO_ID . ' AS tipo_departamento_id,
                 i.' . self::COL_PRIOR . ' AS prioridad,
                 i.' . self::COL_ESTADO . ' AS estado,
                 i.' . self::COL_DESCRIP . ' AS descripcion,
@@ -119,6 +144,11 @@ final class IncidenciaRepository extends BaseRepository
             FROM ' . self::T_INCIDENCIA . ' i
             INNER JOIN ' . self::T_COOP . ' c
                 ON c.' . self::COOP_ID . ' = i.' . self::COL_COOP . '
+            LEFT JOIN ' . self::T_DEPARTAMENTOS . ' dep
+                ON dep.' . self::DEP_ID . ' = i.' . self::COL_DEPTO . '
+            LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo
+                ON tipo.' . self::TIPO_DEPTO . ' = i.' . self::COL_DEPTO . '
+               AND tipo.' . self::TIPO_NOMBRE . ' = i.' . self::COL_TIPO . '
             LEFT JOIN LATERAL (
                 SELECT
                     a.oficial_nombre,
@@ -154,6 +184,44 @@ final class IncidenciaRepository extends BaseRepository
         ];
     }
 
+    private function incidenciaHasColumn(string $column): bool
+    {
+        if ($this->incidenciaColumns === null) {
+            $parts  = explode('.', self::T_INCIDENCIA, 2);
+            $schema = $parts[0] ?? 'public';
+            $table  = $parts[1] ?? $parts[0];
+
+            $sql = '
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = :schema
+                  AND table_name = :table
+            ';
+
+            try {
+                $rows = $this->db->fetchAll($sql, [
+                    ':schema' => [$schema, PDO::PARAM_STR],
+                    ':table'  => [$table, PDO::PARAM_STR],
+                ]);
+            } catch (\Throwable $e) {
+                $this->incidenciaColumns = [];
+                return false;
+            }
+
+            $map = [];
+            foreach ($rows as $row) {
+                if (!isset($row['column_name'])) {
+                    continue;
+                }
+                $map[strtolower((string)$row['column_name'])] = true;
+            }
+
+            $this->incidenciaColumns = $map;
+        }
+
+        return isset($this->incidenciaColumns[strtolower($column)]);
+    }
+
     /**
      * Crea una nueva incidencia y devuelve su identificador.
      *
@@ -161,41 +229,71 @@ final class IncidenciaRepository extends BaseRepository
      */
     public function create(array $data): int
     {
-        $sql = '
-            INSERT INTO ' . self::T_INCIDENCIA . ' (
-                ' . self::COL_COOP . ',
-                ' . self::COL_ASUNTO . ',
-                ' . self::COL_TIPO . ',
-                ' . self::COL_DESCRIP . ',
-                ' . self::COL_PRIOR . ',
-                ' . self::COL_ESTADO . ',
-                ' . self::COL_USER . '
-            ) VALUES (
-                :coop,
-                :asunto,
-                :tipo,
-                :descripcion,
-                :prioridad,
-                :estado,
-                :usuario
-            )
-            RETURNING ' . self::COL_ID . '
-        ';
-
         $descripcion = isset($data['descripcion']) ? trim((string)$data['descripcion']) : '';
         $descripcionParam = $descripcion === ''
             ? [null, PDO::PARAM_NULL]
             : [$descripcion, PDO::PARAM_STR];
 
-        $params = [
-            ':coop'        => [$data['id_cooperativa'] ?? 0, PDO::PARAM_INT],
-            ':asunto'      => [$data['asunto'] ?? '', PDO::PARAM_STR],
-            ':tipo'        => [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR],
-            ':descripcion' => $descripcionParam,
-            ':prioridad'   => [$data['prioridad'] ?? '', PDO::PARAM_STR],
-            ':estado'      => [$data['estado'] ?? 'Enviado', PDO::PARAM_STR],
-            ':usuario'     => [$data['creado_por'] ?? null, isset($data['creado_por']) ? PDO::PARAM_INT : PDO::PARAM_NULL],
+        $departamentoId = isset($data['departamento_id']) ? (int)$data['departamento_id'] : 0;
+        $departamentoParam = $departamentoId > 0
+            ? [$departamentoId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
+
+        $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
+        $tipoDepartamentoParam = $tipoDepartamentoId > 0
+            ? [$tipoDepartamentoId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
+
+        $columns = [self::COL_COOP];
+        $values  = [':coop'];
+        $params  = [
+            ':coop' => [$data['id_cooperativa'] ?? 0, PDO::PARAM_INT],
         ];
+
+        if ($this->incidenciaHasColumn(self::COL_DEPTO)) {
+            $columns[] = self::COL_DEPTO;
+            $values[]  = ':departamento';
+            $params[':departamento'] = $departamentoParam;
+        }
+
+        $columns[] = self::COL_ASUNTO;
+        $values[]  = ':asunto';
+        $params[':asunto'] = [$data['asunto'] ?? '', PDO::PARAM_STR];
+
+        if ($this->incidenciaHasColumn(self::COL_TIPO_DEP)) {
+            $columns[] = self::COL_TIPO_DEP;
+            $values[]  = ':tipo_departamento';
+            $params[':tipo_departamento'] = $tipoDepartamentoParam;
+        }
+
+        $columns[] = self::COL_TIPO;
+        $values[]  = ':tipo';
+        $params[':tipo'] = [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR];
+
+        $columns[] = self::COL_DESCRIP;
+        $values[]  = ':descripcion';
+        $params[':descripcion'] = $descripcionParam;
+
+        $columns[] = self::COL_PRIOR;
+        $values[]  = ':prioridad';
+        $params[':prioridad'] = [$data['prioridad'] ?? '', PDO::PARAM_STR];
+
+        $columns[] = self::COL_ESTADO;
+        $values[]  = ':estado';
+        $params[':estado'] = [$data['estado'] ?? 'Enviado', PDO::PARAM_STR];
+
+        $columns[] = self::COL_USER;
+        $values[]  = ':usuario';
+        $params[':usuario'] = [$data['creado_por'] ?? null, isset($data['creado_por']) ? PDO::PARAM_INT : PDO::PARAM_NULL];
+
+        $sql = '
+            INSERT INTO ' . self::T_INCIDENCIA . ' (
+                ' . implode(', ', $columns) . '
+            ) VALUES (
+                ' . implode(', ', $values) . '
+            )
+            RETURNING ' . self::COL_ID . '
+        ';
 
         try {
             $row = $this->db->fetch($sql, $params);
@@ -214,22 +312,29 @@ final class IncidenciaRepository extends BaseRepository
      */
     public function update(int $id, array $data): void
     {
-        $sql = '
-            UPDATE ' . self::T_INCIDENCIA . '
-            SET
-                ' . self::COL_ASUNTO . ' = :asunto,
-                ' . self::COL_TIPO . ' = :tipo,
-                ' . self::COL_PRIOR . ' = :prioridad,
-                ' . self::COL_ESTADO . ' = :estado,
-                ' . self::COL_DESCRIP . ' = :descripcion,
-                ' . self::COL_UPDATED . ' = NOW()
-            WHERE ' . self::COL_ID . ' = :id
-        ';
-
         $descripcion = isset($data['descripcion']) ? trim((string)$data['descripcion']) : '';
         $descripcionParam = $descripcion === ''
             ? [null, PDO::PARAM_NULL]
             : [$descripcion, PDO::PARAM_STR];
+
+        $departamentoId = isset($data['departamento_id']) ? (int)$data['departamento_id'] : 0;
+        $departamentoParam = $departamentoId > 0
+            ? [$departamentoId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
+
+        $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
+        $tipoDepartamentoParam = $tipoDepartamentoId > 0
+            ? [$tipoDepartamentoId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
+
+        $sets = [
+            self::COL_ASUNTO . ' = :asunto',
+            self::COL_TIPO . ' = :tipo',
+            self::COL_PRIOR . ' = :prioridad',
+            self::COL_ESTADO . ' = :estado',
+            self::COL_DESCRIP . ' = :descripcion',
+            self::COL_UPDATED . ' = NOW()'
+        ];
 
         $params = [
             ':id'          => [$id, PDO::PARAM_INT],
@@ -239,6 +344,22 @@ final class IncidenciaRepository extends BaseRepository
             ':estado'      => [$data['estado'] ?? 'Enviado', PDO::PARAM_STR],
             ':descripcion' => $descripcionParam,
         ];
+
+        if ($this->incidenciaHasColumn(self::COL_DEPTO)) {
+            $sets[] = self::COL_DEPTO . ' = :departamento';
+            $params[':departamento'] = $departamentoParam;
+        }
+
+        if ($this->incidenciaHasColumn(self::COL_TIPO_DEP)) {
+            $sets[] = self::COL_TIPO_DEP . ' = :tipo_departamento';
+            $params[':tipo_departamento'] = $tipoDepartamentoParam;
+        }
+
+        $sql = '
+            UPDATE ' . self::T_INCIDENCIA . '
+            SET ' . implode(",\n                ", $sets) . '
+            WHERE ' . self::COL_ID . ' = :id
+        ';
 
         try {
             $this->db->execute($sql, $params);
@@ -275,9 +396,12 @@ final class IncidenciaRepository extends BaseRepository
             SELECT
                 i.' . self::COL_ID . ' AS id,
                 i.' . self::COL_COOP . ' AS id_cooperativa,
+                i.' . self::COL_DEPTO . ' AS departamento_id,
+                dep.' . self::DEP_NOMBRE . ' AS departamento_nombre,
                 c.' . self::COOP_NOMBRE . ' AS cooperativa,
                 i.' . self::COL_ASUNTO . ' AS asunto,
                 i.' . self::COL_TIPO . ' AS tipo_incidencia,
+                tipo.' . self::TIPO_ID . ' AS tipo_departamento_id,
                 i.' . self::COL_PRIOR . ' AS prioridad,
                 i.' . self::COL_ESTADO . ' AS estado,
                 i.' . self::COL_DESCRIP . ' AS descripcion,
@@ -292,6 +416,11 @@ final class IncidenciaRepository extends BaseRepository
             FROM ' . self::T_INCIDENCIA . ' i
             INNER JOIN ' . self::T_COOP . ' c
                 ON c.' . self::COOP_ID . ' = i.' . self::COL_COOP . '
+            LEFT JOIN ' . self::T_DEPARTAMENTOS . ' dep
+                ON dep.' . self::DEP_ID . ' = i.' . self::COL_DEPTO . '
+            LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo
+                ON tipo.' . self::TIPO_DEPTO . ' = i.' . self::COL_DEPTO . '
+               AND tipo.' . self::TIPO_NOMBRE . ' = i.' . self::COL_TIPO . '
             LEFT JOIN LATERAL (
                 SELECT
                     a.oficial_nombre,
@@ -350,18 +479,149 @@ final class IncidenciaRepository extends BaseRepository
     }
 
     /**
-     * Catálogo de incidencias generales.
+     * Catálogo de departamentos disponibles.
      *
-     * @return array<int,string>
+     * @return array<int,array{id:int,clave:string,nombre:string}>
      */
-    public function catalogoIncidencias(): array
+    public function catalogoDepartamentos(): array
     {
+        $sql = '
+            SELECT ' . self::DEP_ID . ' AS id, ' . self::DEP_CLAVE . ' AS clave, ' . self::DEP_NOMBRE . ' AS nombre
+            FROM ' . self::T_DEPARTAMENTOS . '
+            ORDER BY ' . self::DEP_NOMBRE . '
+        ';
+
+        try {
+            $rows = $this->db->fetchAll($sql);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener el catálogo de departamentos.', 0, $e);
+        }
+
+        $items = [];
+        foreach ($rows as $row) {
+            if (!isset($row['id'], $row['nombre'])) {
+                continue;
+            }
+            $items[] = [
+                'id'     => (int)$row['id'],
+                'clave'  => isset($row['clave']) ? (string)$row['clave'] : '',
+                'nombre' => (string)$row['nombre'],
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
+     * Catálogo de tipos por departamento.
+     *
+     * @return array<int,array<int,array{id:int,departamento_id:int,nombre:string}>>
+     */
+    public function catalogoTiposPorDepartamento(): array
+    {
+        $sql = '
+            SELECT
+                ' . self::TIPO_ID . ' AS id,
+                ' . self::TIPO_DEPTO . ' AS departamento_id,
+                ' . self::TIPO_NOMBRE . ' AS nombre
+            FROM ' . self::T_TIPOS_DEP . '
+            ORDER BY ' . self::TIPO_DEPTO . ', ' . self::TIPO_ORDEN . ', ' . self::TIPO_NOMBRE . '
+        ';
+
+        try {
+            $rows = $this->db->fetchAll($sql);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener el catálogo de tipos de incidencias.', 0, $e);
+        }
+
+        $map = [];
+        foreach ($rows as $row) {
+            if (!isset($row['id'], $row['departamento_id'], $row['nombre'])) {
+                continue;
+            }
+            $deptId = (int)$row['departamento_id'];
+            if (!isset($map[$deptId])) {
+                $map[$deptId] = [];
+            }
+            $map[$deptId][] = [
+                'id'              => (int)$row['id'],
+                'departamento_id' => $deptId,
+                'nombre'          => (string)$row['nombre'],
+            ];
+        }
+
+        return $map;
+    }
+
+    /**
+     * Obtiene un tipo de incidencia específico.
+     */
+    public function findTipoPorId(int $id): ?array
+    {
+        if ($id < 1) {
+            return null;
+        }
+
+        $sql = '
+            SELECT
+                ' . self::TIPO_ID . ' AS id,
+                ' . self::TIPO_DEPTO . ' AS departamento_id,
+                ' . self::TIPO_NOMBRE . ' AS nombre
+            FROM ' . self::T_TIPOS_DEP . '
+            WHERE ' . self::TIPO_ID . ' = :id
+        ';
+
+        try {
+            $row = $this->db->fetch($sql, [':id' => [$id, PDO::PARAM_INT]]);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener el tipo de incidencia solicitado.', 0, $e);
+        }
+
+        if (!$row || !isset($row['id'], $row['departamento_id'], $row['nombre'])) {
+            return null;
+        }
+
         return [
-            'Falla técnica en plataforma',
-            'Solicitud de integración',
-            'Problemas de acceso',
-            'Actualización de datos',
-            'Consulta operativa',
+            'id'              => (int)$row['id'],
+            'departamento_id' => (int)$row['departamento_id'],
+            'nombre'          => (string)$row['nombre'],
+        ];
+    }
+
+    /**
+     * Devuelve el primer tipo disponible para un departamento.
+     */
+    public function findPrimerTipoPorDepartamento(int $departamentoId): ?array
+    {
+        if ($departamentoId < 1) {
+            return null;
+        }
+
+        $sql = '
+            SELECT
+                ' . self::TIPO_ID . ' AS id,
+                ' . self::TIPO_DEPTO . ' AS departamento_id,
+                ' . self::TIPO_NOMBRE . ' AS nombre
+            FROM ' . self::T_TIPOS_DEP . '
+            WHERE ' . self::TIPO_DEPTO . ' = :departamento
+            ORDER BY ' . self::TIPO_ORDEN . ', ' . self::TIPO_NOMBRE . '
+            LIMIT 1
+        ';
+
+        try {
+            $row = $this->db->fetch($sql, [':departamento' => [$departamentoId, PDO::PARAM_INT]]);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener el tipo de incidencia por departamento.', 0, $e);
+        }
+
+        if (!$row || !isset($row['id'], $row['departamento_id'], $row['nombre'])) {
+            return null;
+        }
+
+        return [
+            'id'              => (int)$row['id'],
+            'departamento_id' => (int)$row['departamento_id'],
+            'nombre'          => (string)$row['nombre'],
         ];
     }
 
