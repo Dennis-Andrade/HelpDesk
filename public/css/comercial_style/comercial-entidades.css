@@ -867,19 +867,22 @@ body.is-modal-open{
 .incidencias-card {
   background: #fff;
   border-radius: var(--ent-radius, 12px);
-  box-shadow: var(--ent-shadow, 0 8px 24px rgba(15, 23, 42, 0.08));
-  padding: 1.5rem;
+  box-shadow: var(--ent-shadow, 0 16px 40px rgba(15, 23, 42, 0.08));
+  padding: 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 1.75rem;
 }
 
 .incidencias-filters {
   display: grid;
   grid-template-columns: repeat(4, minmax(160px, 1fr));
   gap: 0.85rem;
-  margin-bottom: 1.25rem;
+  padding-bottom: 1.35rem;
+  margin-bottom: 0;
   align-items: end;
+  border-bottom: 2px solid rgba(15, 23, 42, 0.08);
+  box-shadow: inset 0 -12px 24px -20px rgba(15, 23, 42, 0.35);
 }
 
 .incidencias-filters__field {
@@ -927,38 +930,42 @@ body.is-modal-open{
 
 .incidencias-cards {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.75rem;
 }
 
 .incidencias-card-item {
   position: relative;
   background: #ffffff;
-  border-radius: 16px;
-  padding: 1.5rem;
+  border-radius: 18px;
+  padding: 1.75rem;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
-  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
-  border: 1px solid rgba(15, 23, 42, 0.06);
-  border-left: 6px solid rgba(18, 56, 179, 0.4);
+  gap: 1.35rem;
+  box-shadow: 0 20px 44px rgba(15, 23, 42, 0.18);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .incidencias-card-item::before {
   content: "";
   position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(18, 56, 179, 0.05), rgba(18, 56, 179, 0));
-  opacity: 0.8;
-  pointer-events: none;
-}
-
-.incidencias-card-item:nth-of-type(even)::before {
-  background: linear-gradient(135deg, rgba(255, 133, 51, 0.06), rgba(255, 133, 51, 0));
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  border-radius: 18px 0 0 18px;
+  background: var(--incidencia-accent, rgba(18, 56, 179, 0.85));
 }
 
 .incidencias-card-item:nth-of-type(even) {
-  border-left-color: rgba(255, 133, 51, 0.55);
+  --incidencia-accent: rgba(255, 133, 51, 0.9);
+}
+
+.incidencias-card-item:hover,
+.incidencias-card-item:focus-within {
+  transform: translateY(-4px);
+  box-shadow: 0 26px 56px rgba(15, 23, 42, 0.22);
 }
 
 .incidencias-card-item > * {
@@ -971,6 +978,7 @@ body.is-modal-open{
   align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+  padding-right: 3.25rem;
 }
 
 .incidencias-card-item__title {
@@ -996,8 +1004,8 @@ body.is-modal-open{
 
 .incidencias-card-item__meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
 }
 
 .incidencias-card-item__value {
@@ -1015,8 +1023,8 @@ body.is-modal-open{
 
 .incidencias-card-item__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.1rem 1.35rem;
 }
 
 .incidencias-card-item__grid p {
@@ -1030,10 +1038,9 @@ body.is-modal-open{
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 0.75rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  padding-top: 1rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.12);
 }
 
 .incidencias-card-item__ticket {
@@ -1053,32 +1060,42 @@ body.is-modal-open{
   display: flex;
   gap: 0.75rem;
   align-items: center;
+  margin-left: auto;
+}
+
+.incidencias-card-item__actions .btn {
+  min-width: 112px;
 }
 
 .incidencias-badge {
+  position: absolute;
+  top: 1.35rem;
+  right: 1.35rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.2rem 0.75rem;
+  padding: 0.25rem 0.85rem;
   border-radius: 999px;
   font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  border: 1px solid currentColor;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.15);
 }
 
 .incidencias-badge--enviado {
-  background: rgba(46, 196, 182, 0.15);
-  color: #0d9488;
+  background: rgba(46, 196, 182, 0.2);
+  color: #0f766e;
 }
 
 .incidencias-badge--completado {
-  background: rgba(67, 160, 71, 0.15);
-  color: #2e7d32;
+  background: rgba(67, 160, 71, 0.22);
+  color: #1b5e20;
 }
 
 .incidencias-badge--cancelado {
-  background: rgba(231, 76, 60, 0.15);
-  color: #c0392b;
+  background: rgba(231, 76, 60, 0.2);
+  color: #992d22;
 }
 
 .ent-pagination {
