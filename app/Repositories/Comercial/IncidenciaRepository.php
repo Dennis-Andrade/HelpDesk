@@ -18,8 +18,9 @@ final class IncidenciaRepository extends BaseRepository
     private const COL_DESCRIP  = 'descripcion';
     private const COL_PRIOR    = 'prioridad';
     private const COL_ESTADO   = 'estado';
-    private const COL_TIPO     = 'tipo_incidencia';
-    private const COL_TIPO_DEP = 'tipo_incidencia_departamento_id';
+    private const COL_TIPO_NAME = 'tipo_incidencia';
+    private const COL_TIPO_ID   = 'tipo_incidencia_id';
+    private const COL_TIPO_DEP  = 'tipo_incidencia_departamento_id';
     private const COL_TICKET   = 'id_ticket';
     private const COL_CREATED  = 'created_at';
     private const COL_UPDATED  = 'updated_at';
@@ -42,6 +43,11 @@ final class IncidenciaRepository extends BaseRepository
     private const TIPO_DEPTO  = 'departamento_id';
     private const TIPO_NOMBRE = 'nombre';
     private const TIPO_ORDEN  = 'orden';
+    private const TIPO_REF    = 'referencia_id';
+
+    private const T_TIPOS_GLOBAL      = 'public.incidencia_tipos';
+    private const TIPO_GLOBAL_ID      = 'id';
+    private const TIPO_GLOBAL_NOMBRE  = 'nombre';
 
     /** @var array<string,bool>|null */
     private $incidenciaColumns = null;
@@ -120,6 +126,12 @@ final class IncidenciaRepository extends BaseRepository
             ];
         }
 
+        $tipoFragments = $this->tipoSelectFragments();
+        $joinTipos = '';
+        if (!empty($tipoFragments['joins'])) {
+            $joinTipos = "\n            " . implode("\n            ", $tipoFragments['joins']);
+        }
+
         $sql = '
             SELECT
                 i.' . self::COL_ID . ' AS id,
@@ -128,8 +140,8 @@ final class IncidenciaRepository extends BaseRepository
                 dep.' . self::DEP_NOMBRE . ' AS departamento_nombre,
                 c.' . self::COOP_NOMBRE . ' AS cooperativa,
                 i.' . self::COL_ASUNTO . ' AS asunto,
-                i.' . self::COL_TIPO . ' AS tipo_incidencia,
-                tipo.' . self::TIPO_ID . ' AS tipo_departamento_id,
+                ' . $tipoFragments['select_nombre'] . ',
+                ' . $tipoFragments['select_id'] . ',
                 i.' . self::COL_PRIOR . ' AS prioridad,
                 i.' . self::COL_ESTADO . ' AS estado,
                 i.' . self::COL_DESCRIP . ' AS descripcion,
@@ -146,9 +158,7 @@ final class IncidenciaRepository extends BaseRepository
                 ON c.' . self::COOP_ID . ' = i.' . self::COL_COOP . '
             LEFT JOIN ' . self::T_DEPARTAMENTOS . ' dep
                 ON dep.' . self::DEP_ID . ' = i.' . self::COL_DEPTO . '
-            LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo
-                ON tipo.' . self::TIPO_DEPTO . ' = i.' . self::COL_DEPTO . '
-               AND tipo.' . self::TIPO_NOMBRE . ' = i.' . self::COL_TIPO . '
+            ' . $joinTipos . '
             LEFT JOIN LATERAL (
                 SELECT
                     a.oficial_nombre,
@@ -223,6 +233,56 @@ final class IncidenciaRepository extends BaseRepository
     }
 
     /**
+     * Determina las expresiones y joins necesarios para obtener el tipo de incidencia.
+     *
+     * @return array{select_nombre:string,select_id:string,joins:array<int,string>}
+     */
+    private function tipoSelectFragments(): array
+    {
+        $hasNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
+        $hasTipoDepto = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+        $hasTipoId = $this->incidenciaHasColumn(self::COL_TIPO_ID);
+
+        $selectNombre = "'' AS tipo_incidencia";
+        $selectId = 'NULL AS tipo_departamento_id';
+        $joins = [];
+
+        if ($hasTipoDepto) {
+            $selectId = 'i.' . self::COL_TIPO_DEP . ' AS tipo_departamento_id';
+            $joins[] = 'LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo_dep ON tipo_dep.' . self::TIPO_ID . ' = i.' . self::COL_TIPO_DEP;
+            $joins[] = 'LEFT JOIN ' . self::T_TIPOS_GLOBAL . ' tipo_global ON tipo_global.' . self::TIPO_GLOBAL_ID . ' = tipo_dep.' . self::TIPO_REF;
+
+            $nombreExprParts = [];
+            if ($hasNombre) {
+                $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
+            }
+            $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
+            $nombreExprParts[] = 'tipo_global.' . self::TIPO_GLOBAL_NOMBRE;
+            $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
+        } elseif ($hasTipoId) {
+            $selectId = 'i.' . self::COL_TIPO_ID . ' AS tipo_departamento_id';
+            $joins[] = 'LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo_dep ON tipo_dep.' . self::TIPO_ID . ' = i.' . self::COL_TIPO_ID;
+            $joins[] = 'LEFT JOIN ' . self::T_TIPOS_GLOBAL . ' tipo_global ON tipo_global.' . self::TIPO_GLOBAL_ID . ' = i.' . self::COL_TIPO_ID;
+
+            $nombreExprParts = [];
+            if ($hasNombre) {
+                $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
+            }
+            $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
+            $nombreExprParts[] = 'tipo_global.' . self::TIPO_GLOBAL_NOMBRE;
+            $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
+        } elseif ($hasNombre) {
+            $selectNombre = 'i.' . self::COL_TIPO_NAME . ' AS tipo_incidencia';
+        }
+
+        return [
+            'select_nombre' => $selectNombre,
+            'select_id'     => $selectId,
+            'joins'         => $joins,
+        ];
+    }
+
+    /**
      * Crea una nueva incidencia y devuelve su identificador.
      *
      * @param array<string,mixed> $data
@@ -260,15 +320,25 @@ final class IncidenciaRepository extends BaseRepository
         $values[]  = ':asunto';
         $params[':asunto'] = [$data['asunto'] ?? '', PDO::PARAM_STR];
 
-        if ($this->incidenciaHasColumn(self::COL_TIPO_DEP)) {
+        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
+        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
+
+        if ($hasTipoDepto) {
             $columns[] = self::COL_TIPO_DEP;
+            $values[]  = ':tipo_departamento';
+            $params[':tipo_departamento'] = $tipoDepartamentoParam;
+        } elseif ($hasTipoId) {
+            $columns[] = self::COL_TIPO_ID;
             $values[]  = ':tipo_departamento';
             $params[':tipo_departamento'] = $tipoDepartamentoParam;
         }
 
-        $columns[] = self::COL_TIPO;
-        $values[]  = ':tipo';
-        $params[':tipo'] = [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR];
+        if ($hasTipoNombre) {
+            $columns[] = self::COL_TIPO_NAME;
+            $values[]  = ':tipo_nombre';
+            $params[':tipo_nombre'] = [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR];
+        }
 
         $columns[] = self::COL_DESCRIP;
         $values[]  = ':descripcion';
@@ -329,7 +399,6 @@ final class IncidenciaRepository extends BaseRepository
 
         $sets = [
             self::COL_ASUNTO . ' = :asunto',
-            self::COL_TIPO . ' = :tipo',
             self::COL_PRIOR . ' = :prioridad',
             self::COL_ESTADO . ' = :estado',
             self::COL_DESCRIP . ' = :descripcion',
@@ -339,19 +408,30 @@ final class IncidenciaRepository extends BaseRepository
         $params = [
             ':id'          => [$id, PDO::PARAM_INT],
             ':asunto'      => [$data['asunto'] ?? '', PDO::PARAM_STR],
-            ':tipo'        => [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR],
             ':prioridad'   => [$data['prioridad'] ?? '', PDO::PARAM_STR],
             ':estado'      => [$data['estado'] ?? 'Enviado', PDO::PARAM_STR],
             ':descripcion' => $descripcionParam,
         ];
+
+        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
+        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
+
+        if ($hasTipoNombre) {
+            $sets[] = self::COL_TIPO_NAME . ' = :tipo_nombre';
+            $params[':tipo_nombre'] = [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR];
+        }
 
         if ($this->incidenciaHasColumn(self::COL_DEPTO)) {
             $sets[] = self::COL_DEPTO . ' = :departamento';
             $params[':departamento'] = $departamentoParam;
         }
 
-        if ($this->incidenciaHasColumn(self::COL_TIPO_DEP)) {
+        if ($hasTipoDepto) {
             $sets[] = self::COL_TIPO_DEP . ' = :tipo_departamento';
+            $params[':tipo_departamento'] = $tipoDepartamentoParam;
+        } elseif ($hasTipoId) {
+            $sets[] = self::COL_TIPO_ID . ' = :tipo_departamento';
             $params[':tipo_departamento'] = $tipoDepartamentoParam;
         }
 
@@ -392,6 +472,12 @@ final class IncidenciaRepository extends BaseRepository
 
         $ticketExpr = "CONCAT('INC-', TO_CHAR(COALESCE(i." . self::COL_CREATED . ", CURRENT_DATE), 'YYYY'), '-', LPAD(i." . self::COL_ID . "::text, 5, '0'))";
 
+        $tipoFragments = $this->tipoSelectFragments();
+        $joinTipos = '';
+        if (!empty($tipoFragments['joins'])) {
+            $joinTipos = "\n            " . implode("\n            ", $tipoFragments['joins']);
+        }
+
         $sql = '
             SELECT
                 i.' . self::COL_ID . ' AS id,
@@ -400,8 +486,8 @@ final class IncidenciaRepository extends BaseRepository
                 dep.' . self::DEP_NOMBRE . ' AS departamento_nombre,
                 c.' . self::COOP_NOMBRE . ' AS cooperativa,
                 i.' . self::COL_ASUNTO . ' AS asunto,
-                i.' . self::COL_TIPO . ' AS tipo_incidencia,
-                tipo.' . self::TIPO_ID . ' AS tipo_departamento_id,
+                ' . $tipoFragments['select_nombre'] . ',
+                ' . $tipoFragments['select_id'] . ',
                 i.' . self::COL_PRIOR . ' AS prioridad,
                 i.' . self::COL_ESTADO . ' AS estado,
                 i.' . self::COL_DESCRIP . ' AS descripcion,
@@ -418,9 +504,7 @@ final class IncidenciaRepository extends BaseRepository
                 ON c.' . self::COOP_ID . ' = i.' . self::COL_COOP . '
             LEFT JOIN ' . self::T_DEPARTAMENTOS . ' dep
                 ON dep.' . self::DEP_ID . ' = i.' . self::COL_DEPTO . '
-            LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo
-                ON tipo.' . self::TIPO_DEPTO . ' = i.' . self::COL_DEPTO . '
-               AND tipo.' . self::TIPO_NOMBRE . ' = i.' . self::COL_TIPO . '
+            ' . $joinTipos . '
             LEFT JOIN LATERAL (
                 SELECT
                     a.oficial_nombre,

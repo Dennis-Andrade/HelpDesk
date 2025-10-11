@@ -20,6 +20,7 @@ final class IncidenciasController
     {
         $filters = is_array($_GET) ? $_GET : [];
         $pager   = Pagination::fromRequest($filters, 1, 10, 0);
+
         $departamentos = $this->repo->catalogoDepartamentos();
         $tiposPorDepartamento = $this->repo->catalogoTiposPorDepartamento();
         $result = $this->repo->paginate($filters, $pager->page, $pager->perPage);
@@ -65,6 +66,7 @@ final class IncidenciasController
                 $departamentoId = (int)$tipo['departamento_id'];
             }
         }
+
         if (!in_array($data['prioridad'], $this->repo->catalogoPrioridades(), true)) {
             $data['prioridad'] = 'Medio';
         }
@@ -101,6 +103,7 @@ final class IncidenciasController
             'estado'          => trim((string)($_POST['estado'] ?? '')),
             'descripcion'     => trim((string)($_POST['descripcion'] ?? '')),
         ];
+
         $departamentoId = (int)($_POST['departamento_id'] ?? 0);
         $tipoId = (int)($_POST['tipo_incidencia_id'] ?? 0);
         $tipo = $this->repo->findTipoPorId($tipoId);
@@ -129,7 +132,7 @@ final class IncidenciasController
                 $departamentoId = (int)$tipo['departamento_id'];
             }
         }
-      
+
         if (!in_array($data['prioridad'], $this->repo->catalogoPrioridades(), true)) {
             $data['prioridad'] = 'Medio';
         }
