@@ -10,6 +10,7 @@ use App\Controllers\Comercial\EntidadesController;
 use App\Controllers\Comercial\AgendaController;
 use App\Controllers\Comercial\ContactosController;
 use App\Controllers\Comercial\IncidenciasController;
+use App\Controllers\Comercial\SeguimientoController;
 
 // ---------- Auth ----------
 $router->get('/login',  [LoginController::class, 'show']);
@@ -97,6 +98,22 @@ $router->post(
     ['middleware'=>['auth','role:comercial']]
 );
 
+
+$router->get(
+    '/comercial/eventos',
+    [SeguimientoController::class, 'index'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/eventos',
+    [SeguimientoController::class, 'store'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->get(
+    '/comercial/eventos/exportar',
+    [SeguimientoController::class, 'export'],
+    ['middleware'=>['auth','role:comercial']]
+);
 $router->get(
     '/comercial/incidencias',
     [IncidenciasController::class, 'index'],
