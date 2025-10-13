@@ -51,6 +51,8 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
     $queryString = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
     return '/comercial/contactos' . ($queryString !== '' ? '?' . $queryString : '');
 }
+
+$today = date('Y-m-d');
 ?>
 <section class="ent-list" aria-labelledby="contactos-title">
   <header class="ent-toolbar">
@@ -98,6 +100,7 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
           <span class="contact-list__cell contact-list__cell--header contact-list__cell--num" role="columnheader">#</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Nombre</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Entidad</span>
+          <span class="contact-list__cell contact-list__cell--header" role="columnheader">Fecha evento</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Cargo</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Teléfono</span>
           <span class="contact-list__cell contact-list__cell--header contact-list__cell--actions" role="columnheader">Acciones</span>
@@ -107,6 +110,7 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
             $contactId   = (int)($row['id'] ?? 0);
             $contactName = $row['nombre'] ?? 'Contacto';
             $entityName  = $row['entidad_nombre'] ?? '';
+            $fechaEvento = $row['fecha_evento'] ?? '';
             $cargo       = $row['cargo'] ?? '';
             $telefono    = $row['telefono'] ?? '';
             $titulo      = $row['titulo'] ?? '';
@@ -124,6 +128,7 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
             </span>
             <span class="contact-list__cell" data-label="Nombre" role="cell"><?= h($contactName) ?></span>
             <span class="contact-list__cell" data-label="Entidad" role="cell"><?= $entityName !== '' ? h($entityName) : '—' ?></span>
+            <span class="contact-list__cell" data-label="Fecha evento" role="cell"><?= $fechaEvento !== '' ? h($fechaEvento) : '—' ?></span>
             <span class="contact-list__cell" data-label="Cargo" role="cell"><?= $cargo !== '' ? h($cargo) : '—' ?></span>
             <span class="contact-list__cell" data-label="Teléfono" role="cell"><?= $telefono !== '' ? h($telefono) : '—' ?></span>
             <span class="contact-list__cell contact-list__cell--actions" data-label="Acciones" role="cell">
@@ -140,6 +145,7 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
                 data-contact-telefono="<?= h($telefono) ?>"
                 data-contact-correo="<?= h($correo) ?>"
                 data-contact-nota="<?= h($nota) ?>"
+                data-contact-fecha="<?= h($fechaEvento) ?>"
               >
                 Editar
               </button>
@@ -158,6 +164,10 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
                 <div class="contact-details__item">
                   <dt>Entidad</dt>
                   <dd><?= $entityName !== '' ? h($entityName) : '—' ?></dd>
+                </div>
+                <div class="contact-details__item">
+                  <dt>Fecha del evento</dt>
+                  <dd><?= $fechaEvento !== '' ? h($fechaEvento) : '—' ?></dd>
                 </div>
                 <div class="contact-details__item">
                   <dt>Título</dt>
@@ -223,6 +233,10 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
         <input id="modal-contacto-nombre" type="text" name="nombre" placeholder="Juan Pérez" required>
       </div>
       <div class="form-row">
+        <label for="modal-contacto-fecha">Fecha del evento</label>
+        <input id="modal-contacto-fecha" type="date" name="fecha_evento" value="<?= h($today) ?>" required>
+      </div>
+      <div class="form-row">
         <label for="modal-contacto-titulo">Título</label>
         <input id="modal-contacto-titulo" type="text" name="titulo" placeholder="Gerente de ventas">
       </div>
@@ -269,6 +283,10 @@ function buildPageUrlContactos(int $pageNumber, array $filters, int $perPage): s
       <div class="form-row">
         <label for="modal-editar-contacto-nombre">Nombre</label>
         <input id="modal-editar-contacto-nombre" type="text" name="nombre" required data-focus-initial>
+      </div>
+      <div class="form-row">
+        <label for="modal-editar-contacto-fecha">Fecha del evento</label>
+        <input id="modal-editar-contacto-fecha" type="date" name="fecha_evento" required>
       </div>
       <div class="form-row">
         <label for="modal-editar-contacto-titulo">Título</label>

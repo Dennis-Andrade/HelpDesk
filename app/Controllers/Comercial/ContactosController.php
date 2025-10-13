@@ -118,6 +118,7 @@ final class ContactosController
             'telefono_contacto' => trim((string)($_POST['telefono'] ?? '')),
             'email_contacto'    => trim((string)($_POST['correo'] ?? '')),
             'nota'              => trim((string)($_POST['nota'] ?? '')),
+            'fecha_evento'      => trim((string)($_POST['fecha_evento'] ?? '')),
         ];
         $this->repo->create($data);
         redirect('/comercial/contactos');
@@ -169,6 +170,7 @@ final class ContactosController
             'telefono_contacto' => trim((string)($_POST['telefono'] ?? '')),
             'email_contacto'    => trim((string)($_POST['correo'] ?? '')),
             'nota'              => trim((string)($_POST['nota'] ?? '')),
+            'fecha_evento'      => trim((string)($_POST['fecha_evento'] ?? '')),
         ];
         $this->repo->update($id, $data);
         redirect('/comercial/contactos');

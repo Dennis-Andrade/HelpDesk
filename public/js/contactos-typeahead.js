@@ -317,6 +317,7 @@
   const telefono = modal.querySelector('#modal-editar-contacto-telefono');
   const correo = modal.querySelector('#modal-editar-contacto-correo');
   const nota = modal.querySelector('#modal-editar-contacto-nota');
+  const fecha = modal.querySelector('#modal-editar-contacto-fecha');
 
   function setValue(field, value) {
     if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
@@ -339,6 +340,7 @@
       setValue(telefono, button.getAttribute('data-contact-telefono') || '');
       setValue(correo, button.getAttribute('data-contact-correo') || '');
       setValue(nota, button.getAttribute('data-contact-nota') || '');
+      setValue(fecha, button.getAttribute('data-contact-fecha') || '');
 
     }, { capture: true });
   });

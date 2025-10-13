@@ -26,6 +26,7 @@ final class ContactoRepository extends BaseRepository
     private const COL_TEL         = 'telefono_contacto';
     private const COL_MAIL        = 'oficial_correo';
     private const COL_NOTA        = 'nota';
+    private const COL_FECHA_EVENTO= 'fecha_evento';
 
     /** @var string Tabla de cooperativas. */
     private const T_COOP          = 'public.cooperativas';
@@ -95,7 +96,8 @@ final class ContactoRepository extends BaseRepository
                 c.' . self::COL_CARGO . ' AS cargo,
                 c.' . self::COL_TEL . ' AS telefono,
                 c.' . self::COL_MAIL . ' AS correo,
-                c.' . self::COL_NOTA . ' AS nota
+                c.' . self::COL_NOTA . ' AS nota,
+                c.' . self::COL_FECHA_EVENTO . ' AS fecha_evento
             FROM ' . self::T_CONTACTO . ' c
             INNER JOIN ' . self::T_COOP . ' e
                 ON e.' . self::COL_COOP_ID . ' = c.' . self::COL_COOP . '
@@ -209,7 +211,8 @@ final class ContactoRepository extends BaseRepository
                 c.' . self::COL_CARGO . ' AS cargo,
                 c.' . self::COL_TEL . ' AS telefono,
                 c.' . self::COL_MAIL . ' AS correo,
-                c.' . self::COL_NOTA . ' AS nota
+                c.' . self::COL_NOTA . ' AS nota,
+                c.' . self::COL_FECHA_EVENTO . ' AS fecha_evento
             FROM ' . self::T_CONTACTO . ' c
             INNER JOIN ' . self::T_COOP . ' e
                 ON e.' . self::COL_COOP_ID . ' = c.' . self::COL_COOP . '
@@ -237,6 +240,7 @@ final class ContactoRepository extends BaseRepository
             'telefono'       => (string)($row['telefono'] ?? ''),
             'correo'         => (string)($row['correo'] ?? ''),
             'nota'           => (string)($row['nota'] ?? ''),
+            'fecha_evento'   => (string)($row['fecha_evento'] ?? ''),
         ];
     }
 
@@ -257,7 +261,8 @@ final class ContactoRepository extends BaseRepository
                 ' . self::COL_CARGO . ',
                 ' . self::COL_TEL . ',
                 ' . self::COL_MAIL . ',
-                ' . self::COL_NOTA . '
+                ' . self::COL_NOTA . ',
+                ' . self::COL_FECHA_EVENTO . '
             ) VALUES (
                 :id_cooperativa,
                 :nombre,
@@ -265,7 +270,8 @@ final class ContactoRepository extends BaseRepository
                 :cargo,
                 :telefono,
                 :correo,
-                :nota
+                :nota,
+                :fecha_evento
             ) RETURNING ' . self::COL_ID . ' AS id
         ';
         $params = [
@@ -276,6 +282,7 @@ final class ContactoRepository extends BaseRepository
             ':telefono'       => $this->nullableStringParam($d['telefono_contacto'] ?? ($d['telefono'] ?? '')),
             ':correo'         => $this->nullableStringParam($d['email_contacto'] ?? ($d['oficial_correo'] ?? '')),
             ':nota'           => $this->nullableStringParam($d['nota'] ?? ''),
+            ':fecha_evento'   => $this->dateParam($d['fecha_evento'] ?? null),
         ];
         try {
             $rows = $this->db->execute($sql, $params);
@@ -305,7 +312,8 @@ final class ContactoRepository extends BaseRepository
                 ' . self::COL_CARGO . '  = :cargo,
                 ' . self::COL_TEL . '    = :telefono,
                 ' . self::COL_MAIL . '   = :correo,
-                ' . self::COL_NOTA . '   = :nota
+                ' . self::COL_NOTA . '   = :nota,
+                ' . self::COL_FECHA_EVENTO . ' = :fecha_evento
             WHERE ' . self::COL_ID . ' = :id
         ';
         $params = [
@@ -317,6 +325,7 @@ final class ContactoRepository extends BaseRepository
             ':telefono'       => $this->nullableStringParam($d['telefono_contacto'] ?? ($d['telefono'] ?? '')),
             ':correo'         => $this->nullableStringParam($d['email_contacto'] ?? ($d['oficial_correo'] ?? '')),
             ':nota'           => $this->nullableStringParam($d['nota'] ?? ''),
+            ':fecha_evento'   => $this->dateParam($d['fecha_evento'] ?? null),
         ];
         try {
             $this->db->execute($sql, $params);
@@ -356,5 +365,33 @@ final class ContactoRepository extends BaseRepository
             return [null, PDO::PARAM_NULL];
         }
         return [$value, PDO::PARAM_STR];
+    }
+
+    /**
+     * Normaliza fechas a formato Y-m-d; en caso de valor vacío se usa la fecha actual.
+     *
+     * @param mixed $value
+     * @return array{0:string,1:int}
+     */
+    private function dateParam($value): array
+    {
+        $date = null;
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value !== '') {
+                $dt = date_create($value);
+                if ($dt !== false) {
+                    $date = $dt->format('Y-m-d');
+                }
+            }
+        } elseif ($value instanceof \DateTimeInterface) {
+            $date = $value->format('Y-m-d');
+        }
+
+        if ($date === null) {
+            $date = date('Y-m-d');
+        }
+
+        return [$date, PDO::PARAM_STR];
     }
 }

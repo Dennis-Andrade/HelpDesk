@@ -17,6 +17,7 @@ $cargo        = $contacto['cargo'] ?? '';
 $telefono     = $contacto['telefono'] ?? '';
 $correo       = $contacto['correo'] ?? '';
 $nota         = $contacto['nota'] ?? '';
+$fechaEvento  = $contacto['fecha_evento'] ?? date('Y-m-d');
 ?>
 <section class="ent-container" aria-labelledby="editar-contacto-title">
   <header class="ent-toolbar">
@@ -42,6 +43,10 @@ $nota         = $contacto['nota'] ?? '';
       <div class="form-row">
         <label for="contacto-nombre">Nombre</label>
         <input id="contacto-nombre" type="text" name="nombre" value="<?= h($nombre) ?>" required>
+      </div>
+      <div class="form-row">
+        <label for="contacto-fecha">Fecha del evento</label>
+        <input id="contacto-fecha" type="date" name="fecha_evento" value="<?= h($fechaEvento) ?>" required>
       </div>
       <div class="form-row">
         <label for="contacto-titulo">Título</label>
