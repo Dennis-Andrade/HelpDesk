@@ -161,6 +161,8 @@ final class SeguimientoRepository extends BaseRepository
         ];
 
         $ticketCol = $this->column('ticket');
+        $contactNumberCol = $this->column('contact_number');
+        $contactDataCol   = $this->column('contact_data');
         if ($ticketCol !== null) {
             $columns[] = $ticketCol;
             $values[]  = ':ticket';
@@ -172,6 +174,37 @@ final class SeguimientoRepository extends BaseRepository
                 $params[':ticket'] = [(int)$ticketValue, PDO::PARAM_INT];
             } else {
                 $params[':ticket'] = [(string)$ticketValue, PDO::PARAM_STR];
+            }
+        }
+
+        if ($contactNumberCol !== null) {
+            $columns[] = $contactNumberCol;
+            $values[]  = ':contact_number';
+
+            $numberValue = $data['numero_contacto'] ?? null;
+            if ($numberValue === '' || $numberValue === null) {
+                $params[':contact_number'] = [null, PDO::PARAM_NULL];
+            } else {
+                $params[':contact_number'] = [(int)$numberValue, PDO::PARAM_INT];
+            }
+        }
+
+        if ($contactDataCol !== null) {
+            $columns[] = $contactDataCol;
+            $values[]  = ':contact_data';
+
+            $rawContact = $data['datos_contacto'] ?? null;
+            if ($rawContact === null || $rawContact === '') {
+                $params[':contact_data'] = [null, PDO::PARAM_NULL];
+            } else {
+                $json = $rawContact;
+                if (is_array($rawContact)) {
+                    $json = json_encode($rawContact, JSON_UNESCAPED_UNICODE);
+                }
+                if (!is_string($json) || $json === false) {
+                    $json = json_encode(['valor' => (string)$rawContact], JSON_UNESCAPED_UNICODE);
+                }
+                $params[':contact_data'] = [$json, PDO::PARAM_STR];
             }
         }
 
@@ -287,6 +320,8 @@ final class SeguimientoRepository extends BaseRepository
         $fechaCol = $this->column('fecha');
         $tipoCol  = $this->column('tipo');
         $ticketCol = $this->column('ticket');
+        $contactNumberCol = $this->column('contact_number');
+        $contactDataCol   = $this->column('contact_data');
         $usuarioCol = $this->column('usuario');
         $createdCol = $this->column('created');
 
@@ -319,6 +354,18 @@ final class SeguimientoRepository extends BaseRepository
             $selectParts[] = 'NULL AS creado_en';
         }
 
+        if ($contactNumberCol !== null) {
+            $selectParts[] = 's.' . $contactNumberCol . ' AS contact_number';
+        } else {
+            $selectParts[] = 'NULL AS contact_number';
+        }
+
+        if ($contactDataCol !== null) {
+            $selectParts[] = 's.' . $contactDataCol . ' AS contact_data';
+        } else {
+            $selectParts[] = 'NULL AS contact_data';
+        }
+
         $joins = [
             ' INNER JOIN ' . self::TABLE_COOPS . ' c ON c.' . self::COOP_ID . ' = s.' . $coopCol,
         ];
@@ -342,15 +389,17 @@ final class SeguimientoRepository extends BaseRepository
         }
 
         return [
-            'table'          => $table,
-            'select'         => implode(",
+            'table'            => $table,
+            'select'           => implode(",
                 ", $selectParts),
-            'joinsSql'       => $joinsSql,
-            'orderBy'        => $orderBy,
-            'fechaFilter'    => $fechaCol !== null ? 'DATE(s.' . $fechaCol . ')' : ($createdCol !== null ? 'DATE(s.' . $createdCol . ')' : null),
-            'tipoFilter'     => $tipoCol !== null ? 's.' . $tipoCol : null,
-            'ticketFilter'   => $ticketCol !== null ? 's.' . $ticketCol : null,
-            'descripcionCol' => 's.' . $descCol,
+            'joinsSql'         => $joinsSql,
+            'orderBy'          => $orderBy,
+            'fechaFilter'      => $fechaCol !== null ? 'DATE(s.' . $fechaCol . ')' : ($createdCol !== null ? 'DATE(s.' . $createdCol . ')' : null),
+            'tipoFilter'       => $tipoCol !== null ? 's.' . $tipoCol : null,
+            'ticketFilter'     => $ticketCol !== null ? 's.' . $ticketCol : null,
+            'descripcionCol'   => 's.' . $descCol,
+            'contactNumberCol' => $contactNumberCol !== null ? 's.' . $contactNumberCol : null,
+            'contactDataCol'   => $contactDataCol !== null ? 's.' . $contactDataCol : null,
         ];
     }
 
@@ -422,16 +471,41 @@ final class SeguimientoRepository extends BaseRepository
             $usuarioNombre = 'Usuario #' . $usuarioId;
         }
 
+        $contactNumber = null;
+        if (isset($row['contact_number'])) {
+            $contactNumber = is_numeric($row['contact_number']) ? (int)$row['contact_number'] : null;
+            if ($contactNumber !== null && $contactNumber <= 0) {
+                $contactNumber = null;
+            }
+        }
+
+        $contactData = null;
+        if (isset($row['contact_data'])) {
+            $raw = $row['contact_data'];
+            if (is_string($raw) && $raw !== '') {
+                $decoded = json_decode($raw, true);
+                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                    $contactData = $decoded;
+                } else {
+                    $contactData = $raw;
+                }
+            } elseif (is_array($raw)) {
+                $contactData = $raw;
+            }
+        }
+
         return [
-            'id'           => isset($row['id']) ? (int)$row['id'] : 0,
-            'cooperativa'  => isset($row['cooperativa']) ? (string)$row['cooperativa'] : '',
-            'fecha'        => isset($row['fecha_registro']) ? (string)$row['fecha_registro'] : '',
-            'tipo'         => isset($row['tipo']) ? (string)$row['tipo'] : '',
-            'descripcion'  => isset($row['descripcion']) ? (string)$row['descripcion'] : '',
-            'ticket'       => isset($row['ticket']) ? (string)$row['ticket'] : '',
-            'usuario'      => $usuarioNombre,
-            'usuario_id'   => $usuarioId,
-            'creado_en'    => isset($row['creado_en']) ? (string)$row['creado_en'] : '',
+            'id'             => isset($row['id']) ? (int)$row['id'] : 0,
+            'cooperativa'    => isset($row['cooperativa']) ? (string)$row['cooperativa'] : '',
+            'fecha'          => isset($row['fecha_registro']) ? (string)$row['fecha_registro'] : '',
+            'tipo'           => isset($row['tipo']) ? (string)$row['tipo'] : '',
+            'descripcion'    => isset($row['descripcion']) ? (string)$row['descripcion'] : '',
+            'ticket'         => isset($row['ticket']) ? (string)$row['ticket'] : '',
+            'usuario'        => $usuarioNombre,
+            'usuario_id'     => $usuarioId,
+            'creado_en'      => isset($row['creado_en']) ? (string)$row['creado_en'] : '',
+            'contact_number' => $contactNumber,
+            'contact_data'   => $contactData,
         ];
     }
 
@@ -504,6 +578,8 @@ final class SeguimientoRepository extends BaseRepository
             'ticket'      => ['ticket_id', 'id_ticket', 'ticket', 'ticket_numero'],
             'usuario'     => ['creado_por', 'usuario_id', 'registrado_por', 'created_by'],
             'created'     => ['created_at', 'creado_en', 'fecha_creacion', 'registrado_el'],
+            'contact_number' => ['numero_contacto', 'contact_number', 'num_contacto', 'contacto_numero'],
+            'contact_data'   => ['datos_contacto', 'contact_data', 'contacto_datos', 'contacto_json'],
         ];
 
         $candidates = $map[$logical] ?? [];

@@ -195,6 +195,30 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
             $ticket = isset($item['ticket']) ? trim((string)$item['ticket']) : '';
             $usuario = isset($item['usuario']) ? (string)$item['usuario'] : '';
             $creado = isset($item['creado_en']) ? (string)$item['creado_en'] : '';
+            $contactNumber = isset($item['contact_number']) ? (int)$item['contact_number'] : 0;
+            $contactDataRaw = $item['contact_data'] ?? null;
+            $contactData = '';
+            if (is_array($contactDataRaw)) {
+                $pairs = [];
+                foreach ($contactDataRaw as $key => $value) {
+                    if ($value === null || $value === '') {
+                        continue;
+                    }
+                    $label = is_string($key) ? trim((string)$key) : '';
+                    $textValue = is_scalar($value) ? trim((string)$value) : '';
+                    if ($textValue === '') {
+                        continue;
+                    }
+                    if ($label !== '') {
+                        $pairs[] = $label . ': ' . $textValue;
+                    } else {
+                        $pairs[] = $textValue;
+                    }
+                }
+                $contactData = implode('; ', $pairs);
+            } elseif (is_string($contactDataRaw)) {
+                $contactData = trim($contactDataRaw);
+            }
           ?>
           <article class="seguimiento-card" tabindex="0">
             <span class="seguimiento-card__accent" aria-hidden="true"></span>
@@ -225,6 +249,18 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
                 <div>
                   <dt>Creado</dt>
                   <dd><?= seguimiento_h($creado) ?></dd>
+                </div>
+              <?php endif; ?>
+              <?php if ($contactNumber > 0): ?>
+                <div>
+                  <dt>No. contacto</dt>
+                  <dd><?= seguimiento_h((string)$contactNumber) ?></dd>
+                </div>
+              <?php endif; ?>
+              <?php if ($contactData !== ''): ?>
+                <div>
+                  <dt>Detalle de contacto</dt>
+                  <dd><?= seguimiento_h($contactData) ?></dd>
                 </div>
               <?php endif; ?>
             </dl>
