@@ -9,7 +9,7 @@
     <a href="/comercial/dashboard" class="nav-item">Dashboard</a>
     <a href="/comercial/entidades" class="nav-item">Entidades Financieras</a>
     <a href="/comercial/contactos" class="nav-item">Agenda de Contactos</a>
-    <a href="/comercial/eventos" class="nav-item">Segimineto</a>
+    <a href="/comercial/eventos" class="nav-item">Seguimiento</a>
     <a href="/comercial/incidencias" class="nav-item">Incidencias</a>
 
     <div class="nav-group">Sesión</div>

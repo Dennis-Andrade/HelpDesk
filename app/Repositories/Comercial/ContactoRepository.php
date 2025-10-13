@@ -26,6 +26,7 @@ final class ContactoRepository extends BaseRepository
     private const COL_TEL         = 'telefono_contacto';
     private const COL_MAIL        = 'oficial_correo';
     private const COL_NOTA        = 'nota';
+    private const COL_FECHA_EVENTO= 'fecha_evento';
 
     /** @var string Tabla de cooperativas. */
     private const T_COOP          = 'public.cooperativas';
@@ -62,6 +63,7 @@ final class ContactoRepository extends BaseRepository
             WHERE (
                 :has_q = 0
                 OR unaccent(lower(' . $nombreExpr . ')) LIKE unaccent(lower(:like))
+                OR unaccent(lower(e.' . self::COL_COOP_NOMBRE . ')) LIKE unaccent(lower(:like))
             )
         ';
         $bindings = [
@@ -94,13 +96,15 @@ final class ContactoRepository extends BaseRepository
                 c.' . self::COL_CARGO . ' AS cargo,
                 c.' . self::COL_TEL . ' AS telefono,
                 c.' . self::COL_MAIL . ' AS correo,
-                c.' . self::COL_NOTA . ' AS nota
+                c.' . self::COL_NOTA . ' AS nota,
+                c.' . self::COL_FECHA_EVENTO . ' AS fecha_evento
             FROM ' . self::T_CONTACTO . ' c
             INNER JOIN ' . self::T_COOP . ' e
                 ON e.' . self::COL_COOP_ID . ' = c.' . self::COL_COOP . '
             WHERE (
                 :has_q = 0
                 OR unaccent(lower(' . $nombreExpr . ')) LIKE unaccent(lower(:like))
+                OR unaccent(lower(e.' . self::COL_COOP_NOMBRE . ')) LIKE unaccent(lower(:like))
             )
             ORDER BY ' . $nombreExpr . '
             LIMIT :limit OFFSET :offset
@@ -123,6 +127,124 @@ final class ContactoRepository extends BaseRepository
     }
 
     /**
+     * Devuelve sugerencias rápidas para el cuadro de búsqueda.
+     *
+     * @param string $q     Texto a buscar.
+     * @param int    $limit Límite máximo de registros.
+     * @return array<int,array<string,mixed>>
+     */
+    public function suggest(string $q, int $limit = 8): array
+    {
+        $q = trim($q);
+        if ($q === '') {
+            return [];
+        }
+
+        $limit = max(1, min(20, $limit));
+        $like  = '%' . $q . '%';
+        $nombreExpr = "COALESCE(c." . self::COL_NOMBRE_RAW . ", c." . self::COL_CONTACTO_ALT . ")";
+
+        $sql = '
+            SELECT
+                c.' . self::COL_ID . ' AS id,
+                c.' . self::COL_COOP . ' AS id_entidad,
+                e.' . self::COL_COOP_NOMBRE . ' AS entidad_nombre,
+                ' . $nombreExpr . ' AS nombre,
+                c.' . self::COL_CARGO . ' AS cargo
+            FROM ' . self::T_CONTACTO . ' c
+            INNER JOIN ' . self::T_COOP . ' e
+                ON e.' . self::COL_COOP_ID . ' = c.' . self::COL_COOP . '
+            WHERE (
+                unaccent(lower(' . $nombreExpr . ')) LIKE unaccent(lower(:like))
+                OR unaccent(lower(e.' . self::COL_COOP_NOMBRE . ')) LIKE unaccent(lower(:like))
+            )
+            ORDER BY ' . $nombreExpr . '
+            LIMIT :limit
+        ';
+
+        $params = [
+            ':like'  => [$like, PDO::PARAM_STR],
+            ':limit' => [$limit, PDO::PARAM_INT],
+        ];
+
+        try {
+            $rows = $this->db->fetchAll($sql, $params);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al obtener sugerencias de contactos.', 0, $e);
+        }
+
+        $suggestions = [];
+        foreach ($rows as $row) {
+            $suggestions[] = [
+                'id'             => isset($row['id']) ? (int)$row['id'] : null,
+                'id_entidad'     => isset($row['id_entidad']) ? (int)$row['id_entidad'] : null,
+                'entidad_nombre' => (string)($row['entidad_nombre'] ?? ''),
+                'nombre'         => (string)($row['nombre'] ?? ''),
+                'cargo'          => (string)($row['cargo'] ?? ''),
+            ];
+        }
+
+        return $suggestions;
+    }
+
+    /**
+     * Obtiene un contacto por su identificador.
+     *
+     * @param int $id
+     * @return array<string,mixed>|null
+     */
+    public function find(int $id): ?array
+    {
+        if ($id < 1) {
+            return null;
+        }
+
+        $nombreExpr = "COALESCE(c." . self::COL_NOMBRE_RAW . ", c." . self::COL_CONTACTO_ALT . ")";
+
+        $sql = '
+            SELECT
+                c.' . self::COL_ID . ' AS id,
+                c.' . self::COL_COOP . ' AS id_entidad,
+                e.' . self::COL_COOP_NOMBRE . ' AS entidad_nombre,
+                ' . $nombreExpr . ' AS nombre,
+                c.' . self::COL_TITULO . ' AS titulo,
+                c.' . self::COL_CARGO . ' AS cargo,
+                c.' . self::COL_TEL . ' AS telefono,
+                c.' . self::COL_MAIL . ' AS correo,
+                c.' . self::COL_NOTA . ' AS nota,
+                c.' . self::COL_FECHA_EVENTO . ' AS fecha_evento
+            FROM ' . self::T_CONTACTO . ' c
+            INNER JOIN ' . self::T_COOP . ' e
+                ON e.' . self::COL_COOP_ID . ' = c.' . self::COL_COOP . '
+            WHERE c.' . self::COL_ID . ' = :id
+            LIMIT 1
+        ';
+
+        try {
+            $row = $this->db->fetch($sql, [':id' => [$id, PDO::PARAM_INT]]);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('Error al obtener el contacto.', 0, $e);
+        }
+
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'id'             => isset($row['id']) ? (int)$row['id'] : $id,
+            'id_entidad'     => isset($row['id_entidad']) ? (int)$row['id_entidad'] : null,
+            'entidad_nombre' => (string)($row['entidad_nombre'] ?? ''),
+            'nombre'         => (string)($row['nombre'] ?? ''),
+            'titulo'         => (string)($row['titulo'] ?? ''),
+            'cargo'          => (string)($row['cargo'] ?? ''),
+            'telefono'       => (string)($row['telefono'] ?? ''),
+            'correo'         => (string)($row['correo'] ?? ''),
+            'nota'           => (string)($row['nota'] ?? ''),
+            'fecha_evento'   => (string)($row['fecha_evento'] ?? ''),
+        ];
+    }
+
+    /**
      * Inserta un nuevo contacto y devuelve su ID.
      *
      * @param array<string,mixed> $d
@@ -139,7 +261,8 @@ final class ContactoRepository extends BaseRepository
                 ' . self::COL_CARGO . ',
                 ' . self::COL_TEL . ',
                 ' . self::COL_MAIL . ',
-                ' . self::COL_NOTA . '
+                ' . self::COL_NOTA . ',
+                ' . self::COL_FECHA_EVENTO . '
             ) VALUES (
                 :id_cooperativa,
                 :nombre,
@@ -147,7 +270,8 @@ final class ContactoRepository extends BaseRepository
                 :cargo,
                 :telefono,
                 :correo,
-                :nota
+                :nota,
+                :fecha_evento
             ) RETURNING ' . self::COL_ID . ' AS id
         ';
         $params = [
@@ -158,6 +282,7 @@ final class ContactoRepository extends BaseRepository
             ':telefono'       => $this->nullableStringParam($d['telefono_contacto'] ?? ($d['telefono'] ?? '')),
             ':correo'         => $this->nullableStringParam($d['email_contacto'] ?? ($d['oficial_correo'] ?? '')),
             ':nota'           => $this->nullableStringParam($d['nota'] ?? ''),
+            ':fecha_evento'   => $this->dateParam($d['fecha_evento'] ?? null),
         ];
         try {
             $rows = $this->db->execute($sql, $params);
@@ -187,7 +312,8 @@ final class ContactoRepository extends BaseRepository
                 ' . self::COL_CARGO . '  = :cargo,
                 ' . self::COL_TEL . '    = :telefono,
                 ' . self::COL_MAIL . '   = :correo,
-                ' . self::COL_NOTA . '   = :nota
+                ' . self::COL_NOTA . '   = :nota,
+                ' . self::COL_FECHA_EVENTO . ' = :fecha_evento
             WHERE ' . self::COL_ID . ' = :id
         ';
         $params = [
@@ -199,6 +325,7 @@ final class ContactoRepository extends BaseRepository
             ':telefono'       => $this->nullableStringParam($d['telefono_contacto'] ?? ($d['telefono'] ?? '')),
             ':correo'         => $this->nullableStringParam($d['email_contacto'] ?? ($d['oficial_correo'] ?? '')),
             ':nota'           => $this->nullableStringParam($d['nota'] ?? ''),
+            ':fecha_evento'   => $this->dateParam($d['fecha_evento'] ?? null),
         ];
         try {
             $this->db->execute($sql, $params);
@@ -238,5 +365,33 @@ final class ContactoRepository extends BaseRepository
             return [null, PDO::PARAM_NULL];
         }
         return [$value, PDO::PARAM_STR];
+    }
+
+    /**
+     * Normaliza fechas a formato Y-m-d; en caso de valor vacío se usa la fecha actual.
+     *
+     * @param mixed $value
+     * @return array{0:string,1:int}
+     */
+    private function dateParam($value): array
+    {
+        $date = null;
+        if (is_string($value)) {
+            $value = trim($value);
+            if ($value !== '') {
+                $dt = date_create($value);
+                if ($dt !== false) {
+                    $date = $dt->format('Y-m-d');
+                }
+            }
+        } elseif ($value instanceof \DateTimeInterface) {
+            $date = $value->format('Y-m-d');
+        }
+
+        if ($date === null) {
+            $date = date('Y-m-d');
+        }
+
+        return [$date, PDO::PARAM_STR];
     }
 }
