@@ -2,9 +2,9 @@
 namespace App\Controllers\Comercial;
 
 use App\Services\Shared\Breadcrumbs;
-use App\Services\Shared\MetricsService;
 use App\Services\Shared\Pagination;
 use App\Services\Comercial\BuscarEntidadesService;
+use App\Services\Comercial\DashboardService;
 
 final class DashboardController
 {
@@ -14,8 +14,22 @@ final class DashboardController
       ['href'=>'/comercial', 'label'=>'Comercial'],
       ['label'=>'Dashboard']
     ]);
-    $metrics = (new MetricsService())->forModule('comercial'); // placeholder
-    view('comercial/dashboard/index', compact('crumbs','metrics') + ['title'=>'Comercial · Dashboard']);
+    $service = new DashboardService();
+    $error   = null;
+    $stats   = array('cards'=>array(), 'segmentos'=>array(), 'estado'=>array('activas'=>0,'inactivas'=>0), 'mensual'=>array('labels'=>array(), 'counts'=>array()));
+
+    try {
+      $stats = $service->obtenerEstadisticas();
+    } catch (\Throwable $e) {
+      $error = 'Error al cargar datos estadísticos: ' . $e->getMessage();
+    }
+
+    view('comercial/dashboard/index', [
+      'title'    => 'Comercial · Dashboard',
+      'crumbs'   => $crumbs,
+      'stats'    => $stats,
+      'error'    => $error,
+    ]);
   }
 
   // Ejemplo: listado paginado de Entidades Financieras
