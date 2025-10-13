@@ -6,6 +6,7 @@ use App\Repositories\Comercial\EntidadRepository;
 use App\Services\Shared\Pagination;
 use function \view;
 use function \redirect;
+use const \FILTER_VALIDATE_EMAIL;
 
 /**
  * Controlador para la agenda de contactos.
@@ -110,13 +111,25 @@ final class ContactosController
      */
     public function create()
     {
+        $telefono = preg_replace('/\D+/', '', (string)($_POST['telefono'] ?? '')) ?? '';
+        if ($telefono !== '' && strlen($telefono) !== 10) {
+            redirect('/comercial/contactos');
+            return;
+        }
+
+        $correo = trim((string)($_POST['correo'] ?? ''));
+        if ($correo !== '' && !\filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+            redirect('/comercial/contactos');
+            return;
+        }
+
         $data = [
             'id_cooperativa'    => (int)($_POST['id_entidad'] ?? 0),
             'nombre'            => trim((string)($_POST['nombre'] ?? '')),
             'titulo'            => trim((string)($_POST['titulo'] ?? '')),
             'cargo'             => trim((string)($_POST['cargo'] ?? '')),
-            'telefono_contacto' => trim((string)($_POST['telefono'] ?? '')),
-            'email_contacto'    => trim((string)($_POST['correo'] ?? '')),
+            'telefono_contacto' => $telefono,
+            'email_contacto'    => $correo,
             'nota'              => trim((string)($_POST['nota'] ?? '')),
             'fecha_evento'      => trim((string)($_POST['fecha_evento'] ?? '')),
         ];
@@ -162,13 +175,25 @@ final class ContactosController
             return;
         }
 
+        $telefono = preg_replace('/\D+/', '', (string)($_POST['telefono'] ?? '')) ?? '';
+        if ($telefono !== '' && strlen($telefono) !== 10) {
+            redirect('/comercial/contactos');
+            return;
+        }
+
+        $correo = trim((string)($_POST['correo'] ?? ''));
+        if ($correo !== '' && !\filter_var($correo, FILTER_VALIDATE_EMAIL)) {
+            redirect('/comercial/contactos');
+            return;
+        }
+
         $data = [
             'id_cooperativa'    => (int)($_POST['id_entidad'] ?? 0),
             'nombre'            => trim((string)($_POST['nombre'] ?? '')),
             'titulo'            => trim((string)($_POST['titulo'] ?? '')),
             'cargo'             => trim((string)($_POST['cargo'] ?? '')),
-            'telefono_contacto' => trim((string)($_POST['telefono'] ?? '')),
-            'email_contacto'    => trim((string)($_POST['correo'] ?? '')),
+            'telefono_contacto' => $telefono,
+            'email_contacto'    => $correo,
             'nota'              => trim((string)($_POST['nota'] ?? '')),
             'fecha_evento'      => trim((string)($_POST['fecha_evento'] ?? '')),
         ];

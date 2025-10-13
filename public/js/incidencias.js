@@ -13,9 +13,9 @@
     return Array.isArray(lista) ? lista : [];
   }
 
-  function renderTipoOptions(select, departamentoId, selectedId, selectedNombre) {
+  function renderTipoOptions(select, departamentoId, selectedId, selectedNombre, selectedGlobalId) {
     if (!select) {
-      return false;
+      return { hasOptions: false, selectedGlobalId: '' };
     }
 
     const tipos = obtenerTipos(departamentoId);
@@ -24,6 +24,9 @@
       ? String(selectedId)
       : '';
     const normalizedNombre = selectedNombre ? String(selectedNombre).toLowerCase() : '';
+    const normalizedGlobal = selectedGlobalId !== undefined && selectedGlobalId !== null && selectedGlobalId !== ''
+      ? String(selectedGlobalId)
+      : '';
 
     select.innerHTML = '';
 
@@ -32,6 +35,7 @@
     placeholder.textContent = departamentoId
       ? (tipos.length ? 'Seleccione' : 'Sin tipos disponibles')
       : 'Seleccione un departamento';
+    placeholder.dataset.globalId = '';
     select.appendChild(placeholder);
 
     let matched = false;
@@ -41,15 +45,26 @@
       }
       const option = doc.createElement('option');
       const value = typeof tipo.id !== 'undefined' ? String(tipo.id) : '';
+      const optionNombre = typeof tipo.nombre === 'string' ? tipo.nombre : '';
+      const optionGlobal = typeof tipo.globalId !== 'undefined' && tipo.globalId !== null
+        ? String(tipo.globalId)
+        : '';
+
       option.value = value;
-      option.textContent = typeof tipo.nombre === 'string' ? tipo.nombre : '';
-      if (!matched && normalizedId && value === normalizedId) {
+      option.textContent = optionNombre;
+      option.dataset.globalId = optionGlobal;
+
+      if (!matched && normalizedGlobal && optionGlobal && optionGlobal === normalizedGlobal) {
         option.selected = true;
         matched = true;
-      } else if (!matched && normalizedNombre && option.textContent.toLowerCase() === normalizedNombre) {
+      } else if (!matched && normalizedId && value === normalizedId) {
+        option.selected = true;
+        matched = true;
+      } else if (!matched && normalizedNombre && optionNombre.toLowerCase() === normalizedNombre) {
         option.selected = true;
         matched = true;
       }
+
       select.appendChild(option);
     });
 
@@ -65,7 +80,35 @@
       select.removeAttribute('aria-disabled');
     }
 
-    return hasOptions;
+    let finalGlobal = '';
+    if (select.selectedIndex >= 0) {
+      const selectedOption = select.options[select.selectedIndex];
+      if (selectedOption && selectedOption.dataset) {
+        finalGlobal = selectedOption.dataset.globalId || '';
+      }
+    }
+
+    return { hasOptions: hasOptions, selectedGlobalId: finalGlobal };
+  }
+
+  function updateHiddenFromSelect(select, hiddenInput, fallbackValue) {
+    if (!hiddenInput) {
+      return;
+    }
+
+    let value = '';
+    if (select && select.selectedIndex >= 0) {
+      const option = select.options[select.selectedIndex];
+      if (option && option.dataset && typeof option.dataset.globalId !== 'undefined') {
+        value = option.dataset.globalId || '';
+      }
+    }
+
+    if (!value && (fallbackValue || fallbackValue === 0)) {
+      value = String(fallbackValue || '');
+    }
+
+    hiddenInput.value = value;
   }
 
   function syncDepartamentoSelect(select, departamentoId, nombre) {
@@ -171,13 +214,19 @@
   const createForm = document.getElementById('incidencias-create-form');
   const createDeptSelect = document.getElementById('create-departamento');
   const createTipoSelect = document.getElementById('create-tipo');
+  const createTipoGlobalInput = document.getElementById('create-tipo-global');
 
   function resetCreateControls() {
     if (createDeptSelect) {
       createDeptSelect.value = '';
     }
     if (createTipoSelect) {
-      renderTipoOptions(createTipoSelect, '', '', '');
+      const result = renderTipoOptions(createTipoSelect, '', '', '', '');
+      updateHiddenFromSelect(createTipoSelect, createTipoGlobalInput, result.selectedGlobalId);
+      createTipoSelect.dataset.currentGlobalId = '';
+    }
+    if (createTipoGlobalInput) {
+      createTipoGlobalInput.value = '';
     }
   }
 
@@ -208,7 +257,23 @@
   if (createDeptSelect && createTipoSelect) {
     createDeptSelect.addEventListener('change', function() {
       const deptoId = createDeptSelect.value;
-      renderTipoOptions(createTipoSelect, deptoId, '', '');
+      const result = renderTipoOptions(createTipoSelect, deptoId, '', '', '');
+      createTipoSelect.dataset.currentGlobalId = '';
+      updateHiddenFromSelect(createTipoSelect, createTipoGlobalInput, result.selectedGlobalId);
+    });
+  }
+
+  if (createTipoSelect) {
+    createTipoSelect.addEventListener('change', function() {
+      let selectedGlobal = '';
+      if (createTipoSelect.selectedIndex >= 0) {
+        const opt = createTipoSelect.options[createTipoSelect.selectedIndex];
+        if (opt && opt.dataset) {
+          selectedGlobal = opt.dataset.globalId || '';
+        }
+      }
+      createTipoSelect.dataset.currentGlobalId = selectedGlobal;
+      updateHiddenFromSelect(createTipoSelect, createTipoGlobalInput, selectedGlobal);
     });
   }
 
@@ -243,6 +308,7 @@
   const editButton = modal.querySelector('[data-incidencia-edit]');
   const saveButton = modal.querySelector('[data-incidencia-save]');
   const deleteButton = modal.querySelector('[data-incidencia-delete]');
+  const modalTipoGlobalInput = document.getElementById('modal-tipo-global');
 
   const fieldMap = {
     fecha: document.getElementById('modal-fecha'),
@@ -285,7 +351,12 @@
       const deptoId = fieldMap.departamento ? fieldMap.departamento.value : '';
       const currentTypeId = fieldMap.tipo ? fieldMap.tipo.value : '';
       const currentTypeName = fieldMap.tipo && fieldMap.tipo.dataset ? fieldMap.tipo.dataset.currentName || '' : '';
-      renderTipoOptions(fieldMap.tipo, deptoId, currentTypeId, currentTypeName);
+      const currentGlobalId = fieldMap.tipo && fieldMap.tipo.dataset ? fieldMap.tipo.dataset.currentGlobalId || '' : '';
+      const result = renderTipoOptions(fieldMap.tipo, deptoId, currentTypeId, currentTypeName, currentGlobalId);
+      updateHiddenFromSelect(fieldMap.tipo, modalTipoGlobalInput, result.selectedGlobalId || currentGlobalId);
+      if (fieldMap.tipo && fieldMap.tipo.dataset) {
+        fieldMap.tipo.dataset.currentGlobalId = result.selectedGlobalId || currentGlobalId || '';
+      }
     }
 
     if (editable) {
@@ -316,6 +387,7 @@
       asunto: row.getAttribute('data-asunto') || '',
       tipoId: row.getAttribute('data-tipo-id') || '',
       tipo: row.getAttribute('data-tipo') || '',
+      tipoGlobalId: row.getAttribute('data-tipo-global-id') || '',
       prioridad: row.getAttribute('data-prioridad') || '',
       estado: row.getAttribute('data-estado') || '',
       descripcion: row.getAttribute('data-descripcion') || '',
@@ -337,7 +409,12 @@
 
     if (fieldMap.tipo) {
       fieldMap.tipo.dataset.currentName = values.tipo || '';
-      renderTipoOptions(fieldMap.tipo, values.departamentoId, values.tipoId, values.tipo);
+      fieldMap.tipo.dataset.currentGlobalId = values.tipoGlobalId || '';
+      const tipoResult = renderTipoOptions(fieldMap.tipo, values.departamentoId, values.tipoId, values.tipo, values.tipoGlobalId);
+      updateHiddenFromSelect(fieldMap.tipo, modalTipoGlobalInput, tipoResult.selectedGlobalId || values.tipoGlobalId);
+      fieldMap.tipo.dataset.currentGlobalId = tipoResult.selectedGlobalId || values.tipoGlobalId || '';
+    } else {
+      updateHiddenFromSelect(null, modalTipoGlobalInput, values.tipoGlobalId || '');
     }
 
     if (fieldMap.prioridad) {
@@ -395,11 +472,29 @@
       const deptoId = fieldMap.departamento.value;
       if (fieldMap.tipo && fieldMap.tipo.dataset) {
         fieldMap.tipo.dataset.currentName = '';
+        fieldMap.tipo.dataset.currentGlobalId = '';
       }
-      const hasOptions = renderTipoOptions(fieldMap.tipo, deptoId, '', '');
-      if (!hasOptions && fieldMap.tipo) {
+      const result = renderTipoOptions(fieldMap.tipo, deptoId, '', '', '');
+      updateHiddenFromSelect(fieldMap.tipo, modalTipoGlobalInput, result.selectedGlobalId);
+      if (fieldMap.tipo) {
         fieldMap.tipo.value = '';
+        if (fieldMap.tipo.dataset) {
+          fieldMap.tipo.dataset.currentGlobalId = '';
+        }
       }
+    });
+  }
+
+  if (fieldMap.tipo) {
+    fieldMap.tipo.addEventListener('change', function() {
+      if (fieldMap.tipo.dataset) {
+        fieldMap.tipo.dataset.currentGlobalId = '';
+        const selectedOption = fieldMap.tipo.options[fieldMap.tipo.selectedIndex];
+        if (selectedOption && selectedOption.dataset) {
+          fieldMap.tipo.dataset.currentGlobalId = selectedOption.dataset.globalId || '';
+        }
+      }
+      updateHiddenFromSelect(fieldMap.tipo, modalTipoGlobalInput, '');
     });
   }
 

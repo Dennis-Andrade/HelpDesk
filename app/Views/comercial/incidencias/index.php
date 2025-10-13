@@ -50,6 +50,7 @@ foreach ($tiposPorDepartamento as $deptId => $listaTipos) {
         $tiposConfig[$deptKey][] = [
             'id'     => isset($tipoItem['id']) ? (int)$tipoItem['id'] : 0,
             'nombre' => isset($tipoItem['nombre']) ? (string)$tipoItem['nombre'] : '',
+            'globalId' => isset($tipoItem['global_id']) ? (int)$tipoItem['global_id'] : 0,
         ];
     }
 }
@@ -175,6 +176,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
                  data-estado="<?= h($estadoActual) ?>"
                  data-ticket="<?= h($ticketDisplay) ?>"
                  data-tipo-id="<?= h((string)$tipoDepartamentoId) ?>"
+                 data-tipo-global-id="<?= h((string)($row['tipo_global_id'] ?? '')) ?>"
                  data-tipo="<?= h($tipo) ?>"
                  data-descripcion="<?= h($descripcion) ?>"
                  data-contacto-nombre="<?= h($contactoNombre) ?>"
@@ -299,6 +301,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
           <select id="create-tipo" name="tipo_incidencia_id" required disabled>
             <option value="">Seleccione un departamento</option>
           </select>
+          <input type="hidden" name="tipo_incidencia_global_id" id="create-tipo-global" value="0">
         </div>
         <div class="incidencias-modal__field">
           <label for="create-prioridad">Prioridad</label>
@@ -366,6 +369,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
           <select id="modal-tipo" name="tipo_incidencia_id" disabled>
             <option value="">Seleccione un departamento</option>
           </select>
+          <input type="hidden" name="tipo_incidencia_global_id" id="modal-tipo-global" value="0">
         </div>
         <div class="incidencias-modal__field">
           <label for="modal-prioridad">Prioridad</label>

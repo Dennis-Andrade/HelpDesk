@@ -54,6 +54,7 @@ final class IncidenciasController
 
         $departamentoId = (int)($_POST['departamento_id'] ?? 0);
         $tipoId = (int)($_POST['tipo_incidencia_id'] ?? 0);
+        $tipoGlobalIdPost = (int)($_POST['tipo_incidencia_global_id'] ?? 0);
         $tipo = $this->repo->findTipoPorId($tipoId);
 
         if ($tipo === null && $departamentoId > 0) {
@@ -79,6 +80,9 @@ final class IncidenciasController
         $data['departamento_id'] = $departamentoId;
         $data['tipo_incidencia'] = $tipo['nombre'];
         $data['tipo_incidencia_id'] = (int)$tipo['id'];
+        $data['tipo_incidencia_global_id'] = $tipoGlobalIdPost > 0
+            ? $tipoGlobalIdPost
+            : (int)($tipo['global_id'] ?? 0);
 
         if ($data['asunto'] === '' || $data['id_cooperativa'] < 1) {
             redirect('/comercial/incidencias');
@@ -102,10 +106,12 @@ final class IncidenciasController
             'prioridad'       => trim((string)($_POST['prioridad'] ?? '')),
             'estado'          => trim((string)($_POST['estado'] ?? '')),
             'descripcion'     => trim((string)($_POST['descripcion'] ?? '')),
+            'tipo_incidencia_global_id' => (int)($_POST['tipo_incidencia_global_id'] ?? 0),
         ];
 
         $departamentoId = (int)($_POST['departamento_id'] ?? 0);
         $tipoId = (int)($_POST['tipo_incidencia_id'] ?? 0);
+        $tipoGlobalIdPost = (int)($_POST['tipo_incidencia_global_id'] ?? 0);
         $tipo = $this->repo->findTipoPorId($tipoId);
 
         $detalle = $this->repo->findWithContacto($id);
@@ -148,10 +154,16 @@ final class IncidenciasController
         if ($tipo !== null) {
             $data['tipo_incidencia'] = $tipo['nombre'];
             $data['tipo_incidencia_id'] = (int)$tipo['id'];
+            $data['tipo_incidencia_global_id'] = $tipoGlobalIdPost > 0
+                ? $tipoGlobalIdPost
+                : (int)($tipo['global_id'] ?? 0);
         } else {
             $data['tipo_incidencia'] = isset($detalle['tipo_incidencia']) ? (string)$detalle['tipo_incidencia'] : 'Consulta operativa';
             if (isset($detalle['tipo_departamento_id'])) {
                 $data['tipo_incidencia_id'] = (int)$detalle['tipo_departamento_id'];
+            }
+            if (isset($detalle['tipo_global_id']) && (int)$detalle['tipo_global_id'] > 0) {
+                $data['tipo_incidencia_global_id'] = (int)$detalle['tipo_global_id'];
             }
         }
 

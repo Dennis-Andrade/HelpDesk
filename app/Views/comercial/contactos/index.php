@@ -102,7 +102,7 @@ $today = date('Y-m-d');
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Entidad</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Fecha evento</span>
           <span class="contact-list__cell contact-list__cell--header" role="columnheader">Cargo</span>
-          <span class="contact-list__cell contact-list__cell--header" role="columnheader">Teléfono</span>
+          <span class="contact-list__cell contact-list__cell--header" role="columnheader">Celular</span>
           <span class="contact-list__cell contact-list__cell--header contact-list__cell--actions" role="columnheader">Acciones</span>
         </div>
         <?php foreach ($items as $index => $row): ?>
@@ -130,7 +130,7 @@ $today = date('Y-m-d');
             <span class="contact-list__cell" data-label="Entidad" role="cell"><?= $entityName !== '' ? h($entityName) : '—' ?></span>
             <span class="contact-list__cell" data-label="Fecha evento" role="cell"><?= $fechaEvento !== '' ? h($fechaEvento) : '—' ?></span>
             <span class="contact-list__cell" data-label="Cargo" role="cell"><?= $cargo !== '' ? h($cargo) : '—' ?></span>
-            <span class="contact-list__cell" data-label="Teléfono" role="cell"><?= $telefono !== '' ? h($telefono) : '—' ?></span>
+            <span class="contact-list__cell" data-label="Celular" role="cell"><?= $telefono !== '' ? h($telefono) : '—' ?></span>
             <span class="contact-list__cell contact-list__cell--actions" data-label="Acciones" role="cell">
               <button
                 class="btn btn-primary"
@@ -178,7 +178,7 @@ $today = date('Y-m-d');
                   <dd><?= $cargo !== '' ? h($cargo) : '—' ?></dd>
                 </div>
                 <div class="contact-details__item">
-                  <dt>Teléfono</dt>
+                  <dt>Celular</dt>
                   <dd><?= $telefono !== '' ? h($telefono) : '—' ?></dd>
                 </div>
                 <div class="contact-details__item">
@@ -245,8 +245,8 @@ $today = date('Y-m-d');
         <input id="modal-contacto-cargo" type="text" name="cargo" placeholder="Director">
       </div>
       <div class="form-row">
-        <label for="modal-contacto-telefono">Teléfono</label>
-        <input id="modal-contacto-telefono" type="text" name="telefono" placeholder="+593 9 9999 9999">
+        <label for="modal-contacto-telefono">Celular</label>
+        <input id="modal-contacto-telefono" type="text" name="telefono" placeholder="0999999999" inputmode="numeric" pattern="[0-9]{10}" maxlength="10">
       </div>
       <div class="form-row">
         <label for="modal-contacto-correo">Correo</label>
@@ -297,8 +297,8 @@ $today = date('Y-m-d');
         <input id="modal-editar-contacto-cargo" type="text" name="cargo">
       </div>
       <div class="form-row">
-        <label for="modal-editar-contacto-telefono">Teléfono</label>
-        <input id="modal-editar-contacto-telefono" type="text" name="telefono">
+        <label for="modal-editar-contacto-telefono">Celular</label>
+        <input id="modal-editar-contacto-telefono" type="text" name="telefono" inputmode="numeric" pattern="[0-9]{10}" maxlength="10">
       </div>
       <div class="form-row">
         <label for="modal-editar-contacto-correo">Correo</label>

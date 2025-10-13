@@ -49,8 +49,12 @@ final class IncidenciaRepository extends BaseRepository
     private const TIPO_GLOBAL_ID      = 'id';
     private const TIPO_GLOBAL_NOMBRE  = 'nombre';
 
-    /** @var array<string,bool>|null */
+    /** @var array<string,array{nullable:bool}>|null */
     private $incidenciaColumns = null;
+    /** @var array<int,array{id:int,departamento_id:int,nombre:string,global_id:?int}> */
+    private $tipoDepartamentoCache = [];
+    /** @var array<string,int>|null */
+    private $globalTipoMap = null;
 
     /**
      * Obtiene un listado paginado de incidencias según filtros.
@@ -142,6 +146,7 @@ final class IncidenciaRepository extends BaseRepository
                 i.' . self::COL_ASUNTO . ' AS asunto,
                 ' . $tipoFragments['select_nombre'] . ',
                 ' . $tipoFragments['select_id'] . ',
+                ' . $tipoFragments['select_global'] . ',
                 i.' . self::COL_PRIOR . ' AS prioridad,
                 i.' . self::COL_ESTADO . ' AS estado,
                 i.' . self::COL_DESCRIP . ' AS descripcion,
@@ -202,7 +207,7 @@ final class IncidenciaRepository extends BaseRepository
             $table  = $parts[1] ?? $parts[0];
 
             $sql = '
-                SELECT column_name
+                SELECT column_name, is_nullable
                 FROM information_schema.columns
                 WHERE table_schema = :schema
                   AND table_name = :table
@@ -223,13 +228,34 @@ final class IncidenciaRepository extends BaseRepository
                 if (!isset($row['column_name'])) {
                     continue;
                 }
-                $map[strtolower((string)$row['column_name'])] = true;
+                $key = strtolower((string)$row['column_name']);
+                $nullable = true;
+                if (isset($row['is_nullable'])) {
+                    $nullable = strtoupper((string)$row['is_nullable']) === 'YES';
+                }
+                $map[$key] = ['nullable' => $nullable];
             }
 
             $this->incidenciaColumns = $map;
         }
 
         return isset($this->incidenciaColumns[strtolower($column)]);
+    }
+
+    private function incidenciaColumnAllowsNull(string $column): bool
+    {
+        $this->incidenciaHasColumn($column);
+        $key = strtolower($column);
+        if (!isset($this->incidenciaColumns[$key])) {
+            return true;
+        }
+
+        $meta = $this->incidenciaColumns[$key];
+        if (is_array($meta) && array_key_exists('nullable', $meta)) {
+            return (bool)$meta['nullable'];
+        }
+
+        return true;
     }
 
     /**
@@ -245,6 +271,7 @@ final class IncidenciaRepository extends BaseRepository
 
         $selectNombre = "'' AS tipo_incidencia";
         $selectId = 'NULL AS tipo_departamento_id';
+        $selectGlobal = 'NULL AS tipo_global_id';
         $joins = [];
 
         if ($hasTipoDepto) {
@@ -259,6 +286,17 @@ final class IncidenciaRepository extends BaseRepository
                 $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
             }
             $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
+
+            $globalParts = [];
+            if ($hasTipoId) {
+                $globalParts[] = 'i.' . self::COL_TIPO_ID;
+            }
+            $globalParts[] = 'tipo_dep.' . self::TIPO_REF;
+            $globalParts[] = 'tipo_global.' . self::TIPO_GLOBAL_ID;
+            $globalParts = array_filter($globalParts);
+            if (!empty($globalParts)) {
+                $selectGlobal = 'COALESCE(' . implode(', ', $globalParts) . ') AS tipo_global_id';
+            }
         } elseif ($hasTipoId) {
             $selectId = 'i.' . self::COL_TIPO_ID . ' AS tipo_departamento_id';
             $joins[] = 'LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo_dep ON tipo_dep.' . self::TIPO_ID . ' = i.' . self::COL_TIPO_ID;
@@ -271,6 +309,12 @@ final class IncidenciaRepository extends BaseRepository
                 $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
             }
             $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
+
+            $globalParts = ['i.' . self::COL_TIPO_ID, 'tipo_global.' . self::TIPO_GLOBAL_ID];
+            $globalParts = array_filter($globalParts);
+            if (!empty($globalParts)) {
+                $selectGlobal = 'COALESCE(' . implode(', ', $globalParts) . ') AS tipo_global_id';
+            }
         } elseif ($hasNombre) {
             $selectNombre = 'i.' . self::COL_TIPO_NAME . ' AS tipo_incidencia';
         }
@@ -278,6 +322,7 @@ final class IncidenciaRepository extends BaseRepository
         return [
             'select_nombre' => $selectNombre,
             'select_id'     => $selectId,
+            'select_global' => $selectGlobal,
             'joins'         => $joins,
         ];
     }
@@ -304,6 +349,13 @@ final class IncidenciaRepository extends BaseRepository
             ? [$tipoDepartamentoId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
+        $providedGlobalId = isset($data['tipo_incidencia_global_id']) ? (int)$data['tipo_incidencia_global_id'] : 0;
+        $tipoNombre = isset($data['tipo_incidencia']) ? (string)$data['tipo_incidencia'] : '';
+        $tipoGlobalId = $this->resolveTipoGlobalIdFor($tipoDepartamentoId, $providedGlobalId, $tipoNombre);
+        $tipoGlobalParam = $tipoGlobalId !== null && $tipoGlobalId > 0
+            ? [$tipoGlobalId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
+
         $columns = [self::COL_COOP];
         $values  = [':coop'];
         $params  = [
@@ -328,10 +380,12 @@ final class IncidenciaRepository extends BaseRepository
             $columns[] = self::COL_TIPO_DEP;
             $values[]  = ':tipo_departamento';
             $params[':tipo_departamento'] = $tipoDepartamentoParam;
-        } elseif ($hasTipoId) {
+        }
+
+        if ($hasTipoId) {
             $columns[] = self::COL_TIPO_ID;
-            $values[]  = ':tipo_departamento';
-            $params[':tipo_departamento'] = $tipoDepartamentoParam;
+            $values[]  = ':tipo_global';
+            $params[':tipo_global'] = $tipoGlobalParam;
         }
 
         if ($hasTipoNombre) {
@@ -397,6 +451,13 @@ final class IncidenciaRepository extends BaseRepository
             ? [$tipoDepartamentoId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
+        $providedGlobalId = isset($data['tipo_incidencia_global_id']) ? (int)$data['tipo_incidencia_global_id'] : 0;
+        $tipoNombre = isset($data['tipo_incidencia']) ? (string)$data['tipo_incidencia'] : '';
+        $tipoGlobalId = $this->resolveTipoGlobalIdFor($tipoDepartamentoId, $providedGlobalId, $tipoNombre);
+        $tipoGlobalParam = $tipoGlobalId !== null && $tipoGlobalId > 0
+            ? [$tipoGlobalId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
+
         $sets = [
             self::COL_ASUNTO . ' = :asunto',
             self::COL_PRIOR . ' = :prioridad',
@@ -430,9 +491,11 @@ final class IncidenciaRepository extends BaseRepository
         if ($hasTipoDepto) {
             $sets[] = self::COL_TIPO_DEP . ' = :tipo_departamento';
             $params[':tipo_departamento'] = $tipoDepartamentoParam;
-        } elseif ($hasTipoId) {
-            $sets[] = self::COL_TIPO_ID . ' = :tipo_departamento';
-            $params[':tipo_departamento'] = $tipoDepartamentoParam;
+        }
+
+        if ($hasTipoId) {
+            $sets[] = self::COL_TIPO_ID . ' = :tipo_global';
+            $params[':tipo_global'] = $tipoGlobalParam;
         }
 
         $sql = '
@@ -488,6 +551,7 @@ final class IncidenciaRepository extends BaseRepository
                 i.' . self::COL_ASUNTO . ' AS asunto,
                 ' . $tipoFragments['select_nombre'] . ',
                 ' . $tipoFragments['select_id'] . ',
+                ' . $tipoFragments['select_global'] . ',
                 i.' . self::COL_PRIOR . ' AS prioridad,
                 i.' . self::COL_ESTADO . ' AS estado,
                 i.' . self::COL_DESCRIP . ' AS descripcion,
@@ -607,7 +671,8 @@ final class IncidenciaRepository extends BaseRepository
             SELECT
                 ' . self::TIPO_ID . ' AS id,
                 ' . self::TIPO_DEPTO . ' AS departamento_id,
-                ' . self::TIPO_NOMBRE . ' AS nombre
+                ' . self::TIPO_NOMBRE . ' AS nombre,
+                ' . self::TIPO_REF . ' AS referencia_id
             FROM ' . self::T_TIPOS_DEP . '
             ORDER BY ' . self::TIPO_DEPTO . ', ' . self::TIPO_ORDEN . ', ' . self::TIPO_NOMBRE . '
         ';
@@ -620,18 +685,15 @@ final class IncidenciaRepository extends BaseRepository
 
         $map = [];
         foreach ($rows as $row) {
-            if (!isset($row['id'], $row['departamento_id'], $row['nombre'])) {
+            $tipo = $this->normalizeTipoRow($row);
+            if ($tipo === null) {
                 continue;
             }
-            $deptId = (int)$row['departamento_id'];
+            $deptId = $tipo['departamento_id'];
             if (!isset($map[$deptId])) {
                 $map[$deptId] = [];
             }
-            $map[$deptId][] = [
-                'id'              => (int)$row['id'],
-                'departamento_id' => $deptId,
-                'nombre'          => (string)$row['nombre'],
-            ];
+            $map[$deptId][] = $tipo;
         }
 
         return $map;
@@ -650,7 +712,8 @@ final class IncidenciaRepository extends BaseRepository
             SELECT
                 ' . self::TIPO_ID . ' AS id,
                 ' . self::TIPO_DEPTO . ' AS departamento_id,
-                ' . self::TIPO_NOMBRE . ' AS nombre
+                ' . self::TIPO_NOMBRE . ' AS nombre,
+                ' . self::TIPO_REF . ' AS referencia_id
             FROM ' . self::T_TIPOS_DEP . '
             WHERE ' . self::TIPO_ID . ' = :id
         ';
@@ -661,15 +724,11 @@ final class IncidenciaRepository extends BaseRepository
             throw new RuntimeException('No se pudo obtener el tipo de incidencia solicitado.', 0, $e);
         }
 
-        if (!$row || !isset($row['id'], $row['departamento_id'], $row['nombre'])) {
+        if (!$row) {
             return null;
         }
 
-        return [
-            'id'              => (int)$row['id'],
-            'departamento_id' => (int)$row['departamento_id'],
-            'nombre'          => (string)$row['nombre'],
-        ];
+        return $this->normalizeTipoRow($row);
     }
 
     /**
@@ -685,7 +744,8 @@ final class IncidenciaRepository extends BaseRepository
             SELECT
                 ' . self::TIPO_ID . ' AS id,
                 ' . self::TIPO_DEPTO . ' AS departamento_id,
-                ' . self::TIPO_NOMBRE . ' AS nombre
+                ' . self::TIPO_NOMBRE . ' AS nombre,
+                ' . self::TIPO_REF . ' AS referencia_id
             FROM ' . self::T_TIPOS_DEP . '
             WHERE ' . self::TIPO_DEPTO . ' = :departamento
             ORDER BY ' . self::TIPO_ORDEN . ', ' . self::TIPO_NOMBRE . '
@@ -698,15 +758,137 @@ final class IncidenciaRepository extends BaseRepository
             throw new RuntimeException('No se pudo obtener el tipo de incidencia por departamento.', 0, $e);
         }
 
-        if (!$row || !isset($row['id'], $row['departamento_id'], $row['nombre'])) {
+        if (!$row) {
             return null;
         }
 
-        return [
-            'id'              => (int)$row['id'],
-            'departamento_id' => (int)$row['departamento_id'],
-            'nombre'          => (string)$row['nombre'],
+        return $this->normalizeTipoRow($row);
+    }
+
+    /**
+     * Normaliza un registro de tipo departamental y lo almacena en caché.
+     *
+     * @param array<string,mixed> $row
+     * @return array{id:int,departamento_id:int,nombre:string,global_id:?int}|null
+     */
+    private function normalizeTipoRow(array $row): ?array
+    {
+        if (!isset($row['id'], $row['departamento_id'], $row['nombre'])) {
+            return null;
+        }
+
+        $id = (int)$row['id'];
+        $departamentoId = (int)$row['departamento_id'];
+        $nombre = (string)$row['nombre'];
+        $referencia = isset($row['referencia_id']) ? (int)$row['referencia_id'] : 0;
+
+        $globalId = null;
+        if ($referencia > 0) {
+            $globalId = $referencia;
+        } else {
+            $globalId = $this->lookupTipoGlobalIdByNombre($nombre);
+        }
+
+        $tipo = [
+            'id'              => $id,
+            'departamento_id' => $departamentoId,
+            'nombre'          => $nombre,
+            'global_id'       => $globalId && $globalId > 0 ? $globalId : null,
         ];
+
+        $this->tipoDepartamentoCache[$id] = $tipo;
+
+        return $tipo;
+    }
+
+    private function normalizeNombreClave(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        return function_exists('mb_strtolower')
+            ? mb_strtolower($value, 'UTF-8')
+            : strtolower($value);
+    }
+
+    /**
+     * @return array<string,int>
+     */
+    private function tiposGlobalesMap(): array
+    {
+        if ($this->globalTipoMap !== null) {
+            return $this->globalTipoMap;
+        }
+
+        $sql = '
+            SELECT ' . self::TIPO_GLOBAL_ID . ' AS id, ' . self::TIPO_GLOBAL_NOMBRE . ' AS nombre
+            FROM ' . self::T_TIPOS_GLOBAL . '
+        ';
+
+        try {
+            $rows = $this->db->fetchAll($sql);
+        } catch (\Throwable $e) {
+            $this->globalTipoMap = [];
+            return $this->globalTipoMap;
+        }
+
+        $map = [];
+        foreach ($rows as $row) {
+            if (!isset($row['id'], $row['nombre'])) {
+                continue;
+            }
+            $key = $this->normalizeNombreClave((string)$row['nombre']);
+            if ($key === '') {
+                continue;
+            }
+            $map[$key] = (int)$row['id'];
+        }
+
+        $this->globalTipoMap = $map;
+
+        return $this->globalTipoMap;
+    }
+
+    private function lookupTipoGlobalIdByNombre(string $nombre): ?int
+    {
+        $key = $this->normalizeNombreClave($nombre);
+        if ($key === '') {
+            return null;
+        }
+
+        $map = $this->tiposGlobalesMap();
+
+        return isset($map[$key]) ? (int)$map[$key] : null;
+    }
+
+    private function resolveTipoGlobalIdFor(int $tipoDepartamentoId, int $providedGlobalId, string $nombre): ?int
+    {
+        if ($providedGlobalId > 0) {
+            return $providedGlobalId;
+        }
+
+        $tipo = null;
+        if ($tipoDepartamentoId > 0) {
+            if (isset($this->tipoDepartamentoCache[$tipoDepartamentoId])) {
+                $tipo = $this->tipoDepartamentoCache[$tipoDepartamentoId];
+            } else {
+                $tipo = $this->findTipoPorId($tipoDepartamentoId);
+            }
+        }
+
+        if (is_array($tipo)) {
+            if (!empty($tipo['global_id'])) {
+                return (int)$tipo['global_id'];
+            }
+            if ($nombre === '') {
+                $nombre = (string)($tipo['nombre'] ?? '');
+            }
+        }
+
+        $global = $this->lookupTipoGlobalIdByNombre($nombre);
+        return $global !== null && $global > 0 ? $global : null;
     }
 
     /**

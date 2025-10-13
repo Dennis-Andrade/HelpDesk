@@ -57,8 +57,8 @@ $fechaEvento  = $contacto['fecha_evento'] ?? date('Y-m-d');
         <input id="contacto-cargo" type="text" name="cargo" value="<?= h($cargo) ?>">
       </div>
       <div class="form-row">
-        <label for="contacto-telefono">Teléfono</label>
-        <input id="contacto-telefono" type="text" name="telefono" value="<?= h($telefono) ?>">
+        <label for="contacto-telefono">Celular</label>
+        <input id="contacto-telefono" type="text" name="telefono" value="<?= h($telefono) ?>" inputmode="numeric" pattern="[0-9]{10}" maxlength="10">
       </div>
       <div class="form-row">
         <label for="contacto-correo">Correo</label>
