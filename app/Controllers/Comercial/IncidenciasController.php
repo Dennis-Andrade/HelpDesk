@@ -27,7 +27,7 @@ final class IncidenciasController
 
         view('comercial/incidencias/index', [
             'layout'       => 'layout',
-            'title'        => 'Incidencias para sistemas',
+            'title'        => 'Incidencias',
             'items'        => $result['items'],
             'total'        => $result['total'],
             'page'         => $result['page'],

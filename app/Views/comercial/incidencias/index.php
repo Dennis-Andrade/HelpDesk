@@ -72,7 +72,7 @@ function buildPageUrlIncidencias(int $pageNumber, array $filters, int $perPage):
 <section class="ent-list ent-incidencias" aria-labelledby="incidencias-title">
   <header class="ent-toolbar">
     <div class="ent-toolbar__lead">
-      <h1 id="incidencias-title" class="ent-title">Incidencias para sistemas</h1>
+      <h1 id="incidencias-title" class="ent-title">Incidencias</h1>
       <p class="ent-toolbar__caption" aria-live="polite">
         <?= h((string)$total) ?> incidencias · Página <?= h((string)$page) ?> de <?= h((string)$pages) ?>
       </p>

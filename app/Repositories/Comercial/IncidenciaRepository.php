@@ -253,11 +253,11 @@ final class IncidenciaRepository extends BaseRepository
             $joins[] = 'LEFT JOIN ' . self::T_TIPOS_GLOBAL . ' tipo_global ON tipo_global.' . self::TIPO_GLOBAL_ID . ' = tipo_dep.' . self::TIPO_REF;
 
             $nombreExprParts = [];
+            $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
+            $nombreExprParts[] = 'tipo_global.' . self::TIPO_GLOBAL_NOMBRE;
             if ($hasNombre) {
                 $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
             }
-            $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
-            $nombreExprParts[] = 'tipo_global.' . self::TIPO_GLOBAL_NOMBRE;
             $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
         } elseif ($hasTipoId) {
             $selectId = 'i.' . self::COL_TIPO_ID . ' AS tipo_departamento_id';
@@ -265,11 +265,11 @@ final class IncidenciaRepository extends BaseRepository
             $joins[] = 'LEFT JOIN ' . self::T_TIPOS_GLOBAL . ' tipo_global ON tipo_global.' . self::TIPO_GLOBAL_ID . ' = i.' . self::COL_TIPO_ID;
 
             $nombreExprParts = [];
+            $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
+            $nombreExprParts[] = 'tipo_global.' . self::TIPO_GLOBAL_NOMBRE;
             if ($hasNombre) {
                 $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
             }
-            $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
-            $nombreExprParts[] = 'tipo_global.' . self::TIPO_GLOBAL_NOMBRE;
             $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
         } elseif ($hasNombre) {
             $selectNombre = 'i.' . self::COL_TIPO_NAME . ' AS tipo_incidencia';
