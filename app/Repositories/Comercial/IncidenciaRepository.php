@@ -344,10 +344,15 @@ final class IncidenciaRepository extends BaseRepository
             ? [$departamentoId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
+        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
+        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
+
         $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
-        $tipoDepartamentoParam = $tipoDepartamentoId > 0
-            ? [$tipoDepartamentoId, PDO::PARAM_INT]
-            : [null, PDO::PARAM_NULL];
+        if ($hasTipoDepto || $hasTipoId) {
+            $tipoDepartamentoId = $this->resolveTipoDepartamentoId($tipoDepartamentoId, $departamentoId);
+        }
+        $tipoDepartamentoParam = [$tipoDepartamentoId, PDO::PARAM_INT];
 
         $providedGlobalId = isset($data['tipo_incidencia_global_id']) ? (int)$data['tipo_incidencia_global_id'] : 0;
         $tipoNombre = isset($data['tipo_incidencia']) ? (string)$data['tipo_incidencia'] : '';
@@ -371,10 +376,6 @@ final class IncidenciaRepository extends BaseRepository
         $columns[] = self::COL_ASUNTO;
         $values[]  = ':asunto';
         $params[':asunto'] = [$data['asunto'] ?? '', PDO::PARAM_STR];
-
-        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
-        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
-        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
         if ($hasTipoDepto) {
             $columns[] = self::COL_TIPO_DEP;
@@ -446,10 +447,15 @@ final class IncidenciaRepository extends BaseRepository
             ? [$departamentoId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
+        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
+        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
+
         $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
-        $tipoDepartamentoParam = $tipoDepartamentoId > 0
-            ? [$tipoDepartamentoId, PDO::PARAM_INT]
-            : [null, PDO::PARAM_NULL];
+        if ($hasTipoDepto || $hasTipoId) {
+            $tipoDepartamentoId = $this->resolveTipoDepartamentoId($tipoDepartamentoId, $departamentoId);
+        }
+        $tipoDepartamentoParam = [$tipoDepartamentoId, PDO::PARAM_INT];
 
         $providedGlobalId = isset($data['tipo_incidencia_global_id']) ? (int)$data['tipo_incidencia_global_id'] : 0;
         $tipoNombre = isset($data['tipo_incidencia']) ? (string)$data['tipo_incidencia'] : '';
@@ -473,10 +479,6 @@ final class IncidenciaRepository extends BaseRepository
             ':estado'      => [$data['estado'] ?? 'Enviado', PDO::PARAM_STR],
             ':descripcion' => $descripcionParam,
         ];
-
-        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
-        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
-        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
         if ($hasTipoNombre) {
             $sets[] = self::COL_TIPO_NAME . ' = :tipo_nombre';
@@ -766,6 +768,35 @@ final class IncidenciaRepository extends BaseRepository
     }
 
     /**
+     * Devuelve el primer tipo disponible sin importar el departamento.
+     */
+    private function findPrimerTipoDisponible(): ?array
+    {
+        $sql = '
+            SELECT
+                ' . self::TIPO_ID . ' AS id,
+                ' . self::TIPO_DEPTO . ' AS departamento_id,
+                ' . self::TIPO_NOMBRE . ' AS nombre,
+                ' . self::TIPO_REF . ' AS referencia_id
+            FROM ' . self::T_TIPOS_DEP . '
+            ORDER BY ' . self::TIPO_ORDEN . ', ' . self::TIPO_NOMBRE . '
+            LIMIT 1
+        ';
+
+        try {
+            $row = $this->db->fetch($sql);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener un tipo de incidencia por defecto.', 0, $e);
+        }
+
+        if (!$row) {
+            return null;
+        }
+
+        return $this->normalizeTipoRow($row);
+    }
+
+    /**
      * Normaliza un registro de tipo departamental y lo almacena en caché.
      *
      * @param array<string,mixed> $row
@@ -889,6 +920,28 @@ final class IncidenciaRepository extends BaseRepository
 
         $global = $this->lookupTipoGlobalIdByNombre($nombre);
         return $global !== null && $global > 0 ? $global : null;
+    }
+
+    private function resolveTipoDepartamentoId(int $tipoDepartamentoId, int $departamentoId): int
+    {
+        if ($tipoDepartamentoId > 0) {
+            return $tipoDepartamentoId;
+        }
+
+        $tipo = null;
+        if ($departamentoId > 0) {
+            $tipo = $this->findPrimerTipoPorDepartamento($departamentoId);
+        }
+
+        if ($tipo === null) {
+            $tipo = $this->findPrimerTipoDisponible();
+        }
+
+        if (!is_array($tipo) || empty($tipo['id'])) {
+            throw new RuntimeException('No hay tipos de incidencias configurados.');
+        }
+
+        return (int)$tipo['id'];
     }
 
     /**
