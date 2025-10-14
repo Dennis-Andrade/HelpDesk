@@ -13,7 +13,7 @@ $action       = '/comercial/eventos';
 $defaultFecha = isset($defaultFecha) && $defaultFecha !== '' ? (string)$defaultFecha : date('Y-m-d');
 $defaultTipo  = isset($defaultTipo) && $defaultTipo !== '' ? (string)$defaultTipo : 'Seguimiento';
 
-include __DIR__ . '/../partials/breadcrumbs.php';
+include __DIR__ . '/../../partials/breadcrumbs.php';
 ?>
 
 <section class="card ent-container">
