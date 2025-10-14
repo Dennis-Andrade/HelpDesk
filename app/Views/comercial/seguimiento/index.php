@@ -116,6 +116,10 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         <input id="seguimiento-q" type="text" name="q" value="<?= seguimiento_h($qFiltro) ?>" placeholder="Buscar en las notas">
       </div>
       <div class="seguimiento-filters__actions">
+        <a class="btn btn-secondary" href="/comercial/eventos/crear">
+          <span class="material-symbols-outlined" aria-hidden="true">add</span>
+          Nuevo
+        </a>
         <button type="submit" class="btn btn-primary">
           <span class="material-symbols-outlined" aria-hidden="true">search</span>
           Buscar
@@ -123,49 +127,6 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         <button type="button" class="btn btn-outline" data-action="seguimiento-reset">
           <span class="material-symbols-outlined" aria-hidden="true">undo</span>
           Limpiar
-        </button>
-      </div>
-    </form>
-  </section>
-
-  <section class="seguimiento-card seguimiento-card--form" aria-label="Registrar actividad del día">
-    <form class="seguimiento-form" method="post" action="/comercial/eventos">
-      <div class="seguimiento-form__field">
-        <label for="nuevo-fecha">Fecha de actividad</label>
-        <input id="nuevo-fecha" type="date" name="fecha" value="<?= seguimiento_h($fechaForm) ?>" required>
-      </div>
-      <div class="seguimiento-form__field">
-        <label for="nuevo-coop">Cooperativa</label>
-        <select id="nuevo-coop" name="id_cooperativa" required>
-          <option value="">Seleccione</option>
-          <?php foreach ($cooperativas as $coop): ?>
-            <?php $value = isset($coop['id']) ? (string)$coop['id'] : ''; ?>
-            <option value="<?= seguimiento_h($value) ?>"><?= seguimiento_h($coop['nombre'] ?? '') ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="seguimiento-form__field">
-        <label for="nuevo-tipo">Tipo de gestión</label>
-        <select id="nuevo-tipo" name="tipo">
-          <option value="">Seguimiento</option>
-          <?php foreach ($tipos as $tipo): ?>
-            <?php $tipoNombre = (string)$tipo; ?>
-            <option value="<?= seguimiento_h($tipoNombre) ?>"><?= seguimiento_h($tipoNombre) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="seguimiento-form__field seguimiento-form__field--wide">
-        <label for="nuevo-descripcion">Descripción</label>
-        <textarea id="nuevo-descripcion" name="descripcion" rows="3" maxlength="600" required placeholder="Detalle del contacto o soporte realizado"></textarea>
-      </div>
-      <div class="seguimiento-form__field">
-        <label for="nuevo-ticket">Ticket relacionado</label>
-        <input id="nuevo-ticket" type="text" name="ticket" placeholder="Opcional">
-      </div>
-      <div class="seguimiento-form__actions">
-        <button type="submit" class="btn btn-primary">
-          <span class="material-symbols-outlined" aria-hidden="true">save</span>
-          Guardar
         </button>
       </div>
     </form>
