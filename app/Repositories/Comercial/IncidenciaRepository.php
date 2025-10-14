@@ -18,7 +18,6 @@ final class IncidenciaRepository extends BaseRepository
     private const COL_DESCRIP  = 'descripcion';
     private const COL_PRIOR    = 'prioridad';
     private const COL_ESTADO   = 'estado';
-    private const COL_TIPO_NAME = 'tipo_incidencia';
     private const COL_TIPO_ID   = 'tipo_incidencia_id';
     private const COL_TIPO_DEP  = 'tipo_incidencia_departamento_id';
     private const COL_TICKET   = 'id_ticket';
@@ -259,45 +258,27 @@ final class IncidenciaRepository extends BaseRepository
     /**
      * Determina las expresiones y joins necesarios para obtener el tipo de incidencia.
      *
-     * @return array{select_nombre:string,select_id:string,joins:array<int,string>}
+     * @return array{select_nombre:string,select_id:string,select_global:string,joins:array<int,string>}
      */
     private function tipoSelectFragments(): array
     {
-        $hasNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
         $hasTipoDepto = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
         $hasTipoId = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
-        $selectNombre = "'' AS tipo_incidencia";
-        $selectId = 'NULL AS tipo_departamento_id';
-        $selectGlobal = 'NULL AS tipo_global_id';
+        $selectId = 'i.' . self::COL_TIPO_ID . ' AS tipo_departamento_id';
+        $selectNombre = "COALESCE(tipo_dep." . self::TIPO_NOMBRE . ", 'Sin tipo') AS tipo_incidencia";
+        $selectGlobal = 'tipo_dep.' . self::TIPO_REF . ' AS tipo_global_id';
         $joins = [];
 
         if ($hasTipoDepto) {
             $selectId = 'i.' . self::COL_TIPO_DEP . ' AS tipo_departamento_id';
             $joins[] = 'LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo_dep ON tipo_dep.' . self::TIPO_ID . ' = i.' . self::COL_TIPO_DEP;
-
-            $nombreExprParts = [];
-            $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
-            if ($hasNombre) {
-                $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
-            }
-            $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
-
-            $selectGlobal = 'tipo_dep.' . self::TIPO_REF . ' AS tipo_global_id';
         } elseif ($hasTipoId) {
-            $selectId = 'i.' . self::COL_TIPO_ID . ' AS tipo_departamento_id';
             $joins[] = 'LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo_dep ON tipo_dep.' . self::TIPO_ID . ' = i.' . self::COL_TIPO_ID;
-
-            $nombreExprParts = [];
-            $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
-            if ($hasNombre) {
-                $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
-            }
-            $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
-
-            $selectGlobal = 'tipo_dep.' . self::TIPO_REF . ' AS tipo_global_id';
-        } elseif ($hasNombre) {
-            $selectNombre = 'i.' . self::COL_TIPO_NAME . ' AS tipo_incidencia';
+        } else {
+            $selectNombre = "'Sin tipo' AS tipo_incidencia";
+            $selectId = 'NULL AS tipo_departamento_id';
+            $selectGlobal = 'NULL AS tipo_global_id';
         }
 
         return [
@@ -325,7 +306,6 @@ final class IncidenciaRepository extends BaseRepository
             ? [$departamentoId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
-        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
         $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
         $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
@@ -359,12 +339,6 @@ final class IncidenciaRepository extends BaseRepository
             $columns[] = self::COL_TIPO_DEP;
             $values[]  = ':tipo_incidencia_id';
             $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
-        }
-
-        if ($hasTipoNombre) {
-            $columns[] = self::COL_TIPO_NAME;
-            $values[]  = ':tipo_nombre';
-            $params[':tipo_nombre'] = [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR];
         }
 
         $columns[] = self::COL_DESCRIP;
@@ -419,7 +393,6 @@ final class IncidenciaRepository extends BaseRepository
             ? [$departamentoId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
-        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
         $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
         $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
@@ -444,11 +417,6 @@ final class IncidenciaRepository extends BaseRepository
             ':estado'      => [$data['estado'] ?? 'Enviado', PDO::PARAM_STR],
             ':descripcion' => $descripcionParam,
         ];
-
-        if ($hasTipoNombre) {
-            $sets[] = self::COL_TIPO_NAME . ' = :tipo_nombre';
-            $params[':tipo_nombre'] = [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR];
-        }
 
         if ($this->incidenciaHasColumn(self::COL_DEPTO)) {
             $sets[] = self::COL_DEPTO . ' = :departamento';
@@ -819,28 +787,6 @@ final class IncidenciaRepository extends BaseRepository
         $this->tipoDepartamentoCache[$id] = $tipo;
 
         return $tipo;
-    }
-
-    private function resolveTipoDepartamentoId(int $tipoDepartamentoId, int $departamentoId): int
-    {
-        if ($tipoDepartamentoId > 0) {
-            return $tipoDepartamentoId;
-        }
-
-        $tipo = null;
-        if ($departamentoId > 0) {
-            $tipo = $this->findPrimerTipoPorDepartamento($departamentoId);
-        }
-
-        if ($tipo === null) {
-            $tipo = $this->findPrimerTipoDisponible();
-        }
-
-        if (is_array($tipo) && !empty($tipo['id'])) {
-            return (int)$tipo['id'];
-        }
-
-        throw new RuntimeException('No existen tipos de incidencias configurados.');
     }
 
     private function resolveTipoDepartamentoId(int $tipoDepartamentoId, int $departamentoId): int
