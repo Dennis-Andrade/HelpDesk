@@ -497,8 +497,11 @@ final class IncidenciaRepository extends BaseRepository
         }
 
         if ($hasTipoId) {
-            $sets[] = self::COL_TIPO_ID . ' = :tipo_global';
-            $params[':tipo_global'] = $tipoGlobalParam;
+            $sets[] = self::COL_TIPO_ID . ' = :tipo_incidencia_id';
+            $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
+        } elseif ($hasTipoDepto) {
+            $sets[] = self::COL_TIPO_DEP . ' = :tipo_incidencia_id';
+            $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
         }
 
         if ($hasTipoDepto) {
