@@ -2,6 +2,7 @@
 namespace App\Controllers\Comercial;
 
 use App\Repositories\Comercial\SeguimientoRepository;
+use App\Services\Shared\Breadcrumbs;
 use App\Services\Shared\Pagination;
 use function \redirect;
 use function \view;
@@ -37,6 +38,25 @@ final class SeguimientoController
             'filters'      => $filters,
             'cooperativas' => $this->repo->listadoCooperativas(),
             'tipos'        => $this->repo->catalogoTipos(),
+        ]);
+    }
+
+    public function createForm(): void
+    {
+        $crumbs = Breadcrumbs::make([
+            ['href' => '/comercial', 'label' => 'Comercial'],
+            ['href' => '/comercial/eventos', 'label' => 'Seguimiento diario'],
+            ['label' => 'Nuevo seguimiento'],
+        ]);
+
+        view('comercial/seguimiento/create', [
+            'layout'        => 'layout',
+            'title'         => 'Nuevo seguimiento',
+            'crumbs'        => $crumbs,
+            'cooperativas'  => $this->repo->listadoCooperativas(),
+            'tipos'         => $this->repo->catalogoTipos(),
+            'defaultFecha'  => date('Y-m-d'),
+            'defaultTipo'   => 'Seguimiento',
         ]);
     }
 

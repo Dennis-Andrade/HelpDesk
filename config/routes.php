@@ -104,6 +104,11 @@ $router->get(
     [SeguimientoController::class, 'index'],
     ['middleware'=>['auth','role:comercial']]
 );
+$router->get(
+    '/comercial/eventos/crear',
+    [SeguimientoController::class, 'createForm'],
+    ['middleware'=>['auth','role:comercial']]
+);
 $router->post(
     '/comercial/eventos',
     [SeguimientoController::class, 'store'],
