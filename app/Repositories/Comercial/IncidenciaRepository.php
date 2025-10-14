@@ -53,8 +53,6 @@ final class IncidenciaRepository extends BaseRepository
     private $incidenciaColumns = null;
     /** @var array<int,array{id:int,departamento_id:int,nombre:string,global_id:?int}> */
     private $tipoDepartamentoCache = [];
-    /** @var array<string,int>|null */
-    private $globalTipoMap = null;
 
     /**
      * Obtiene un listado paginado de incidencias según filtros.
@@ -277,44 +275,27 @@ final class IncidenciaRepository extends BaseRepository
         if ($hasTipoDepto) {
             $selectId = 'i.' . self::COL_TIPO_DEP . ' AS tipo_departamento_id';
             $joins[] = 'LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo_dep ON tipo_dep.' . self::TIPO_ID . ' = i.' . self::COL_TIPO_DEP;
-            $joins[] = 'LEFT JOIN ' . self::T_TIPOS_GLOBAL . ' tipo_global ON tipo_global.' . self::TIPO_GLOBAL_ID . ' = tipo_dep.' . self::TIPO_REF;
 
             $nombreExprParts = [];
             $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
-            $nombreExprParts[] = 'tipo_global.' . self::TIPO_GLOBAL_NOMBRE;
             if ($hasNombre) {
                 $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
             }
             $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
 
-            $globalParts = [];
-            if ($hasTipoId) {
-                $globalParts[] = 'i.' . self::COL_TIPO_ID;
-            }
-            $globalParts[] = 'tipo_dep.' . self::TIPO_REF;
-            $globalParts[] = 'tipo_global.' . self::TIPO_GLOBAL_ID;
-            $globalParts = array_filter($globalParts);
-            if (!empty($globalParts)) {
-                $selectGlobal = 'COALESCE(' . implode(', ', $globalParts) . ') AS tipo_global_id';
-            }
+            $selectGlobal = 'tipo_dep.' . self::TIPO_REF . ' AS tipo_global_id';
         } elseif ($hasTipoId) {
             $selectId = 'i.' . self::COL_TIPO_ID . ' AS tipo_departamento_id';
             $joins[] = 'LEFT JOIN ' . self::T_TIPOS_DEP . ' tipo_dep ON tipo_dep.' . self::TIPO_ID . ' = i.' . self::COL_TIPO_ID;
-            $joins[] = 'LEFT JOIN ' . self::T_TIPOS_GLOBAL . ' tipo_global ON tipo_global.' . self::TIPO_GLOBAL_ID . ' = i.' . self::COL_TIPO_ID;
 
             $nombreExprParts = [];
             $nombreExprParts[] = 'tipo_dep.' . self::TIPO_NOMBRE;
-            $nombreExprParts[] = 'tipo_global.' . self::TIPO_GLOBAL_NOMBRE;
             if ($hasNombre) {
                 $nombreExprParts[] = 'i.' . self::COL_TIPO_NAME;
             }
             $selectNombre = 'COALESCE(' . implode(', ', $nombreExprParts) . ') AS tipo_incidencia';
 
-            $globalParts = ['i.' . self::COL_TIPO_ID, 'tipo_global.' . self::TIPO_GLOBAL_ID];
-            $globalParts = array_filter($globalParts);
-            if (!empty($globalParts)) {
-                $selectGlobal = 'COALESCE(' . implode(', ', $globalParts) . ') AS tipo_global_id';
-            }
+            $selectGlobal = 'tipo_dep.' . self::TIPO_REF . ' AS tipo_global_id';
         } elseif ($hasNombre) {
             $selectNombre = 'i.' . self::COL_TIPO_NAME . ' AS tipo_incidencia';
         }
@@ -344,17 +325,15 @@ final class IncidenciaRepository extends BaseRepository
             ? [$departamentoId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
-        $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
-        $tipoDepartamentoParam = $tipoDepartamentoId > 0
-            ? [$tipoDepartamentoId, PDO::PARAM_INT]
-            : [null, PDO::PARAM_NULL];
+        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
+        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
-        $providedGlobalId = isset($data['tipo_incidencia_global_id']) ? (int)$data['tipo_incidencia_global_id'] : 0;
-        $tipoNombre = isset($data['tipo_incidencia']) ? (string)$data['tipo_incidencia'] : '';
-        $tipoGlobalId = $this->resolveTipoGlobalIdFor($tipoDepartamentoId, $providedGlobalId, $tipoNombre);
-        $tipoGlobalParam = $tipoGlobalId !== null && $tipoGlobalId > 0
-            ? [$tipoGlobalId, PDO::PARAM_INT]
-            : [null, PDO::PARAM_NULL];
+        $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
+        if ($hasTipoDepto || $hasTipoId) {
+            $tipoDepartamentoId = $this->resolveTipoDepartamentoId($tipoDepartamentoId, $departamentoId);
+        }
+        $tipoDepartamentoParam = [$tipoDepartamentoId, PDO::PARAM_INT];
 
         $columns = [self::COL_COOP];
         $values  = [':coop'];
@@ -372,20 +351,14 @@ final class IncidenciaRepository extends BaseRepository
         $values[]  = ':asunto';
         $params[':asunto'] = [$data['asunto'] ?? '', PDO::PARAM_STR];
 
-        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
-        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
-        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
-
-        if ($hasTipoDepto) {
-            $columns[] = self::COL_TIPO_DEP;
-            $values[]  = ':tipo_departamento';
-            $params[':tipo_departamento'] = $tipoDepartamentoParam;
-        }
-
         if ($hasTipoId) {
             $columns[] = self::COL_TIPO_ID;
-            $values[]  = ':tipo_global';
-            $params[':tipo_global'] = $tipoGlobalParam;
+            $values[]  = ':tipo_incidencia_id';
+            $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
+        } elseif ($hasTipoDepto) {
+            $columns[] = self::COL_TIPO_DEP;
+            $values[]  = ':tipo_incidencia_id';
+            $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
         }
 
         if ($hasTipoNombre) {
@@ -446,17 +419,15 @@ final class IncidenciaRepository extends BaseRepository
             ? [$departamentoId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
-        $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
-        $tipoDepartamentoParam = $tipoDepartamentoId > 0
-            ? [$tipoDepartamentoId, PDO::PARAM_INT]
-            : [null, PDO::PARAM_NULL];
+        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
+        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
-        $providedGlobalId = isset($data['tipo_incidencia_global_id']) ? (int)$data['tipo_incidencia_global_id'] : 0;
-        $tipoNombre = isset($data['tipo_incidencia']) ? (string)$data['tipo_incidencia'] : '';
-        $tipoGlobalId = $this->resolveTipoGlobalIdFor($tipoDepartamentoId, $providedGlobalId, $tipoNombre);
-        $tipoGlobalParam = $tipoGlobalId !== null && $tipoGlobalId > 0
-            ? [$tipoGlobalId, PDO::PARAM_INT]
-            : [null, PDO::PARAM_NULL];
+        $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
+        if ($hasTipoDepto || $hasTipoId) {
+            $tipoDepartamentoId = $this->resolveTipoDepartamentoId($tipoDepartamentoId, $departamentoId);
+        }
+        $tipoDepartamentoParam = [$tipoDepartamentoId, PDO::PARAM_INT];
 
         $sets = [
             self::COL_ASUNTO . ' = :asunto',
@@ -474,10 +445,6 @@ final class IncidenciaRepository extends BaseRepository
             ':descripcion' => $descripcionParam,
         ];
 
-        $hasTipoNombre = $this->incidenciaHasColumn(self::COL_TIPO_NAME);
-        $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
-        $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
-
         if ($hasTipoNombre) {
             $sets[] = self::COL_TIPO_NAME . ' = :tipo_nombre';
             $params[':tipo_nombre'] = [$data['tipo_incidencia'] ?? '', PDO::PARAM_STR];
@@ -488,14 +455,12 @@ final class IncidenciaRepository extends BaseRepository
             $params[':departamento'] = $departamentoParam;
         }
 
-        if ($hasTipoDepto) {
-            $sets[] = self::COL_TIPO_DEP . ' = :tipo_departamento';
-            $params[':tipo_departamento'] = $tipoDepartamentoParam;
-        }
-
         if ($hasTipoId) {
-            $sets[] = self::COL_TIPO_ID . ' = :tipo_global';
-            $params[':tipo_global'] = $tipoGlobalParam;
+            $sets[] = self::COL_TIPO_ID . ' = :tipo_incidencia_id';
+            $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
+        } elseif ($hasTipoDepto) {
+            $sets[] = self::COL_TIPO_DEP . ' = :tipo_incidencia_id';
+            $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
         }
 
         $sql = '
@@ -661,6 +626,39 @@ final class IncidenciaRepository extends BaseRepository
     }
 
     /**
+     * Catálogo de tipos globales disponibles.
+     *
+     * @return array<int,array{id:int,nombre:string}>
+     */
+    public function catalogoTiposGlobales(): array
+    {
+        $sql = '
+            SELECT ' . self::TIPO_GLOBAL_ID . ' AS id, ' . self::TIPO_GLOBAL_NOMBRE . ' AS nombre
+            FROM ' . self::T_TIPOS_GLOBAL . '
+            ORDER BY ' . self::TIPO_GLOBAL_NOMBRE . '
+        ';
+
+        try {
+            $rows = $this->db->fetchAll($sql);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener el catálogo de tipos globales.', 0, $e);
+        }
+
+        $items = [];
+        foreach ($rows as $row) {
+            if (!isset($row['id'], $row['nombre'])) {
+                continue;
+            }
+            $items[] = [
+                'id'     => (int)$row['id'],
+                'nombre' => (string)$row['nombre'],
+            ];
+        }
+
+        return $items;
+    }
+
+    /**
      * Catálogo de tipos por departamento.
      *
      * @return array<int,array<int,array{id:int,departamento_id:int,nombre:string}>>
@@ -766,6 +764,35 @@ final class IncidenciaRepository extends BaseRepository
     }
 
     /**
+     * Devuelve el primer tipo disponible sin importar el departamento.
+     */
+    private function findPrimerTipoDisponible(): ?array
+    {
+        $sql = '
+            SELECT
+                ' . self::TIPO_ID . ' AS id,
+                ' . self::TIPO_DEPTO . ' AS departamento_id,
+                ' . self::TIPO_NOMBRE . ' AS nombre,
+                ' . self::TIPO_REF . ' AS referencia_id
+            FROM ' . self::T_TIPOS_DEP . '
+            ORDER BY ' . self::TIPO_ORDEN . ', ' . self::TIPO_NOMBRE . '
+            LIMIT 1
+        ';
+
+        try {
+            $row = $this->db->fetch($sql);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener un tipo de incidencia por defecto.', 0, $e);
+        }
+
+        if (!$row) {
+            return null;
+        }
+
+        return $this->normalizeTipoRow($row);
+    }
+
+    /**
      * Normaliza un registro de tipo departamental y lo almacena en caché.
      *
      * @param array<string,mixed> $row
@@ -782,18 +809,11 @@ final class IncidenciaRepository extends BaseRepository
         $nombre = (string)$row['nombre'];
         $referencia = isset($row['referencia_id']) ? (int)$row['referencia_id'] : 0;
 
-        $globalId = null;
-        if ($referencia > 0) {
-            $globalId = $referencia;
-        } else {
-            $globalId = $this->lookupTipoGlobalIdByNombre($nombre);
-        }
-
         $tipo = [
             'id'              => $id,
             'departamento_id' => $departamentoId,
             'nombre'          => $nombre,
-            'global_id'       => $globalId && $globalId > 0 ? $globalId : null,
+            'global_id'       => $referencia > 0 ? $referencia : null,
         ];
 
         $this->tipoDepartamentoCache[$id] = $tipo;
@@ -801,94 +821,26 @@ final class IncidenciaRepository extends BaseRepository
         return $tipo;
     }
 
-    private function normalizeNombreClave(string $value): string
+    private function resolveTipoDepartamentoId(int $tipoDepartamentoId, int $departamentoId): int
     {
-        $value = trim($value);
-        if ($value === '') {
-            return '';
-        }
-
-        return function_exists('mb_strtolower')
-            ? mb_strtolower($value, 'UTF-8')
-            : strtolower($value);
-    }
-
-    /**
-     * @return array<string,int>
-     */
-    private function tiposGlobalesMap(): array
-    {
-        if ($this->globalTipoMap !== null) {
-            return $this->globalTipoMap;
-        }
-
-        $sql = '
-            SELECT ' . self::TIPO_GLOBAL_ID . ' AS id, ' . self::TIPO_GLOBAL_NOMBRE . ' AS nombre
-            FROM ' . self::T_TIPOS_GLOBAL . '
-        ';
-
-        try {
-            $rows = $this->db->fetchAll($sql);
-        } catch (\Throwable $e) {
-            $this->globalTipoMap = [];
-            return $this->globalTipoMap;
-        }
-
-        $map = [];
-        foreach ($rows as $row) {
-            if (!isset($row['id'], $row['nombre'])) {
-                continue;
-            }
-            $key = $this->normalizeNombreClave((string)$row['nombre']);
-            if ($key === '') {
-                continue;
-            }
-            $map[$key] = (int)$row['id'];
-        }
-
-        $this->globalTipoMap = $map;
-
-        return $this->globalTipoMap;
-    }
-
-    private function lookupTipoGlobalIdByNombre(string $nombre): ?int
-    {
-        $key = $this->normalizeNombreClave($nombre);
-        if ($key === '') {
-            return null;
-        }
-
-        $map = $this->tiposGlobalesMap();
-
-        return isset($map[$key]) ? (int)$map[$key] : null;
-    }
-
-    private function resolveTipoGlobalIdFor(int $tipoDepartamentoId, int $providedGlobalId, string $nombre): ?int
-    {
-        if ($providedGlobalId > 0) {
-            return $providedGlobalId;
+        if ($tipoDepartamentoId > 0) {
+            return $tipoDepartamentoId;
         }
 
         $tipo = null;
-        if ($tipoDepartamentoId > 0) {
-            if (isset($this->tipoDepartamentoCache[$tipoDepartamentoId])) {
-                $tipo = $this->tipoDepartamentoCache[$tipoDepartamentoId];
-            } else {
-                $tipo = $this->findTipoPorId($tipoDepartamentoId);
-            }
+        if ($departamentoId > 0) {
+            $tipo = $this->findPrimerTipoPorDepartamento($departamentoId);
         }
 
-        if (is_array($tipo)) {
-            if (!empty($tipo['global_id'])) {
-                return (int)$tipo['global_id'];
-            }
-            if ($nombre === '') {
-                $nombre = (string)($tipo['nombre'] ?? '');
-            }
+        if ($tipo === null) {
+            $tipo = $this->findPrimerTipoDisponible();
         }
 
-        $global = $this->lookupTipoGlobalIdByNombre($nombre);
-        return $global !== null && $global > 0 ? $global : null;
+        if (is_array($tipo) && !empty($tipo['id'])) {
+            return (int)$tipo['id'];
+        }
+
+        throw new RuntimeException('No existen tipos de incidencias configurados.');
     }
 
     /**
