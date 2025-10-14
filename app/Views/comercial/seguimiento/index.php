@@ -180,8 +180,38 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
             } elseif (is_string($contactDataRaw)) {
                 $contactData = trim($contactDataRaw);
             }
+
+            $payload = [
+                'id'                 => isset($item['id']) ? (int)$item['id'] : 0,
+                'cooperativa_id'     => isset($item['id_cooperativa']) ? (int)$item['id_cooperativa'] : 0,
+                'cooperativa'        => isset($item['cooperativa']) ? (string)$item['cooperativa'] : '',
+                'fecha'              => $fecha !== '' ? $fecha : '',
+                'fecha_texto'        => $fechaTexto !== '' ? $fechaTexto : $fecha,
+                'tipo'               => isset($item['tipo']) ? (string)$item['tipo'] : '',
+                'descripcion'        => $descripcion,
+                'ticket'             => $ticket,
+                'usuario'            => $usuario,
+                'creado_en'          => $creado,
+                'contact_number'     => $contactNumber > 0 ? $contactNumber : null,
+                'contact_data'       => $contactDataRaw,
+                'contact_data_text'  => $contactData,
+            ];
+
+            $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($jsonPayload === false) {
+                $jsonPayload = '{}';
+            }
           ?>
-          <article class="seguimiento-card" tabindex="0">
+          <article
+            class="seguimiento-card"
+            role="button"
+            tabindex="0"
+            data-seguimiento-card
+            data-item="<?= seguimiento_h($jsonPayload) ?>"
+            aria-haspopup="dialog"
+            aria-label="Ver seguimiento de <?= seguimiento_h($item['cooperativa'] ?? '') ?>"
+            title="Ver seguimiento de <?= seguimiento_h($item['cooperativa'] ?? '') ?>"
+          >
             <span class="seguimiento-card__accent" aria-hidden="true"></span>
             <header class="seguimiento-card__header">
               <div>
@@ -247,4 +277,83 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
     </nav>
   <?php endif; ?>
 </section>
+
+<div class="seguimiento-modal" data-seguimiento-modal hidden>
+  <div class="seguimiento-modal__overlay" data-seguimiento-overlay></div>
+  <div class="seguimiento-modal__dialog" data-seguimiento-dialog role="dialog" aria-modal="true" aria-labelledby="seguimiento-modal-title">
+    <button type="button" class="seguimiento-modal__close" data-seguimiento-close aria-label="Cerrar detalle de seguimiento">
+      <span class="material-symbols-outlined" aria-hidden="true">close</span>
+    </button>
+    <header class="seguimiento-modal__header">
+      <h2 id="seguimiento-modal-title" data-seguimiento-modal-title>Detalle de seguimiento</h2>
+      <p class="seguimiento-modal__subtitle" data-seguimiento-modal-subtitle></p>
+    </header>
+    <form class="seguimiento-modal__form seguimiento-form" data-seguimiento-form>
+      <input type="hidden" name="id" value="">
+      <div class="seguimiento-form__field">
+        <label for="modal-fecha">Fecha de actividad</label>
+        <input id="modal-fecha" type="date" name="fecha" required>
+      </div>
+
+      <div class="seguimiento-form__field">
+        <label for="modal-coop">Cooperativa</label>
+        <select id="modal-coop" name="id_cooperativa" required>
+          <option value="">Seleccione</option>
+          <?php foreach ($cooperativas as $coop): ?>
+            <?php $value = isset($coop['id']) ? (string)$coop['id'] : ''; ?>
+            <option value="<?= seguimiento_h($value) ?>"><?= seguimiento_h($coop['nombre'] ?? '') ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div class="seguimiento-form__field">
+        <label for="modal-tipo">Tipo de gestión</label>
+        <select id="modal-tipo" name="tipo">
+          <option value="">Seguimiento</option>
+          <?php foreach ($tipos as $tipo): ?>
+            <?php $tipoNombre = (string)$tipo; ?>
+            <option value="<?= seguimiento_h($tipoNombre) ?>"><?= seguimiento_h($tipoNombre) ?></option>
+          <?php endforeach; ?>
+        </select>
+      </div>
+
+      <div class="seguimiento-form__field seguimiento-form__field--wide">
+        <label for="modal-descripcion">Descripción</label>
+        <textarea id="modal-descripcion" name="descripcion" rows="4" maxlength="600" required></textarea>
+      </div>
+
+      <div class="seguimiento-form__field">
+        <label for="modal-ticket">Ticket relacionado</label>
+        <input id="modal-ticket" type="text" name="ticket" placeholder="Opcional">
+      </div>
+
+      <div class="seguimiento-form__field">
+        <label for="modal-contacto">No. contacto</label>
+        <input id="modal-contacto" type="text" name="numero_contacto" placeholder="Opcional">
+      </div>
+
+      <div class="seguimiento-form__field seguimiento-form__field--wide">
+        <label for="modal-contacto-detalle">Detalle de contacto</label>
+        <textarea id="modal-contacto-detalle" name="datos_contacto" rows="3" placeholder="Información adicional"></textarea>
+      </div>
+
+      <div class="seguimiento-modal__meta" data-seguimiento-modal-meta></div>
+
+      <div class="seguimiento-modal__actions">
+        <button type="button" class="btn btn-primary" data-seguimiento-edit>
+          <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+          Editar
+        </button>
+        <button type="button" class="btn btn-danger" data-seguimiento-delete>
+          <span class="material-symbols-outlined" aria-hidden="true">delete</span>
+          Eliminar
+        </button>
+        <button type="button" class="btn btn-outline" data-seguimiento-cancel>
+          <span class="material-symbols-outlined" aria-hidden="true">close</span>
+          Cerrar
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 <script src="/js/seguimiento.js" defer></script>

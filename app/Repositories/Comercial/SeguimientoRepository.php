@@ -496,6 +496,7 @@ final class SeguimientoRepository extends BaseRepository
 
         return [
             'id'             => isset($row['id']) ? (int)$row['id'] : 0,
+            'id_cooperativa' => isset($row['id_cooperativa']) ? (int)$row['id_cooperativa'] : 0,
             'cooperativa'    => isset($row['cooperativa']) ? (string)$row['cooperativa'] : '',
             'fecha'          => isset($row['fecha_registro']) ? (string)$row['fecha_registro'] : '',
             'tipo'           => isset($row['tipo']) ? (string)$row['tipo'] : '',
