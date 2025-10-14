@@ -290,6 +290,63 @@ final class IncidenciaRepository extends BaseRepository
     }
 
     /**
+     * Determina los identificadores de tipo a persistir según el esquema disponible.
+     *
+     * @return array{departamental:?int,global:?int}
+     */
+    private function resolveTipoBindings(int $tipoSolicitadoId, int $departamentoId): array
+    {
+        $hasTipoDepto = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+        $hasTipoGlobal = $this->incidenciaHasColumn(self::COL_TIPO_ID);
+
+        $departamentalId = null;
+        $globalId = null;
+        $tipoSeleccionado = null;
+
+        if ($tipoSolicitadoId > 0) {
+            $tipoSeleccionado = $this->findTipoPorId($tipoSolicitadoId);
+            if ($tipoSeleccionado !== null) {
+                $departamentalId = (int)$tipoSeleccionado['id'];
+                if (!empty($tipoSeleccionado['global_id'])) {
+                    $globalId = (int)$tipoSeleccionado['global_id'];
+                }
+            } elseif ($hasTipoGlobal) {
+                $globalId = $this->ensureTipoGlobalId($tipoSolicitadoId);
+            }
+        }
+
+        if ($hasTipoDepto && $departamentalId === null) {
+            $departamentalId = $this->resolveTipoDepartamentoId(0, $departamentoId);
+            $tipoSeleccionado = $this->findTipoPorId($departamentalId);
+            if ($tipoSeleccionado !== null && $globalId === null && !empty($tipoSeleccionado['global_id'])) {
+                $globalId = (int)$tipoSeleccionado['global_id'];
+            }
+        }
+
+        if ($hasTipoGlobal) {
+            if ($globalId === null && $departamentalId !== null) {
+                $tipoSeleccionado = $tipoSeleccionado ?? $this->findTipoPorId($departamentalId);
+                if ($tipoSeleccionado !== null && !empty($tipoSeleccionado['global_id'])) {
+                    $globalId = (int)$tipoSeleccionado['global_id'];
+                }
+            }
+
+            if ($globalId === null) {
+                $globalId = $this->findPrimerTipoGlobalId();
+            }
+        }
+
+        if (!$hasTipoDepto) {
+            $departamentalId = null;
+        }
+
+        return [
+            'departamental' => $departamentalId,
+            'global'        => $globalId,
+        ];
+    }
+
+    /**
      * Crea una nueva incidencia y devuelve su identificador.
      *
      * @param array<string,mixed> $data
@@ -309,12 +366,17 @@ final class IncidenciaRepository extends BaseRepository
         $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
         $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
-        $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
-        if ($hasTipoDepto || $hasTipoId) {
-            $tipoDepartamentoId = $this->resolveTipoDepartamentoId($tipoDepartamentoId, $departamentoId);
-        }
+        $tipoSolicitadoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
+        $tipoBindings = $this->resolveTipoBindings($tipoSolicitadoId, $departamentoId);
+
+        $tipoDepartamentoId = $tipoBindings['departamental'];
         $tipoDepartamentoParam = $tipoDepartamentoId !== null
             ? [$tipoDepartamentoId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
+
+        $tipoGlobalId = $tipoBindings['global'];
+        $tipoGlobalParam = $tipoGlobalId !== null
+            ? [$tipoGlobalId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
         $columns = [self::COL_COOP];
@@ -335,12 +397,14 @@ final class IncidenciaRepository extends BaseRepository
 
         if ($hasTipoId) {
             $columns[] = self::COL_TIPO_ID;
-            $values[]  = ':tipo_incidencia_id';
-            $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
-        } elseif ($hasTipoDepto) {
+            $values[]  = ':tipo_global';
+            $params[':tipo_global'] = $tipoGlobalParam;
+        }
+
+        if ($hasTipoDepto) {
             $columns[] = self::COL_TIPO_DEP;
-            $values[]  = ':tipo_incidencia_id';
-            $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
+            $values[]  = ':tipo_departamental';
+            $params[':tipo_departamental'] = $tipoDepartamentoParam;
         }
 
         $columns[] = self::COL_DESCRIP;
@@ -398,12 +462,17 @@ final class IncidenciaRepository extends BaseRepository
         $hasTipoDepto  = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
         $hasTipoId     = $this->incidenciaHasColumn(self::COL_TIPO_ID);
 
-        $tipoDepartamentoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
-        if ($hasTipoDepto || $hasTipoId) {
-            $tipoDepartamentoId = $this->resolveTipoDepartamentoId($tipoDepartamentoId, $departamentoId);
-        }
+        $tipoSolicitadoId = isset($data['tipo_incidencia_id']) ? (int)$data['tipo_incidencia_id'] : 0;
+        $tipoBindings = $this->resolveTipoBindings($tipoSolicitadoId, $departamentoId);
+
+        $tipoDepartamentoId = $tipoBindings['departamental'];
         $tipoDepartamentoParam = $tipoDepartamentoId !== null
             ? [$tipoDepartamentoId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
+
+        $tipoGlobalId = $tipoBindings['global'];
+        $tipoGlobalParam = $tipoGlobalId !== null
+            ? [$tipoGlobalId, PDO::PARAM_INT]
             : [null, PDO::PARAM_NULL];
 
         $sets = [
@@ -433,6 +502,11 @@ final class IncidenciaRepository extends BaseRepository
         } elseif ($hasTipoDepto) {
             $sets[] = self::COL_TIPO_DEP . ' = :tipo_incidencia_id';
             $params[':tipo_incidencia_id'] = $tipoDepartamentoParam;
+        }
+
+        if ($hasTipoDepto) {
+            $sets[] = self::COL_TIPO_DEP . ' = :tipo_departamental';
+            $params[':tipo_departamental'] = $tipoDepartamentoParam;
         }
 
         $sql = '
@@ -630,6 +704,64 @@ final class IncidenciaRepository extends BaseRepository
         return $items;
     }
 
+    private function ensureTipoGlobalId(int $tipoId): int
+    {
+        $tipoGlobalId = $this->findTipoGlobalPorId($tipoId);
+        if ($tipoGlobalId !== null) {
+            return $tipoGlobalId;
+        }
+
+        return $this->findPrimerTipoGlobalId();
+    }
+
+    private function findTipoGlobalPorId(int $tipoId): ?int
+    {
+        if ($tipoId < 1) {
+            return null;
+        }
+
+        $sql = '
+            SELECT ' . self::TIPO_GLOBAL_ID . ' AS id
+            FROM ' . self::T_TIPOS_GLOBAL . '
+            WHERE ' . self::TIPO_GLOBAL_ID . ' = :id
+            LIMIT 1
+        ';
+
+        try {
+            $row = $this->db->fetch($sql, [':id' => [$tipoId, PDO::PARAM_INT]]);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo validar el tipo global solicitado.', 0, $e);
+        }
+
+        if (!$row || !isset($row['id'])) {
+            return null;
+        }
+
+        return (int)$row['id'];
+    }
+
+    private function findPrimerTipoGlobalId(): int
+    {
+        $sql = '
+            SELECT ' . self::TIPO_GLOBAL_ID . ' AS id
+            FROM ' . self::T_TIPOS_GLOBAL . '
+            ORDER BY ' . self::TIPO_GLOBAL_NOMBRE . '
+            LIMIT 1
+        ';
+
+        try {
+            $row = $this->db->fetch($sql);
+        } catch (\Throwable $e) {
+            throw new RuntimeException('No se pudo obtener un tipo global por defecto.', 0, $e);
+        }
+
+        if ($row && isset($row['id'])) {
+            return (int)$row['id'];
+        }
+
+        throw new RuntimeException('No se encontró un tipo global disponible.');
+    }
+
     /**
      * Catálogo de tipos por departamento.
      *
@@ -793,20 +925,13 @@ final class IncidenciaRepository extends BaseRepository
         return $tipo;
     }
 
-    private function resolveTipoDepartamentoId(int $tipoDepartamentoId, int $departamentoId): ?int
+    private function resolveTipoDepartamentoId(int $tipoDepartamentoId, int $departamentoId): int
     {
         if ($tipoDepartamentoId > 0) {
-            return $tipoDepartamentoId;
-        }
-
-        $hasTipoId = $this->incidenciaHasColumn(self::COL_TIPO_ID);
-        $hasTipoDep = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
-
-        $tipoIdAllowsNull = $hasTipoId ? $this->incidenciaColumnAllowsNull(self::COL_TIPO_ID) : false;
-        $tipoDepAllowsNull = $hasTipoDep ? $this->incidenciaColumnAllowsNull(self::COL_TIPO_DEP) : false;
-
-        if (($hasTipoId && $tipoIdAllowsNull) || ($hasTipoDep && $tipoDepAllowsNull)) {
-            return null;
+            $tipo = $this->findTipoPorId($tipoDepartamentoId);
+            if ($tipo !== null) {
+                return (int)$tipo['id'];
+            }
         }
 
         $tipo = null;
