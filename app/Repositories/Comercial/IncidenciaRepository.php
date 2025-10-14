@@ -313,7 +313,9 @@ final class IncidenciaRepository extends BaseRepository
         if ($hasTipoDepto || $hasTipoId) {
             $tipoDepartamentoId = $this->resolveTipoDepartamentoId($tipoDepartamentoId, $departamentoId);
         }
-        $tipoDepartamentoParam = [$tipoDepartamentoId, PDO::PARAM_INT];
+        $tipoDepartamentoParam = $tipoDepartamentoId !== null
+            ? [$tipoDepartamentoId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
 
         $columns = [self::COL_COOP];
         $values  = [':coop'];
@@ -400,7 +402,9 @@ final class IncidenciaRepository extends BaseRepository
         if ($hasTipoDepto || $hasTipoId) {
             $tipoDepartamentoId = $this->resolveTipoDepartamentoId($tipoDepartamentoId, $departamentoId);
         }
-        $tipoDepartamentoParam = [$tipoDepartamentoId, PDO::PARAM_INT];
+        $tipoDepartamentoParam = $tipoDepartamentoId !== null
+            ? [$tipoDepartamentoId, PDO::PARAM_INT]
+            : [null, PDO::PARAM_NULL];
 
         $sets = [
             self::COL_ASUNTO . ' = :asunto',
@@ -789,10 +793,20 @@ final class IncidenciaRepository extends BaseRepository
         return $tipo;
     }
 
-    private function resolveTipoDepartamentoId(int $tipoDepartamentoId, int $departamentoId): int
+    private function resolveTipoDepartamentoId(int $tipoDepartamentoId, int $departamentoId): ?int
     {
         if ($tipoDepartamentoId > 0) {
             return $tipoDepartamentoId;
+        }
+
+        $hasTipoId = $this->incidenciaHasColumn(self::COL_TIPO_ID);
+        $hasTipoDep = $this->incidenciaHasColumn(self::COL_TIPO_DEP);
+
+        $tipoIdAllowsNull = $hasTipoId ? $this->incidenciaColumnAllowsNull(self::COL_TIPO_ID) : false;
+        $tipoDepAllowsNull = $hasTipoDep ? $this->incidenciaColumnAllowsNull(self::COL_TIPO_DEP) : false;
+
+        if (($hasTipoId && $tipoIdAllowsNull) || ($hasTipoDep && $tipoDepAllowsNull)) {
+            return null;
         }
 
         $tipo = null;
