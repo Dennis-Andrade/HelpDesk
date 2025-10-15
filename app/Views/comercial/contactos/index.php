@@ -271,7 +271,8 @@ $today = date('Y-m-d');
         <span class="material-symbols-outlined" aria-hidden="true">close</span>
       </button>
     </div>
-    <form method="post" action="/comercial/contactos" class="form ent-form contact-modal__form" data-contact-edit-form>
+    <form method="post" action="" class="form ent-form contact-modal__form" data-contact-edit-form data-action-base="/comercial/contactos/">
+      <input type="hidden" name="id" value="" data-contact-id>
       <div class="form-row">
         <label for="modal-editar-contacto-entidad">Entidad</label>
         <select id="modal-editar-contacto-entidad" name="id_entidad" required>
