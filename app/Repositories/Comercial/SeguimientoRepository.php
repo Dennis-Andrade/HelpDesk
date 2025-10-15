@@ -4,57 +4,41 @@ namespace App\Repositories\Comercial;
 use App\Repositories\BaseRepository;
 use PDO;
 use RuntimeException;
+use Throwable;
 
 final class SeguimientoRepository extends BaseRepository
 {
-    private const TABLE_CANDIDATES = [
-        'public.comercial_seguimientos',
-        'public.seguimientos_comercial',
-        'public.seguimientos_diarios',
-        'public.seguimiento_diario',
-        'public.seguimientos',
-    ];
-
-    private const TIPOS_TABLE_CANDIDATES = [
-        'public.seguimiento_tipos',
-        'public.tipos_seguimiento',
-        'public.tipos_seguimientos',
-    ];
-
-    private const TABLE_COOPS = 'public.cooperativas';
-    private const COOP_ID     = 'id_cooperativa';
-    private const COOP_NOMBRE = 'nombre';
-
-    /** @var string|null */
-    private $resolvedTable = null;
+    private const TABLE = 'public.comercial_seguimientos';
+    private const COOPS_TABLE = 'public.cooperativas';
+    private const CONTACTS_TABLE = 'public.contactos_cooperativa';
+    private const TICKETS_VIEW = 'public.v_tickets_busqueda';
+    private const USERS_TABLE = 'public.usuarios';
+    private const TIPOS_TABLE = 'public.seguimiento_tipos';
 
     /**
-     * @var array<string,array{name:string,type:string}>
-     */
-    private $columnInfo = [];
-
-    /**
-     * @param array $filters
-     * @param int $page
-     * @param int $perPage
-     * @return array{items:array<int,array<string,mixed>>, total:int, page:int, perPage:int}
+     * @param array<string,mixed> $filters
+     * @return array{items:array<int,array<string,mixed>>,total:int,page:int,perPage:int}
      */
     public function paginate(array $filters, int $page, int $perPage): array
     {
-        $parts = $this->queryParts();
-
-        $page    = max(1, $page);
+        $page = max(1, $page);
         $perPage = max(5, min(60, $perPage));
-        $offset  = ($page - 1) * $perPage;
+        $offset = ($page - 1) * $perPage;
 
-        [$whereSql, $params] = $this->buildFilters($filters, $parts);
+        $params = [];
+        $where = $this->buildFilters($filters, $params);
 
-        $countSql = "SELECT COUNT(*) AS total FROM {$parts['table']} s{$parts['joinsSql']}" . ($whereSql !== '' ? " $whereSql" : '');
+        $joins = ' INNER JOIN ' . self::COOPS_TABLE . ' c ON c.id_cooperativa = s.id_cooperativa'
+            . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
+            . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
+            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id';
+
+        $countSql = 'SELECT COUNT(*) AS total FROM ' . self::TABLE . ' s' . $joins . ($where !== '' ? ' ' . $where : '');
 
         try {
             $countRow = $this->db->fetch($countSql, $params);
-        } catch (\Throwable $e) {
-            throw new RuntimeException('Error al contar el historial de seguimiento.', 0, $e);
+        } catch (Throwable $e) {
+            throw new RuntimeException('Error al contar los seguimientos.', 0, $e);
         }
 
         $total = $countRow ? (int)$countRow['total'] : 0;
@@ -67,17 +51,21 @@ final class SeguimientoRepository extends BaseRepository
             ];
         }
 
-        $params[':limit']  = [$perPage, PDO::PARAM_INT];
+        $params[':limit'] = [$perPage, PDO::PARAM_INT];
         $params[':offset'] = [$offset, PDO::PARAM_INT];
 
-        $sql = "SELECT {$parts['select']} FROM {$parts['table']} s{$parts['joinsSql']}"
-            . ($whereSql !== '' ? " $whereSql" : '')
-            . " ORDER BY {$parts['orderBy']} LIMIT :limit OFFSET :offset";
+        $select = $this->selectClause();
+        $sql = 'SELECT ' . $select
+            . ' FROM ' . self::TABLE . ' s'
+            . $joins
+            . ($where !== '' ? ' ' . $where : '')
+            . ' ORDER BY s.fecha_actividad DESC, s.id DESC'
+            . ' LIMIT :limit OFFSET :offset';
 
         try {
             $rows = $this->db->fetchAll($sql, $params);
-        } catch (\Throwable $e) {
-            throw new RuntimeException('Error al obtener el historial de seguimiento.', 0, $e);
+        } catch (Throwable $e) {
+            throw new RuntimeException('Error al obtener el historial de seguimientos.', 0, $e);
         }
 
         $items = [];
@@ -92,24 +80,28 @@ final class SeguimientoRepository extends BaseRepository
             'perPage' => $perPage,
         ];
     }
-
     /**
-     * @param array $filters
+     * @param array<string,mixed> $filters
      * @return array<int,array<string,mixed>>
      */
     public function listarParaExportar(array $filters): array
     {
-        $parts = $this->queryParts();
-        [$whereSql, $params] = $this->buildFilters($filters, $parts);
+        $params = [];
+        $where = $this->buildFilters($filters, $params);
 
-        $sql = "SELECT {$parts['select']} FROM {$parts['table']} s{$parts['joinsSql']}"
-            . ($whereSql !== '' ? " $whereSql" : '')
-            . " ORDER BY {$parts['orderBy']}";
+        $sql = 'SELECT ' . $this->selectClause()
+            . ' FROM ' . self::TABLE . ' s'
+            . ' INNER JOIN ' . self::COOPS_TABLE . ' c ON c.id_cooperativa = s.id_cooperativa'
+            . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
+            . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
+            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id'
+            . ($where !== '' ? ' ' . $where : '')
+            . ' ORDER BY s.fecha_actividad DESC, s.id DESC';
 
         try {
             $rows = $this->db->fetchAll($sql, $params);
-        } catch (\Throwable $e) {
-            throw new RuntimeException('Error al exportar el historial de seguimiento.', 0, $e);
+        } catch (Throwable $e) {
+            throw new RuntimeException('Error al exportar el historial de seguimientos.', 0, $e);
         }
 
         $items = [];
@@ -125,110 +117,37 @@ final class SeguimientoRepository extends BaseRepository
      */
     public function create(array $data): int
     {
-        $table   = $this->resolveTable();
-        $idCol   = $this->requireColumn('id');
-        $coopCol = $this->requireColumn('coop');
+        $sql = 'INSERT INTO ' . self::TABLE . ' (
+                id_cooperativa,
+                fecha_actividad,
+                fecha_finalizacion,
+                tipo,
+                descripcion,
+                id_contacto,
+                datos_reunion,
+                datos_ticket,
+                ticket_id,
+                creado_por,
+                created_at
+            ) VALUES (
+                :id_cooperativa,
+                :fecha_inicio,
+                :fecha_fin,
+                :tipo,
+                :descripcion,
+                :id_contacto,
+                :datos_reunion,
+                :datos_ticket,
+                :ticket_id,
+                :creado_por,
+                NOW()
+            ) RETURNING id';
 
-        $columns = [$coopCol];
-        $values  = [':coop'];
-        $params  = [
-            ':coop' => [$data['id_cooperativa'] ?? 0, PDO::PARAM_INT],
-        ];
-
-        $fechaCol = $this->column('fecha');
-        if ($fechaCol !== null) {
-            $columns[] = $fechaCol;
-            $values[]  = ':fecha';
-            $params[':fecha'] = [$data['fecha'] ?? date('Y-m-d'), PDO::PARAM_STR];
-        }
-
-        $tipoCol = $this->column('tipo');
-        if ($tipoCol !== null) {
-            $columns[] = $tipoCol;
-            $values[]  = ':tipo';
-            $params[':tipo'] = [
-                (string)($data['tipo'] ?? ''),
-                PDO::PARAM_STR,
-            ];
-        }
-
-        $descCol = $this->requireColumn('descripcion');
-        $columns[] = $descCol;
-        $values[]  = ':descripcion';
-        $params[':descripcion'] = [
-            (string)($data['descripcion'] ?? ''),
-            PDO::PARAM_STR,
-        ];
-
-        $ticketCol = $this->column('ticket');
-        $contactNumberCol = $this->column('contact_number');
-        $contactDataCol   = $this->column('contact_data');
-        if ($ticketCol !== null) {
-            $columns[] = $ticketCol;
-            $values[]  = ':ticket';
-
-            $ticketValue = $data['ticket'] ?? null;
-            if ($ticketValue === '' || $ticketValue === null) {
-                $params[':ticket'] = [null, PDO::PARAM_NULL];
-            } elseif ($this->columnIsNumeric('ticket')) {
-                $params[':ticket'] = [(int)$ticketValue, PDO::PARAM_INT];
-            } else {
-                $params[':ticket'] = [(string)$ticketValue, PDO::PARAM_STR];
-            }
-        }
-
-        if ($contactNumberCol !== null) {
-            $columns[] = $contactNumberCol;
-            $values[]  = ':contact_number';
-
-            $numberValue = $data['numero_contacto'] ?? null;
-            if ($numberValue === '' || $numberValue === null) {
-                $params[':contact_number'] = [null, PDO::PARAM_NULL];
-            } else {
-                $params[':contact_number'] = [(int)$numberValue, PDO::PARAM_INT];
-            }
-        }
-
-        if ($contactDataCol !== null) {
-            $columns[] = $contactDataCol;
-            $values[]  = ':contact_data';
-
-            $rawContact = $data['datos_contacto'] ?? null;
-            if ($rawContact === null || $rawContact === '') {
-                $params[':contact_data'] = [null, PDO::PARAM_NULL];
-            } else {
-                $json = $rawContact;
-                if (is_array($rawContact)) {
-                    $json = json_encode($rawContact, JSON_UNESCAPED_UNICODE);
-                }
-                if (!is_string($json) || $json === false) {
-                    $json = json_encode(['valor' => (string)$rawContact], JSON_UNESCAPED_UNICODE);
-                }
-                $params[':contact_data'] = [$json, PDO::PARAM_STR];
-            }
-        }
-
-        $usuarioCol = $this->column('usuario');
-        if ($usuarioCol !== null) {
-            $columns[] = $usuarioCol;
-            $values[]  = ':usuario';
-
-            $usuario = $data['creado_por'] ?? null;
-            if ($usuario === null) {
-                $params[':usuario'] = [null, PDO::PARAM_NULL];
-            } else {
-                $params[':usuario'] = [(int)$usuario, PDO::PARAM_INT];
-            }
-        }
-
-        $sql = 'INSERT INTO ' . $table
-            . ' (' . implode(', ', $columns) . ')
-               VALUES (' . implode(', ', $values) . ')
-               RETURNING ' . $idCol . ' AS id';
+        $params = $this->buildPersistenceParams($data, false);
 
         try {
             $result = $this->db->execute($sql, $params);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             throw new RuntimeException('No se pudo registrar el seguimiento.', 0, $e);
         }
 
@@ -237,32 +156,77 @@ final class SeguimientoRepository extends BaseRepository
     }
 
     /**
+     * @param array<string,mixed> $data
+     */
+    public function update(int $id, array $data): void
+    {
+        $sql = 'UPDATE ' . self::TABLE . ' SET
+                id_cooperativa = :id_cooperativa,
+                fecha_actividad = :fecha_inicio,
+                fecha_finalizacion = :fecha_fin,
+                tipo = :tipo,
+                descripcion = :descripcion,
+                id_contacto = :id_contacto,
+                datos_reunion = :datos_reunion,
+                datos_ticket = :datos_ticket,
+                ticket_id = :ticket_id,
+                editado_por = :usuario_editor,
+                editado_en = NOW()
+            WHERE id = :id';
+
+        $params = $this->buildPersistenceParams($data, true);
+        $params[':id'] = [$id, PDO::PARAM_INT];
+
+        try {
+            $this->db->execute($sql, $params);
+        } catch (Throwable $e) {
+            throw new RuntimeException('No se pudo actualizar el seguimiento.', 0, $e);
+        }
+    }
+    public function find(int $id): ?array
+    {
+        $sql = 'SELECT ' . $this->selectClause()
+            . ' FROM ' . self::TABLE . ' s'
+            . ' INNER JOIN ' . self::COOPS_TABLE . ' c ON c.id_cooperativa = s.id_cooperativa'
+            . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
+            . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
+            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id'
+            . ' WHERE s.id = :id';
+
+        try {
+            $row = $this->db->fetch($sql, [':id' => [$id, PDO::PARAM_INT]]);
+        } catch (Throwable $e) {
+            throw new RuntimeException('No se pudo obtener el seguimiento solicitado.', 0, $e);
+        }
+
+        return $row ? $this->mapRow($row) : null;
+    }
+
+    /**
      * @return array<int,array{id:int,nombre:string}>
      */
     public function listadoCooperativas(): array
     {
-        $sql = 'SELECT ' . self::COOP_ID . ' AS id, ' . self::COOP_NOMBRE . ' AS nombre'
-            . ' FROM ' . self::TABLE_COOPS
-            . ' ORDER BY ' . self::COOP_NOMBRE . ' ASC';
+        $sql = 'SELECT id_cooperativa AS id, nombre FROM ' . self::COOPS_TABLE . ' WHERE activa = true ORDER BY nombre ASC';
 
         try {
             $rows = $this->db->fetchAll($sql);
-        } catch (\Throwable $e) {
-            throw new RuntimeException('No se pudieron obtener las cooperativas.', 0, $e);
+        } catch (Throwable $e) {
+            throw new RuntimeException('No se pudieron obtener las entidades.', 0, $e);
         }
 
-        $list = [];
+        $items = [];
         foreach ($rows as $row) {
             if (!isset($row['id'], $row['nombre'])) {
                 continue;
             }
-            $list[] = [
+            $items[] = [
                 'id'     => (int)$row['id'],
                 'nombre' => (string)$row['nombre'],
             ];
         }
 
-        return $list;
+        return $items;
     }
 
     /**
@@ -270,193 +234,259 @@ final class SeguimientoRepository extends BaseRepository
      */
     public function catalogoTipos(): array
     {
-        foreach (self::TIPOS_TABLE_CANDIDATES as $candidate) {
-            [$schema, $table] = $this->splitTableName($candidate);
-            if (!$this->tableExists($schema, $table)) {
-                continue;
-            }
+        $sql = 'SELECT nombre FROM ' . self::TIPOS_TABLE . ' WHERE nombre <> :omit ORDER BY orden ASC, nombre ASC';
 
-            $column = $this->findColumnName($schema, $table, ['nombre', 'descripcion', 'titulo', 'etiqueta']);
-            if ($column === null) {
-                continue;
-            }
-
-            $sql = 'SELECT ' . $column . ' AS nombre FROM ' . $schema . '.' . $table . ' ORDER BY ' . $column . ' ASC';
-            try {
-                $rows = $this->db->fetchAll($sql);
-            } catch (\Throwable $e) {
-                continue;
-            }
-
-            $tipos = [];
-            foreach ($rows as $row) {
-                if (!isset($row['nombre'])) {
-                    continue;
-                }
-                $value = trim((string)$row['nombre']);
-                if ($value !== '') {
-                    $tipos[] = $value;
-                }
-            }
-
-            if ($tipos) {
-                return $tipos;
-            }
+        try {
+            $rows = $this->db->fetchAll($sql, [':omit' => ['Seguimiento', PDO::PARAM_STR]]);
+        } catch (Throwable $e) {
+            return ['Contacto', 'Reunión', 'Ticket'];
         }
 
-        return ['Contacto', 'Soporte', 'Ticket', 'Reunión', 'Seguimiento'];
+        $tipos = [];
+        foreach ($rows as $row) {
+            if (!isset($row['nombre'])) {
+                continue;
+            }
+            $value = trim((string)$row['nombre']);
+            if ($value === '' || strcasecmp($value, 'Seguimiento') === 0) {
+                continue;
+            }
+            $tipos[] = $value;
+        }
+
+        if (!$tipos) {
+            $tipos = ['Contacto', 'Reunión', 'Ticket'];
+        }
+
+        return array_values(array_unique($tipos));
     }
 
     /**
-     * @return array<string,mixed>
+     * @return array<int,array{id:int,nombre:string,telefono:?string,email:?string}>
      */
-    private function queryParts(): array
+    public function contactosPorEntidad(int $entidadId): array
     {
-        $table = $this->resolveTable();
-
-        $idCol    = $this->requireColumn('id');
-        $coopCol  = $this->requireColumn('coop');
-        $descCol  = $this->requireColumn('descripcion');
-        $fechaCol = $this->column('fecha');
-        $tipoCol  = $this->column('tipo');
-        $ticketCol = $this->column('ticket');
-        $contactNumberCol = $this->column('contact_number');
-        $contactDataCol   = $this->column('contact_data');
-        $usuarioCol = $this->column('usuario');
-        $createdCol = $this->column('created');
-
-        $selectParts = [
-            's.' . $idCol . ' AS id',
-            's.' . $coopCol . ' AS id_cooperativa',
-            'c.' . self::COOP_NOMBRE . ' AS cooperativa',
-            ($fechaCol !== null
-                ? 's.' . $fechaCol
-                : ($createdCol !== null ? 'DATE(s.' . $createdCol . ')' : 'CURRENT_DATE')
-            ) . ' AS fecha_registro',
-            "COALESCE(s." . $descCol . ", '') AS descripcion",
-        ];
-
-        if ($tipoCol !== null) {
-            $selectParts[] = "COALESCE(s." . $tipoCol . ", '') AS tipo";
-        } else {
-            $selectParts[] = "'' AS tipo";
+        if ($entidadId <= 0) {
+            return [];
         }
 
-        if ($ticketCol !== null) {
-            $selectParts[] = 's.' . $ticketCol . ' AS ticket';
-        } else {
-            $selectParts[] = 'NULL AS ticket';
+        $sql = 'SELECT id_contacto AS id, nombre_contacto AS nombre, telefono, email'
+            . ' FROM ' . self::CONTACTS_TABLE
+            . ' WHERE id_cooperativa = :id AND activo = true'
+            . ' ORDER BY nombre_contacto ASC';
+
+        try {
+            $rows = $this->db->fetchAll($sql, [':id' => [$entidadId, PDO::PARAM_INT]]);
+        } catch (Throwable $e) {
+            throw new RuntimeException('No se pudieron obtener los contactos de la entidad.', 0, $e);
         }
 
-        if ($createdCol !== null) {
-            $selectParts[] = 's.' . $createdCol . ' AS creado_en';
-        } else {
-            $selectParts[] = 'NULL AS creado_en';
+        $items = [];
+        foreach ($rows as $row) {
+            if (!isset($row['id'], $row['nombre'])) {
+                continue;
+            }
+            $items[] = [
+                'id'       => (int)$row['id'],
+                'nombre'   => (string)$row['nombre'],
+                'telefono' => isset($row['telefono']) ? (string)$row['telefono'] : null,
+                'email'    => isset($row['email']) ? (string)$row['email'] : null,
+            ];
         }
 
-        if ($contactNumberCol !== null) {
-            $selectParts[] = 's.' . $contactNumberCol . ' AS contact_number';
-        } else {
-            $selectParts[] = 'NULL AS contact_number';
+        return $items;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    public function buscarTickets(string $term): array
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return [];
         }
 
-        if ($contactDataCol !== null) {
-            $selectParts[] = 's.' . $contactDataCol . ' AS contact_data';
-        } else {
-            $selectParts[] = 'NULL AS contact_data';
+        $sql = 'SELECT id_ticket, codigo_ticket, titulo, departamento_nombre, nombre_categoria, prioridad, estado'
+            . ' FROM ' . self::TICKETS_VIEW
+            . ' WHERE codigo_ticket ILIKE :term OR titulo ILIKE :term'
+            . ' ORDER BY fecha_apertura DESC'
+            . ' LIMIT 15';
+
+        try {
+            $rows = $this->db->fetchAll($sql, [':term' => ['%' . $term . '%', PDO::PARAM_STR]]);
+        } catch (Throwable $e) {
+            throw new RuntimeException('No se pudo buscar tickets.', 0, $e);
         }
 
-        $joins = [
-            ' INNER JOIN ' . self::TABLE_COOPS . ' c ON c.' . self::COOP_ID . ' = s.' . $coopCol,
-        ];
-
-        if ($usuarioCol !== null) {
-            $selectParts[] = 's.' . $usuarioCol . ' AS usuario_id';
-            $selectParts[] = "COALESCE(u.nombre_completo, u.username, '') AS usuario_nombre";
-            $joins[] = ' LEFT JOIN public.usuarios u ON u.id_usuario = s.' . $usuarioCol;
-        } else {
-            $selectParts[] = 'NULL AS usuario_id';
-            $selectParts[] = "'' AS usuario_nombre";
+        $items = [];
+        foreach ($rows as $row) {
+            if (!isset($row['id_ticket'], $row['codigo_ticket'])) {
+                continue;
+            }
+            $items[] = [
+                'id'          => (int)$row['id_ticket'],
+                'codigo'      => (string)$row['codigo_ticket'],
+                'titulo'      => isset($row['titulo']) ? (string)$row['titulo'] : '',
+                'departamento'=> isset($row['departamento_nombre']) ? (string)$row['departamento_nombre'] : '',
+                'tipo'        => isset($row['nombre_categoria']) ? (string)$row['nombre_categoria'] : '',
+                'prioridad'   => isset($row['prioridad']) ? (string)$row['prioridad'] : '',
+                'estado'      => isset($row['estado']) ? (string)$row['estado'] : '',
+            ];
         }
 
-        $orderBy = $fechaCol !== null
-            ? 's.' . $fechaCol . ' DESC'
-            : ($createdCol !== null ? 's.' . $createdCol . ' DESC' : 's.' . $idCol . ' DESC');
+        return $items;
+    }
+    /**
+     * @return array<string,mixed>|null
+     */
+    public function ticketPorId(int $ticketId): ?array
+    {
+        if ($ticketId <= 0) {
+            return null;
+        }
 
-        $joinsSql = '';
-        foreach ($joins as $join) {
-            $joinsSql .= $join;
+        $sql = 'SELECT id_ticket, codigo_ticket, titulo, departamento_nombre, nombre_categoria, prioridad, estado'
+            . ' FROM ' . self::TICKETS_VIEW
+            . ' WHERE id_ticket = :id'
+            . ' LIMIT 1';
+
+        try {
+            $row = $this->db->fetch($sql, [':id' => [$ticketId, PDO::PARAM_INT]]);
+        } catch (Throwable $e) {
+            throw new RuntimeException('No se pudo obtener la información del ticket.', 0, $e);
+        }
+
+        if (!$row) {
+            return null;
         }
 
         return [
-            'table'            => $table,
-            'select'           => implode(",
-                ", $selectParts),
-            'joinsSql'         => $joinsSql,
-            'orderBy'          => $orderBy,
-            'fechaFilter'      => $fechaCol !== null ? 'DATE(s.' . $fechaCol . ')' : ($createdCol !== null ? 'DATE(s.' . $createdCol . ')' : null),
-            'tipoFilter'       => $tipoCol !== null ? 's.' . $tipoCol : null,
-            'ticketFilter'     => $ticketCol !== null ? 's.' . $ticketCol : null,
-            'descripcionCol'   => 's.' . $descCol,
-            'contactNumberCol' => $contactNumberCol !== null ? 's.' . $contactNumberCol : null,
-            'contactDataCol'   => $contactDataCol !== null ? 's.' . $contactDataCol : null,
+            'id'          => (int)$row['id_ticket'],
+            'codigo'      => isset($row['codigo_ticket']) ? (string)$row['codigo_ticket'] : '',
+            'titulo'      => isset($row['titulo']) ? (string)$row['titulo'] : '',
+            'departamento'=> isset($row['departamento_nombre']) ? (string)$row['departamento_nombre'] : '',
+            'tipo'        => isset($row['nombre_categoria']) ? (string)$row['nombre_categoria'] : '',
+            'prioridad'   => isset($row['prioridad']) ? (string)$row['prioridad'] : '',
+            'estado'      => isset($row['estado']) ? (string)$row['estado'] : '',
         ];
     }
 
     /**
      * @param array<string,mixed> $filters
-     * @param array<string,mixed> $parts
-     * @return array{0:string,1:array<string,array{0:mixed,1:int}>}
+     * @param array<string,array{0:mixed,1:int}> $params
      */
-    private function buildFilters(array $filters, array $parts): array
+    private function buildFilters(array $filters, array &$params): string
     {
         $conditions = [];
-        $params = [];
 
         $fecha = isset($filters['fecha']) ? trim((string)$filters['fecha']) : '';
-        if ($fecha !== '' && $parts['fechaFilter'] !== null) {
-            $conditions[] = $parts['fechaFilter'] . ' = :fecha';
+        if ($fecha !== '') {
+            $conditions[] = 'DATE(s.fecha_actividad) = :fecha';
             $params[':fecha'] = [$fecha, PDO::PARAM_STR];
         } else {
             $desde = isset($filters['desde']) ? trim((string)$filters['desde']) : '';
-            $hasta = isset($filters['hasta']) ? trim((string)$filters['hasta']) : '';
-            if ($desde !== '' && $parts['fechaFilter'] !== null) {
-                $conditions[] = $parts['fechaFilter'] . ' >= :desde';
+            if ($desde !== '') {
+                $conditions[] = 'DATE(s.fecha_actividad) >= :desde';
                 $params[':desde'] = [$desde, PDO::PARAM_STR];
             }
-            if ($hasta !== '' && $parts['fechaFilter'] !== null) {
-                $conditions[] = $parts['fechaFilter'] . ' <= :hasta';
+            $hasta = isset($filters['hasta']) ? trim((string)$filters['hasta']) : '';
+            if ($hasta !== '') {
+                $conditions[] = 'DATE(s.fecha_actividad) <= :hasta';
                 $params[':hasta'] = [$hasta, PDO::PARAM_STR];
             }
         }
 
         $coop = isset($filters['coop']) ? (int)$filters['coop'] : 0;
         if ($coop > 0) {
-            $conditions[] = 's.' . $this->requireColumn('coop') . ' = :coop';
+            $conditions[] = 's.id_cooperativa = :coop';
             $params[':coop'] = [$coop, PDO::PARAM_INT];
         }
 
         $tipo = isset($filters['tipo']) ? trim((string)$filters['tipo']) : '';
-        if ($tipo !== '' && $parts['tipoFilter'] !== null) {
-            $conditions[] = $parts['tipoFilter'] . ' = :tipo';
+        if ($tipo !== '') {
+            $conditions[] = 's.tipo = :tipo';
             $params[':tipo'] = [$tipo, PDO::PARAM_STR];
         }
 
         $ticket = isset($filters['ticket']) ? trim((string)$filters['ticket']) : '';
-        if ($ticket !== '' && $parts['ticketFilter'] !== null) {
-            $conditions[] = $parts['ticketFilter'] . '::text ILIKE :ticket';
+        if ($ticket !== '') {
+            $conditions[] = '(CAST(s.ticket_id AS TEXT) ILIKE :ticket OR vt.codigo_ticket ILIKE :ticket)';
             $params[':ticket'] = ['%' . $ticket . '%', PDO::PARAM_STR];
         }
 
         $texto = isset($filters['q']) ? trim((string)$filters['q']) : '';
         if ($texto !== '') {
-            $conditions[] = $parts['descripcionCol'] . ' ILIKE :texto';
+            $conditions[] = 's.descripcion ILIKE :texto';
             $params[':texto'] = ['%' . $texto . '%', PDO::PARAM_STR];
         }
 
-        $whereSql = $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+        return $conditions ? 'WHERE ' . implode(' AND ', $conditions) : '';
+    }
 
-        return [$whereSql, $params];
+    private function selectClause(): string
+    {
+        return implode(', ', [
+            's.id',
+            's.id_cooperativa',
+            'c.nombre AS cooperativa',
+            's.fecha_actividad',
+            's.fecha_finalizacion',
+            's.tipo',
+            's.descripcion',
+            's.id_contacto',
+            's.datos_reunion',
+            's.datos_ticket',
+            's.ticket_id',
+            's.creado_por',
+            's.created_at',
+            's.editado_por',
+            's.editado_en',
+            "COALESCE(u.nombre_completo, u.username, '') AS usuario_nombre",
+            'u.id_usuario AS usuario_id',
+            'cc.nombre_contacto',
+            'cc.telefono AS contacto_telefono',
+            'cc.email AS contacto_email',
+            'vt.codigo_ticket',
+            'vt.departamento_nombre',
+            'vt.nombre_categoria',
+            'vt.prioridad',
+            'vt.estado'
+        ]);
+    }
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,array{0:mixed,1:int}>
+     */
+    private function buildPersistenceParams(array $data, bool $forUpdate): array
+    {
+        $params = [
+            ':id_cooperativa' => [$data['id_cooperativa'] ?? 0, PDO::PARAM_INT],
+            ':fecha_inicio'   => [$data['fecha_inicio'] ?? null, $this->paramType($data['fecha_inicio'] ?? null)],
+            ':fecha_fin'      => [$data['fecha_fin'] ?? null, $this->paramType($data['fecha_fin'] ?? null)],
+            ':tipo'           => [$data['tipo'] ?? '', PDO::PARAM_STR],
+            ':descripcion'    => [$data['descripcion'] ?? '', PDO::PARAM_STR],
+            ':id_contacto'    => [$data['id_contacto'] ?? null, $this->paramType($data['id_contacto'] ?? null, true)],
+            ':datos_reunion'  => [$data['datos_reunion'] ?? null, $this->paramType($data['datos_reunion'] ?? null)],
+            ':datos_ticket'   => [$data['datos_ticket'] ?? null, $this->paramType($data['datos_ticket'] ?? null)],
+            ':ticket_id'      => [$data['ticket_id'] ?? null, $this->paramType($data['ticket_id'] ?? null, true)],
+        ];
+
+        if ($forUpdate) {
+            $params[':usuario_editor'] = [$data['usuario_editor'] ?? null, $this->paramType($data['usuario_editor'] ?? null, true)];
+        } else {
+            $params[':creado_por'] = [$data['creado_por'] ?? null, $this->paramType($data['creado_por'] ?? null, true)];
+        }
+
+        return $params;
+    }
+
+    private function paramType($value, bool $isInt = false): int
+    {
+        if ($value === null || $value === '') {
+            return PDO::PARAM_NULL;
+        }
+        return $isInt ? PDO::PARAM_INT : PDO::PARAM_STR;
     }
 
     /**
@@ -465,218 +495,71 @@ final class SeguimientoRepository extends BaseRepository
      */
     private function mapRow(array $row): array
     {
+        $fechaInicio = isset($row['fecha_actividad']) ? (string)$row['fecha_actividad'] : '';
+        $fechaFin = isset($row['fecha_finalizacion']) ? (string)$row['fecha_finalizacion'] : '';
+
+        $datosTicket = null;
+        if (isset($row['datos_ticket']) && $row['datos_ticket'] !== null && $row['datos_ticket'] !== '') {
+            $decoded = json_decode((string)$row['datos_ticket'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $datosTicket = $decoded;
+            }
+        }
+
+        $datosReunion = null;
+        if (isset($row['datos_reunion']) && $row['datos_reunion'] !== null && $row['datos_reunion'] !== '') {
+            $decoded = json_decode((string)$row['datos_reunion'], true);
+            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                $datosReunion = $decoded;
+            }
+        }
+
+        $ticketCodigo = isset($row['codigo_ticket']) ? (string)$row['codigo_ticket'] : '';
+        $ticketPrioridad = isset($row['prioridad']) ? (string)$row['prioridad'] : '';
+        $ticketEstado = isset($row['estado']) ? (string)$row['estado'] : '';
+        $ticketDepartamento = isset($row['departamento_nombre']) ? (string)$row['departamento_nombre'] : '';
+        $ticketTipo = isset($row['nombre_categoria']) ? (string)$row['nombre_categoria'] : '';
+
+        if ($datosTicket === null && $ticketCodigo !== '') {
+            $datosTicket = [
+                'codigo'       => $ticketCodigo,
+                'departamento' => $ticketDepartamento,
+                'tipo'         => $ticketTipo,
+                'prioridad'    => $ticketPrioridad,
+                'estado'       => $ticketEstado,
+            ];
+        }
+
         $usuarioNombre = isset($row['usuario_nombre']) ? trim((string)$row['usuario_nombre']) : '';
         $usuarioId = isset($row['usuario_id']) ? (int)$row['usuario_id'] : 0;
         if ($usuarioNombre === '' && $usuarioId > 0) {
             $usuarioNombre = 'Usuario #' . $usuarioId;
         }
 
-        $contactNumber = null;
-        if (isset($row['contact_number'])) {
-            $contactNumber = is_numeric($row['contact_number']) ? (int)$row['contact_number'] : null;
-            if ($contactNumber !== null && $contactNumber <= 0) {
-                $contactNumber = null;
-            }
-        }
-
-        $contactData = null;
-        if (isset($row['contact_data'])) {
-            $raw = $row['contact_data'];
-            if (is_string($raw) && $raw !== '') {
-                $decoded = json_decode($raw, true);
-                if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-                    $contactData = $decoded;
-                } else {
-                    $contactData = $raw;
-                }
-            } elseif (is_array($raw)) {
-                $contactData = $raw;
-            }
-        }
-
         return [
-            'id'             => isset($row['id']) ? (int)$row['id'] : 0,
-            'cooperativa'    => isset($row['cooperativa']) ? (string)$row['cooperativa'] : '',
-            'fecha'          => isset($row['fecha_registro']) ? (string)$row['fecha_registro'] : '',
-            'tipo'           => isset($row['tipo']) ? (string)$row['tipo'] : '',
-            'descripcion'    => isset($row['descripcion']) ? (string)$row['descripcion'] : '',
-            'ticket'         => isset($row['ticket']) ? (string)$row['ticket'] : '',
-            'usuario'        => $usuarioNombre,
-            'usuario_id'     => $usuarioId,
-            'creado_en'      => isset($row['creado_en']) ? (string)$row['creado_en'] : '',
-            'contact_number' => $contactNumber,
-            'contact_data'   => $contactData,
+            'id'                   => isset($row['id']) ? (int)$row['id'] : 0,
+            'id_cooperativa'       => isset($row['id_cooperativa']) ? (int)$row['id_cooperativa'] : 0,
+            'cooperativa'          => isset($row['cooperativa']) ? (string)$row['cooperativa'] : '',
+            'fecha_inicio'         => $fechaInicio,
+            'fecha_fin'            => $fechaFin,
+            'tipo'                 => isset($row['tipo']) ? (string)$row['tipo'] : '',
+            'descripcion'          => isset($row['descripcion']) ? (string)$row['descripcion'] : '',
+            'id_contacto'          => isset($row['id_contacto']) ? (int)$row['id_contacto'] : null,
+            'contacto_nombre'      => isset($row['nombre_contacto']) ? (string)$row['nombre_contacto'] : '',
+            'contacto_telefono'    => isset($row['contacto_telefono']) ? (string)$row['contacto_telefono'] : '',
+            'contacto_email'       => isset($row['contacto_email']) ? (string)$row['contacto_email'] : '',
+            'ticket_id'            => isset($row['ticket_id']) ? (int)$row['ticket_id'] : null,
+            'ticket_codigo'        => $ticketCodigo,
+            'ticket_departamento'  => $ticketDepartamento,
+            'ticket_tipo'          => $ticketTipo,
+            'ticket_prioridad'     => $ticketPrioridad,
+            'ticket_estado'        => $ticketEstado,
+            'datos_ticket'         => $datosTicket,
+            'datos_reunion'        => $datosReunion,
+            'creado_en'            => isset($row['created_at']) ? (string)$row['created_at'] : '',
+            'usuario'              => $usuarioNombre,
+            'usuario_id'           => $usuarioId,
+            'editado_en'           => isset($row['editado_en']) ? (string)$row['editado_en'] : null,
         ];
-    }
-
-    private function resolveTable(): string
-    {
-        if ($this->resolvedTable !== null) {
-            return $this->resolvedTable;
-        }
-
-        foreach (self::TABLE_CANDIDATES as $candidate) {
-            [$schema, $table] = $this->splitTableName($candidate);
-            if ($this->tableExists($schema, $table)) {
-                $this->resolvedTable = $schema . '.' . $table;
-                return $this->resolvedTable;
-            }
-        }
-
-        $this->resolvedTable = self::TABLE_CANDIDATES[0];
-        return $this->resolvedTable;
-    }
-
-    /**
-     * @return array<string,array{name:string,type:string}>
-     */
-    private function tableColumns(): array
-    {
-        if ($this->columnInfo) {
-            return $this->columnInfo;
-        }
-
-        [$schema, $table] = $this->splitTableName($this->resolveTable());
-
-        $sql = 'SELECT column_name, data_type FROM information_schema.columns WHERE table_schema = :schema AND table_name = :table';
-
-        try {
-            $rows = $this->db->fetchAll($sql, [
-                ':schema' => [$schema, PDO::PARAM_STR],
-                ':table'  => [$table, PDO::PARAM_STR],
-            ]);
-        } catch (\Throwable $e) {
-            $this->columnInfo = [];
-            return $this->columnInfo;
-        }
-
-        $info = [];
-        foreach ($rows as $row) {
-            if (!isset($row['column_name'])) {
-                continue;
-            }
-            $name = (string)$row['column_name'];
-            $type = isset($row['data_type']) ? (string)$row['data_type'] : 'text';
-            $info[strtolower($name)] = [
-                'name' => $name,
-                'type' => $type,
-            ];
-        }
-
-        $this->columnInfo = $info;
-        return $this->columnInfo;
-    }
-
-    private function column(string $logical): ?string
-    {
-        $map = [
-            'id'          => ['id', 'id_seguimiento', 'seguimiento_id'],
-            'coop'        => ['id_cooperativa', 'cooperativa_id', 'id_entidad'],
-            'fecha'       => ['fecha', 'fecha_actividad', 'fecha_seguimiento', 'dia', 'fecha_registro'],
-            'tipo'        => ['tipo', 'tipo_actividad', 'tipo_evento', 'categoria'],
-            'descripcion' => ['descripcion', 'detalle', 'comentario', 'observacion', 'nota'],
-            'ticket'      => ['ticket_id', 'id_ticket', 'ticket', 'ticket_numero'],
-            'usuario'     => ['creado_por', 'usuario_id', 'registrado_por', 'created_by'],
-            'created'     => ['created_at', 'creado_en', 'fecha_creacion', 'registrado_el'],
-            'contact_number' => ['numero_contacto', 'contact_number', 'num_contacto', 'contacto_numero'],
-            'contact_data'   => ['datos_contacto', 'contact_data', 'contacto_datos', 'contacto_json'],
-        ];
-
-        $candidates = $map[$logical] ?? [];
-        $columns = $this->tableColumns();
-
-        foreach ($candidates as $candidate) {
-            $lower = strtolower($candidate);
-            if (isset($columns[$lower])) {
-                return $columns[$lower]['name'];
-            }
-        }
-
-        return null;
-    }
-
-    private function requireColumn(string $logical): string
-    {
-        $column = $this->column($logical);
-        if ($column === null) {
-            throw new RuntimeException('No existe la columna requerida "' . $logical . '" en la tabla de seguimiento.');
-        }
-        return $column;
-    }
-
-    private function columnIsNumeric(string $logical): bool
-    {
-        $column = $this->column($logical);
-        if ($column === null) {
-            return false;
-        }
-
-        $columns = $this->tableColumns();
-        $info = $columns[strtolower($column)] ?? null;
-        if (!$info) {
-            return false;
-        }
-
-        $type = strtolower($info['type']);
-        return in_array($type, ['integer', 'bigint', 'smallint', 'numeric', 'decimal'], true);
-    }
-
-    private function tableExists(string $schema, string $table): bool
-    {
-        $sql = 'SELECT 1 FROM information_schema.tables WHERE table_schema = :schema AND table_name = :table LIMIT 1';
-
-        try {
-            $row = $this->db->fetch($sql, [
-                ':schema' => [$schema, PDO::PARAM_STR],
-                ':table'  => [$table, PDO::PARAM_STR],
-            ]);
-        } catch (\Throwable $e) {
-            return false;
-        }
-
-        return $row !== null;
-    }
-
-    private function findColumnName(string $schema, string $table, array $candidates): ?string
-    {
-        $sql = 'SELECT column_name FROM information_schema.columns WHERE table_schema = :schema AND table_name = :table';
-
-        try {
-            $rows = $this->db->fetchAll($sql, [
-                ':schema' => [$schema, PDO::PARAM_STR],
-                ':table'  => [$table, PDO::PARAM_STR],
-            ]);
-        } catch (\Throwable $e) {
-            return null;
-        }
-
-        $available = [];
-        foreach ($rows as $row) {
-            if (!isset($row['column_name'])) {
-                continue;
-            }
-            $available[strtolower((string)$row['column_name'])] = (string)$row['column_name'];
-        }
-
-        foreach ($candidates as $candidate) {
-            $key = strtolower($candidate);
-            if (isset($available[$key])) {
-                return $available[$key];
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * @return array{0:string,1:string}
-     */
-    private function splitTableName(string $table): array
-    {
-        $parts = explode('.', $table, 2);
-        if (count($parts) === 2) {
-            return [$parts[0], $parts[1]];
-        }
-        return ['public', $parts[0]];
     }
 }
