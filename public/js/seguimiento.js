@@ -1,141 +1,861 @@
-
 (function () {
+  var contactCache = {};
+  var ticketCache = {};
+  var toastTimer = null;
+
+  function announce(message, variant) {
+    if (!message) {
+      return;
+    }
+    var region = document.querySelector('[data-seguimiento-toast]');
+    if (!region) {
+      region = document.createElement('div');
+      region.className = 'seguimiento-toast';
+      region.setAttribute('role', 'status');
+      region.setAttribute('aria-live', 'polite');
+      region.dataset.seguimientoToast = 'true';
+      document.body.appendChild(region);
+    }
+    region.classList.remove('seguimiento-toast--success', 'seguimiento-toast--error', 'is-visible');
+    region.textContent = message;
+    if (variant === 'error') {
+      region.classList.add('seguimiento-toast--error');
+    } else {
+      region.classList.add('seguimiento-toast--success');
+    }
+    region.classList.add('is-visible');
+    if (toastTimer) {
+      clearTimeout(toastTimer);
+    }
+    toastTimer = setTimeout(function () {
+      region.classList.remove('is-visible');
+    }, 3200);
+  }
+
+  function fetchJson(url, options) {
+    return fetch(url, options || {}).then(function (response) {
+      if (!response.ok) {
+        throw new Error('Error al comunicarse con el servidor');
+      }
+      return response.json();
+    });
+  }
+
   function handleReset(button) {
     var form = button.closest('form');
     if (!form) {
       return;
     }
     var fechaField = form.querySelector('#seguimiento-fecha');
-    var defaultValue = fechaField ? fechaField.getAttribute('data-default') : '';
+    var remembered = fechaField ? fechaField.value : '';
     form.reset();
-    if (fechaField && defaultValue) {
-      fechaField.value = defaultValue;
+    if (fechaField && remembered) {
+      fechaField.value = remembered;
     }
     form.submit();
   }
 
-  function parseCardData(card) {
-    if (!card) {
-      return null;
-    }
-    var raw = card.getAttribute('data-item');
-    if (!raw) {
-      return null;
-    }
-    try {
-      return JSON.parse(raw);
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function removeGeneratedOptions(select) {
+  function setSelectOptions(select, items, selected) {
     if (!select) {
       return;
     }
-    var generated = select.querySelectorAll('option[data-generated="true"]');
-    generated.forEach(function (option) {
-      if (option.parentNode) {
-        option.parentNode.removeChild(option);
-      }
-    });
-  }
-
-  function setSelectValue(select, value, label) {
-    if (!select) {
-      return;
+    var current = select.value;
+    while (select.options.length > 1) {
+      select.remove(1);
     }
-    var normalized = value === null || value === undefined ? '' : String(value);
-    removeGeneratedOptions(select);
-
-    var found = false;
-    for (var i = 0; i < select.options.length; i++) {
-      if (select.options[i].value === normalized) {
-        found = true;
-        break;
-      }
-    }
-
-    if (!found && normalized !== '') {
+    items.forEach(function (item) {
       var option = document.createElement('option');
-      option.value = normalized;
-      option.textContent = label && label !== '' ? label : normalized;
-      option.setAttribute('data-generated', 'true');
+      option.value = String(item.id);
+      option.textContent = item.nombre || ('Contacto #' + item.id);
       select.appendChild(option);
-      found = true;
-    }
-
-    if (found) {
-      select.value = normalized;
+    });
+    if (selected) {
+      select.value = String(selected);
     } else {
       select.value = '';
     }
   }
 
-  function setFieldValue(field, value) {
-    if (!field) {
+  function renderContactInfo(container, contact) {
+    if (!container) {
       return;
     }
-    field.value = value === null || value === undefined ? '' : String(value);
+    var fields = container.querySelectorAll('[data-contacto-dato]');
+    fields.forEach(function (field) {
+      var key = field.getAttribute('data-contacto-dato');
+      var value = contact && key && contact[key] ? contact[key] : '—';
+      field.textContent = value && value !== '' ? value : '—';
+    });
   }
 
-  function stringFromContact(data, fallbackText) {
-    if (typeof fallbackText === 'string' && fallbackText !== '') {
-      return fallbackText;
+  function renderTicketInfo(container, data) {
+    if (!container) {
+      return;
     }
-    if (!data) {
-      return '';
+    var map = {
+      codigo: data && data.codigo ? data.codigo : '—',
+      departamento: data && data.departamento ? data.departamento : '—',
+      tipo: data && data.tipo ? data.tipo : '—',
+      prioridad: data && data.prioridad ? data.prioridad : '—',
+      estado: data && data.estado ? data.estado : '—',
+    };
+    var fields = container.querySelectorAll('[data-ticket-dato]');
+    fields.forEach(function (field) {
+      var key = field.getAttribute('data-ticket-dato');
+      field.textContent = key && Object.prototype.hasOwnProperty.call(map, key) ? map[key] : '—';
+    });
+  }
+
+  function toggleSections(typeValue, sections) {
+    var normalized = (typeValue || '').toLowerCase();
+    Object.keys(sections).forEach(function (key) {
+      var section = sections[key];
+      if (!section) {
+        return;
+      }
+      if (key === normalized) {
+        section.removeAttribute('hidden');
+      } else {
+        section.setAttribute('hidden', 'hidden');
+      }
+    });
+  }
+
+  function disableFormFields(form, disabled) {
+    if (!form) {
+      return;
     }
-    if (typeof data === 'string') {
-      return data;
+    var fields = form.querySelectorAll('input[type="date"], input[type="text"], textarea, select');
+    fields.forEach(function (field) {
+      field.disabled = disabled;
+    });
+  }
+
+  function loadContacts(entidadId) {
+    if (!entidadId || entidadId <= 0) {
+      return Promise.resolve([]);
     }
-    if (Array.isArray(data)) {
-      return data.join(', ');
+    if (contactCache[entidadId]) {
+      return Promise.resolve(contactCache[entidadId]);
     }
-    if (typeof data === 'object') {
-      var pieces = [];
-      for (var key in data) {
-        if (!Object.prototype.hasOwnProperty.call(data, key)) {
-          continue;
+    return fetchJson('/comercial/eventos/contactos?entidad=' + entidadId).then(function (response) {
+      if (!response || !response.ok || !Array.isArray(response.items)) {
+        return [];
+      }
+      contactCache[entidadId] = response.items;
+      return response.items;
+    }).catch(function () {
+      return [];
+    });
+  }
+
+  function setupTicketSearch(config) {
+    var input = config.input;
+    if (!input) {
+      return;
+    }
+    var datalist = config.datalist;
+    var hiddenId = config.hiddenId;
+    var hiddenData = config.hiddenData;
+    var summary = config.summary;
+    var debounceTimer = null;
+    var lookup = {};
+
+    function writeHidden(ticket) {
+      if (hiddenId) {
+        hiddenId.value = ticket && ticket.id ? String(ticket.id) : '';
+      }
+      if (hiddenData) {
+        hiddenData.value = ticket ? JSON.stringify({
+          codigo: ticket.codigo || '',
+          departamento: ticket.departamento || '',
+          tipo: ticket.tipo || '',
+          prioridad: ticket.prioridad || '',
+          estado: ticket.estado || '',
+        }) : '';
+      }
+      renderTicketInfo(summary, ticket);
+    }
+
+    function performSearch(term) {
+      var normalized = term.trim();
+      if (normalized.length < 3) {
+        if (datalist) {
+          datalist.innerHTML = '';
         }
-        var value = data[key];
-        if (value === null || value === '') {
-          continue;
-        }
-        var normalizedValue = value;
-        if (typeof value === 'object') {
-          try {
-            normalizedValue = JSON.stringify(value);
-          } catch (error) {
-            normalizedValue = '';
+        lookup = {};
+        return;
+      }
+      fetchJson('/comercial/eventos/tickets/buscar?q=' + encodeURIComponent(normalized))
+        .then(function (response) {
+          if (!response || !response.ok || !Array.isArray(response.items)) {
+            return;
           }
+          lookup = {};
+          if (datalist) {
+            datalist.innerHTML = '';
+          }
+          response.items.forEach(function (item) {
+            var key = item.codigo ? String(item.codigo).toUpperCase() : '';
+            if (key) {
+              lookup[key] = item;
+            }
+            if (datalist && item.codigo) {
+              var option = document.createElement('option');
+              option.value = item.codigo;
+              option.label = item.codigo + ' — ' + (item.titulo || '');
+              datalist.appendChild(option);
+            }
+          });
+        })
+        .catch(function () {
+          /* noop */
+        });
+    }
+
+    input.addEventListener('input', function () {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      var term = input.value || '';
+      debounceTimer = setTimeout(function () {
+        performSearch(term);
+      }, 250);
+    });
+
+    input.addEventListener('change', function () {
+      var value = (input.value || '').trim();
+      if (!value) {
+        writeHidden(null);
+        return;
+      }
+      var key = value.toUpperCase();
+      var match = lookup[key];
+      if (!match && ticketCache[key]) {
+        match = ticketCache[key];
+      }
+      if (match) {
+        ticketCache[key] = match;
+        writeHidden(match);
+      } else {
+        // try fetching precise ticket by code
+        fetchJson('/comercial/eventos/tickets/buscar?q=' + encodeURIComponent(value)).then(function (response) {
+          if (response && Array.isArray(response.items) && response.items.length > 0) {
+            var item = response.items[0];
+            var newKey = item.codigo ? String(item.codigo).toUpperCase() : '';
+            if (newKey) {
+              lookup[newKey] = item;
+              ticketCache[newKey] = item;
+            }
+            writeHidden(item);
+          } else {
+            writeHidden(null);
+          }
+        }).catch(function () {
+          writeHidden(null);
+        });
+      }
+    });
+
+    if (hiddenId && hiddenId.value) {
+      var existingId = parseInt(hiddenId.value, 10);
+      if (!isNaN(existingId) && existingId > 0) {
+        fetchJson('/comercial/eventos/tickets/' + existingId)
+          .then(function (response) {
+            if (response && response.ok && response.item) {
+              var k = response.item.codigo ? String(response.item.codigo).toUpperCase() : '';
+              if (k) {
+                ticketCache[k] = response.item;
+              }
+              input.value = response.item.codigo || '';
+              writeHidden(response.item);
+            }
+          })
+          .catch(function () {
+            /* noop */
+          });
+      }
+    }
+  }
+
+  function setupCreateForm(form) {
+    if (!form) {
+      return;
+    }
+    var entidadSelect = form.querySelector('#nuevo-entidad');
+    var tipoSelect = form.querySelector('#nuevo-tipo');
+    var contactoSelect = form.querySelector('#nuevo-contacto');
+    var contactoResumen = form.querySelector('[data-contacto-resumen]');
+    var ticketInput = form.querySelector('#nuevo-ticket-buscar');
+    var ticketDatalist = form.querySelector('#nuevo-ticket-opciones');
+    var ticketIdField = form.querySelector('#nuevo-ticket-id');
+    var ticketDatosField = form.querySelector('#nuevo-ticket-datos');
+    var ticketResumen = form.querySelector('[data-ticket-resumen]');
+
+    var sections = {
+      contacto: form.querySelector('[data-seguimiento-section="contacto"]'),
+      ticket: form.querySelector('[data-seguimiento-section="ticket"]'),
+    };
+
+    renderContactInfo(contactoResumen, null);
+    renderTicketInfo(ticketResumen, null);
+
+    if (entidadSelect) {
+      entidadSelect.addEventListener('change', function () {
+        var entidadId = parseInt(entidadSelect.value, 10);
+        if (isNaN(entidadId) || entidadId <= 0) {
+          setSelectOptions(contactoSelect, [], null);
+          renderContactInfo(contactoResumen, null);
+          return;
         }
-        if (normalizedValue === '') {
-          continue;
+        loadContacts(entidadId).then(function (items) {
+          setSelectOptions(contactoSelect, items, null);
+          renderContactInfo(contactoResumen, null);
+        });
+      });
+    }
+
+    if (contactoSelect) {
+      contactoSelect.addEventListener('change', function () {
+        var entidadId = entidadSelect ? parseInt(entidadSelect.value, 10) : 0;
+        var contactId = parseInt(contactoSelect.value, 10);
+        if (isNaN(entidadId) || entidadId <= 0 || isNaN(contactId) || contactId <= 0) {
+          renderContactInfo(contactoResumen, null);
+          return;
         }
-        if (key && key !== '') {
-          pieces.push(key + ': ' + normalizedValue);
+        loadContacts(entidadId).then(function (items) {
+          var found = items.find(function (item) {
+            return item.id === contactId;
+          });
+          renderContactInfo(contactoResumen, found || null);
+        });
+      });
+    }
+
+    if (tipoSelect) {
+      tipoSelect.addEventListener('change', function () {
+        toggleSections(tipoSelect.value, sections);
+      });
+      toggleSections(tipoSelect.value, sections);
+    }
+
+    setupTicketSearch({
+      input: ticketInput,
+      datalist: ticketDatalist,
+      hiddenId: ticketIdField,
+      hiddenData: ticketDatosField,
+      summary: ticketResumen,
+    });
+  }
+
+  function setupModal() {
+    var modal = document.querySelector('[data-seguimiento-modal]');
+    if (!modal) {
+      return;
+    }
+
+    var overlay = modal.querySelector('[data-seguimiento-overlay]');
+    var dialog = modal.querySelector('[data-seguimiento-dialog]');
+    var closeBtn = modal.querySelector('[data-seguimiento-close]');
+    var form = modal.querySelector('[data-seguimiento-form]');
+    var editBtn = modal.querySelector('[data-seguimiento-edit]');
+    var deleteBtn = modal.querySelector('[data-seguimiento-delete]');
+    var titleEl = modal.querySelector('[data-seguimiento-modal-title]');
+    var metaContainer = modal.querySelector('[data-seguimiento-modal-meta]');
+
+    if (!form) {
+      return;
+    }
+
+    var idField = form.querySelector('input[name="id"]');
+    var fechaInicioField = form.querySelector('#modal-fecha-inicio');
+    var fechaFinField = form.querySelector('#modal-fecha-fin');
+    var entidadField = form.querySelector('#modal-entidad');
+    var tipoField = form.querySelector('#modal-tipo');
+    var descripcionField = form.querySelector('#modal-descripcion');
+    var contactoSelect = form.querySelector('#modal-contacto');
+    var contactoResumen = form.querySelector('[data-contacto-resumen]');
+    var ticketInput = form.querySelector('#modal-ticket-buscar');
+    var ticketDatalist = form.querySelector('#modal-ticket-opciones');
+    var ticketIdField = form.querySelector('#modal-ticket-id');
+    var ticketDatosField = form.querySelector('#modal-ticket-datos');
+    var ticketResumen = form.querySelector('[data-ticket-resumen]');
+
+    var sections = {
+      contacto: form.querySelector('[data-seguimiento-section="contacto"]'),
+      ticket: form.querySelector('[data-seguimiento-section="ticket"]'),
+    };
+
+    var currentData = null;
+    var currentCard = null;
+    var editing = false;
+    var lastFocused = null;
+
+    setupTicketSearch({
+      input: ticketInput,
+      datalist: ticketDatalist,
+      hiddenId: ticketIdField,
+      hiddenData: ticketDatosField,
+      summary: ticketResumen,
+    });
+
+    if (entidadField) {
+      entidadField.addEventListener('change', function () {
+        if (!editing) {
+          return;
+        }
+        var entidadId = parseInt(entidadField.value, 10);
+        if (isNaN(entidadId) || entidadId <= 0) {
+          setSelectOptions(contactoSelect, [], null);
+          renderContactInfo(contactoResumen, null);
+          return;
+        }
+        loadContacts(entidadId).then(function (items) {
+          setSelectOptions(contactoSelect, items, null);
+          renderContactInfo(contactoResumen, null);
+        });
+      });
+    }
+
+    if (tipoField) {
+      tipoField.addEventListener('change', function () {
+        toggleSections(tipoField.value, sections);
+        var normalized = (tipoField.value || '').toLowerCase();
+        if (normalized !== 'contacto') {
+          if (contactoSelect) {
+            contactoSelect.value = '';
+          }
+          renderContactInfo(contactoResumen, null);
+        }
+        if (normalized !== 'ticket') {
+          if (ticketInput) {
+            ticketInput.value = '';
+          }
+          if (ticketIdField) {
+            ticketIdField.value = '';
+          }
+          if (ticketDatosField) {
+            ticketDatosField.value = '';
+          }
+          renderTicketInfo(ticketResumen, null);
+        }
+      });
+    }
+
+    if (contactoSelect) {
+      contactoSelect.addEventListener('change', function () {
+        if (!currentData) {
+          return;
+        }
+        var entidadId = parseInt(entidadField ? entidadField.value : '0', 10);
+        var contactId = parseInt(contactoSelect.value, 10);
+        if (isNaN(entidadId) || entidadId <= 0 || isNaN(contactId) || contactId <= 0) {
+          renderContactInfo(contactoResumen, null);
+          return;
+        }
+        loadContacts(entidadId).then(function (items) {
+          var found = items.find(function (item) { return item.id === contactId; });
+          renderContactInfo(contactoResumen, found || null);
+        });
+      });
+    }
+
+    function renderMeta(data) {
+      if (!metaContainer) {
+        return;
+      }
+      metaContainer.innerHTML = '';
+      var chips = [];
+      if (data.usuario) {
+        chips.push({ icon: 'person', text: 'Registrado por ' + data.usuario });
+      }
+      if (data.creado_en) {
+        chips.push({ icon: 'schedule', text: data.creado_en });
+      }
+      if (data.editado_en) {
+        chips.push({ icon: 'update', text: 'Actualizado ' + data.editado_en });
+      }
+      if (data.id) {
+        chips.push({ icon: 'tag', text: 'ID #' + data.id });
+      }
+      if (chips.length === 0) {
+        metaContainer.setAttribute('hidden', 'hidden');
+        return;
+      }
+      metaContainer.removeAttribute('hidden');
+      chips.forEach(function (chip) {
+        var span = document.createElement('span');
+        span.className = 'seguimiento-modal__meta-item';
+        var icon = document.createElement('span');
+        icon.className = 'material-symbols-outlined';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = chip.icon;
+        var text = document.createElement('span');
+        text.textContent = chip.text;
+        span.appendChild(icon);
+        span.appendChild(text);
+        metaContainer.appendChild(span);
+      });
+    }
+
+    function applyData(data) {
+      if (!data) {
+        return;
+      }
+      var entityName = data.entidad || data.cooperativa || '';
+      if (!data.entidad && entityName) {
+        data.entidad = entityName;
+      }
+      if (!data.cooperativa && entityName) {
+        data.cooperativa = entityName;
+      }
+      disableFormFields(form, true);
+      editing = false;
+      if (editBtn) {
+        editBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">edit</span>Editar';
+      }
+      if (idField) {
+        idField.value = data.id ? String(data.id) : '';
+      }
+      if (fechaInicioField) {
+        fechaInicioField.value = data.fecha_inicio || '';
+      }
+      if (fechaFinField) {
+        fechaFinField.value = data.fecha_fin || '';
+      }
+      if (entidadField) {
+        entidadField.value = data.id_cooperativa ? String(data.id_cooperativa) : '';
+      }
+      if (tipoField) {
+        setSelectValue(tipoField, data.tipo || '');
+      }
+      if (descripcionField) {
+        descripcionField.value = data.descripcion || '';
+      }
+      if (titleEl) {
+        titleEl.textContent = entityName || 'Detalle de seguimiento';
+      }
+      toggleSections(data.tipo || '', sections);
+
+      if (entidadField && contactoSelect) {
+        var entidadId = parseInt(entidadField.value, 10);
+        if (!isNaN(entidadId) && entidadId > 0) {
+          loadContacts(entidadId).then(function (items) {
+            setSelectOptions(contactoSelect, items, data.id_contacto || null);
+            var found = items.find(function (item) { return data.id_contacto && item.id === data.id_contacto; });
+            renderContactInfo(contactoResumen, found || null);
+          });
         } else {
-          pieces.push(String(normalizedValue));
+          setSelectOptions(contactoSelect, [], null);
+          renderContactInfo(contactoResumen, null);
         }
       }
-      return pieces.join('; ');
-    }
-    return '';
-  }
 
-  function createMetaChip(icon, text) {
-    var chip = document.createElement('span');
-    chip.className = 'seguimiento-modal__meta-item';
-    var iconEl = document.createElement('span');
-    iconEl.className = 'material-symbols-outlined';
-    iconEl.setAttribute('aria-hidden', 'true');
-    iconEl.textContent = icon;
-    var textEl = document.createElement('span');
-    textEl.textContent = text;
-    chip.appendChild(iconEl);
-    chip.appendChild(textEl);
-    return chip;
+      if (ticketInput) {
+        ticketInput.value = data.ticket_codigo || '';
+      }
+      if (ticketIdField) {
+        ticketIdField.value = data.ticket_id ? String(data.ticket_id) : '';
+      }
+      if (ticketDatosField) {
+        ticketDatosField.value = data.datos_ticket ? JSON.stringify(data.datos_ticket) : '';
+      }
+      renderTicketInfo(ticketResumen, data.datos_ticket || {
+        codigo: data.ticket_codigo || '',
+        departamento: data.ticket_departamento || '',
+        tipo: data.ticket_tipo || '',
+        prioridad: data.ticket_prioridad || '',
+        estado: data.ticket_estado || '',
+      });
+
+      renderMeta(data);
+    }
+
+    function setSelectValue(select, value) {
+      if (!select) {
+        return;
+      }
+      var normalized = value ? String(value) : '';
+      var exists = false;
+      for (var i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === normalized) {
+          exists = true;
+          break;
+        }
+      }
+      if (!exists && normalized !== '') {
+        var option = document.createElement('option');
+        option.value = normalized;
+        option.textContent = normalized;
+        option.setAttribute('data-generated', 'true');
+        select.appendChild(option);
+      }
+      select.value = normalized;
+    }
+
+    function toggleEdit() {
+      if (!currentData) {
+        return;
+      }
+      editing = !editing;
+      if (editing) {
+        disableFormFields(form, false);
+        if (editBtn) {
+          editBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">save</span>Guardar';
+        }
+        if (fechaInicioField && typeof fechaInicioField.focus === 'function') {
+          fechaInicioField.focus();
+        }
+      } else {
+        disableFormFields(form, true);
+        if (editBtn) {
+          editBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">edit</span>Editar';
+        }
+      }
+      toggleSections(tipoField ? tipoField.value : '', sections);
+    }
+
+    function closeModal() {
+      if (!modal.classList.contains('is-open')) {
+        return;
+      }
+      modal.classList.remove('is-open');
+      modal.setAttribute('hidden', 'hidden');
+      document.body.classList.remove('seguimiento-modal-open');
+      disableFormFields(form, true);
+      editing = false;
+      if (editBtn) {
+        editBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">edit</span>Editar';
+      }
+      if (lastFocused && typeof lastFocused.focus === 'function') {
+        lastFocused.focus();
+      }
+      currentCard = null;
+      currentData = null;
+    }
+
+    function openModal(card, data) {
+      currentCard = card;
+      currentData = data;
+      if (currentData && !currentData.entidad && currentData.cooperativa) {
+        currentData.entidad = currentData.cooperativa;
+      }
+      lastFocused = document.activeElement;
+      modal.removeAttribute('hidden');
+      modal.classList.add('is-open');
+      document.body.classList.add('seguimiento-modal-open');
+      applyData(data);
+      var focusTarget = closeBtn || dialog;
+      if (focusTarget && typeof focusTarget.focus === 'function') {
+        setTimeout(function () {
+          focusTarget.focus();
+        }, 80);
+      }
+    }
+
+    function formatDate(value) {
+      if (!value) {
+        return '';
+      }
+      var parts = String(value).split('-');
+      if (parts.length === 3) {
+        return parts[2] + '/' + parts[1] + '/' + parts[0];
+      }
+      return value;
+    }
+
+    function refreshCard(data) {
+      if (!currentCard) {
+        return;
+      }
+      var payload = {
+        id: data.id,
+        id_cooperativa: data.id_cooperativa,
+        entidad: data.entidad || data.cooperativa || '',
+        cooperativa: data.cooperativa || data.entidad || '',
+        fecha_inicio: data.fecha_inicio,
+        fecha_inicio_texto: data.fecha_inicio ? formatDate(data.fecha_inicio) : '',
+        fecha_fin: data.fecha_fin,
+        fecha_fin_texto: data.fecha_fin ? formatDate(data.fecha_fin) : '',
+        tipo: data.tipo,
+        descripcion: data.descripcion,
+        contacto_id: data.id_contacto,
+        contacto_nombre: data.contacto_nombre,
+        contacto_telefono: data.contacto_telefono,
+        contacto_email: data.contacto_email,
+        ticket_id: data.ticket_id,
+        ticket_codigo: data.ticket_codigo,
+        ticket_departamento: data.ticket_departamento,
+        ticket_tipo: data.ticket_tipo,
+        ticket_prioridad: data.ticket_prioridad,
+        ticket_estado: data.ticket_estado,
+        datos_reunion: data.datos_reunion,
+        datos_ticket: data.datos_ticket,
+        usuario: data.usuario,
+        creado_en: data.creado_en,
+        editado_en: data.editado_en,
+      };
+      try {
+        currentCard.setAttribute('data-item', JSON.stringify(payload));
+      } catch (error) {
+        currentCard.setAttribute('data-item', '{}');
+      }
+      var title = currentCard.querySelector('.seguimiento-card__title');
+      if (title) {
+        title.textContent = payload.cooperativa || '';
+      }
+      var desc = currentCard.querySelector('.seguimiento-card__desc');
+      if (desc) {
+        desc.textContent = data.descripcion || '';
+      }
+      var badge = currentCard.querySelector('.seguimiento-card__badge');
+      if (badge) {
+        badge.textContent = data.tipo || '';
+      }
+      var inicioEl = currentCard.querySelector('[data-field="inicio"]');
+      if (inicioEl) {
+        var inicioTexto = formatDate(data.fecha_inicio);
+        inicioEl.textContent = inicioTexto;
+        inicioEl.classList.toggle('seguimiento-card__value--empty', !inicioTexto);
+      }
+      var finEl = currentCard.querySelector('[data-field="fin"]');
+      if (finEl) {
+        var finTexto = formatDate(data.fecha_fin);
+        finEl.textContent = finTexto;
+        finEl.classList.toggle('seguimiento-card__value--empty', !finTexto);
+      }
+      var usuarioEl = currentCard.querySelector('[data-field="usuario"]');
+      if (usuarioEl) {
+        var usuarioTexto = data.usuario || '';
+        usuarioEl.textContent = usuarioTexto;
+        usuarioEl.classList.toggle('seguimiento-card__value--empty', !usuarioTexto);
+      }
+    }
+
+    function submitUpdate() {
+      if (!currentData || !idField || !idField.value) {
+        return;
+      }
+      var formData = new FormData(form);
+      fetch('/comercial/eventos/' + encodeURIComponent(idField.value), {
+        method: 'POST',
+        body: formData,
+      })
+        .then(function (response) {
+          return response.json().catch(function () { return {}; });
+        })
+        .then(function (payload) {
+          if (!payload || !payload.ok || !payload.item) {
+            var message = 'No se pudo actualizar el seguimiento.';
+            if (payload && Array.isArray(payload.errors) && payload.errors.length) {
+              message = payload.errors.join(' ');
+            }
+            announce(message, 'error');
+            return;
+          }
+          currentData = payload.item;
+          if (currentData && !currentData.entidad && currentData.cooperativa) {
+            currentData.entidad = currentData.cooperativa;
+          }
+          applyData(currentData);
+          refreshCard(currentData);
+          announce('Información actualizada correctamente', 'success');
+        })
+        .catch(function () {
+          announce('Ocurrió un error al actualizar el seguimiento.', 'error');
+        });
+    }
+
+    if (editBtn) {
+      editBtn.addEventListener('click', function () {
+        if (!currentData) {
+          return;
+        }
+        if (!editing) {
+          toggleEdit();
+        } else {
+          submitUpdate();
+        }
+      });
+    }
+
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', function () {
+        if (!currentData) {
+          return;
+        }
+        var event = new CustomEvent('seguimiento:delete', { detail: currentData });
+        document.dispatchEvent(event);
+      });
+    }
+
+    if (overlay) {
+      overlay.addEventListener('click', closeModal);
+    }
+
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function (event) {
+        event.preventDefault();
+        closeModal();
+      });
+    }
+
+    modal.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeModal();
+      }
+    });
+
+    if (dialog) {
+      dialog.addEventListener('click', function (event) {
+        event.stopPropagation();
+      });
+    }
+
+    disableFormFields(form, true);
+
+    if (form) {
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+      });
+    }
+
+    document.querySelectorAll('[data-seguimiento-card]').forEach(function (card) {
+      function parseData() {
+        var raw = card.getAttribute('data-item');
+        if (!raw) {
+          return null;
+        }
+        try {
+          var parsed = JSON.parse(raw);
+          if (parsed && !parsed.cooperativa && parsed.entidad) {
+            parsed.cooperativa = parsed.entidad;
+          }
+          if (parsed && !parsed.entidad && parsed.cooperativa) {
+            parsed.entidad = parsed.cooperativa;
+          }
+          return parsed;
+        } catch (error) {
+          return null;
+        }
+      }
+      card.addEventListener('click', function () {
+        var data = parseData();
+        if (data) {
+          openModal(card, data);
+        }
+      });
+      card.addEventListener('keydown', function (event) {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          var data = parseData();
+          if (data) {
+            openModal(card, data);
+          }
+        }
+      });
+    });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
@@ -147,227 +867,7 @@
       });
     }
 
-    var modal = document.querySelector('[data-seguimiento-modal]');
-    if (!modal) {
-      return;
-    }
-
-    var overlay = modal.querySelector('[data-seguimiento-overlay]');
-    var dialog = modal.querySelector('[data-seguimiento-dialog]');
-    var closeBtn = modal.querySelector('[data-seguimiento-close]');
-    var cancelBtn = modal.querySelector('[data-seguimiento-cancel]');
-    var form = modal.querySelector('[data-seguimiento-form]');
-    var idField = form ? form.querySelector('input[name="id"]') : null;
-    var fechaField = form ? form.querySelector('#modal-fecha') : null;
-    var coopField = form ? form.querySelector('#modal-coop') : null;
-    var tipoField = form ? form.querySelector('#modal-tipo') : null;
-    var descripcionField = form ? form.querySelector('#modal-descripcion') : null;
-    var ticketField = form ? form.querySelector('#modal-ticket') : null;
-    var contactoField = form ? form.querySelector('#modal-contacto') : null;
-    var contactoDetalleField = form ? form.querySelector('#modal-contacto-detalle') : null;
-    var metaContainer = modal.querySelector('[data-seguimiento-modal-meta]');
-    var titleEl = modal.querySelector('[data-seguimiento-modal-title]');
-    var subtitleEl = modal.querySelector('[data-seguimiento-modal-subtitle]');
-    var editBtn = modal.querySelector('[data-seguimiento-edit]');
-    var deleteBtn = modal.querySelector('[data-seguimiento-delete]');
-
-    var currentData = null;
-    var lastFocusedElement = null;
-
-    function closeModal() {
-      if (!modal.classList.contains('is-open')) {
-        return;
-      }
-      modal.classList.remove('is-open');
-      modal.setAttribute('hidden', 'hidden');
-      document.body.classList.remove('seguimiento-modal-open');
-      currentData = null;
-      if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') {
-        lastFocusedElement.focus();
-      }
-    }
-
-    function renderMeta(data) {
-      if (!metaContainer) {
-        return;
-      }
-      metaContainer.innerHTML = '';
-      var chips = [];
-      if (data.usuario) {
-        chips.push(createMetaChip('person', 'Registrado por ' + data.usuario));
-      }
-      if (data.creado_en) {
-        chips.push(createMetaChip('schedule', data.creado_en));
-      }
-      if (data.contact_number !== null && data.contact_number !== undefined && data.contact_number !== '' && data.contact_number !== 0) {
-        chips.push(createMetaChip('call', 'Contacto ' + data.contact_number));
-      }
-      if (data.id) {
-        chips.push(createMetaChip('tag', 'ID #' + data.id));
-      }
-
-      if (chips.length === 0) {
-        metaContainer.setAttribute('hidden', 'hidden');
-        return;
-      }
-
-      metaContainer.removeAttribute('hidden');
-      chips.forEach(function (chip) {
-        metaContainer.appendChild(chip);
-      });
-    }
-
-    function openModal(data) {
-      if (!data) {
-        return;
-      }
-      currentData = data;
-      lastFocusedElement = document.activeElement;
-      modal.removeAttribute('hidden');
-      modal.classList.add('is-open');
-      document.body.classList.add('seguimiento-modal-open');
-
-      if (idField) {
-        idField.value = data.id ? String(data.id) : '';
-      }
-      var fechaValor = data.fecha !== undefined && data.fecha !== null ? data.fecha : '';
-      var coopValor = data.cooperativa_id !== undefined && data.cooperativa_id !== null ? data.cooperativa_id : '';
-      var tipoValor = data.tipo !== undefined && data.tipo !== null ? data.tipo : '';
-      var descripcionValor = data.descripcion !== undefined && data.descripcion !== null ? data.descripcion : '';
-      var ticketValor = data.ticket !== undefined && data.ticket !== null ? data.ticket : '';
-      var contactoValor = data.contact_number !== undefined && data.contact_number !== null && data.contact_number !== 0
-        ? data.contact_number
-        : '';
-
-      setFieldValue(fechaField, fechaValor);
-      setSelectValue(coopField, coopValor, data.cooperativa || '');
-      setSelectValue(tipoField, tipoValor, data.tipo || '');
-      setFieldValue(descripcionField, descripcionValor);
-      setFieldValue(ticketField, ticketValor);
-      setFieldValue(contactoField, contactoValor);
-      var contactoTexto = stringFromContact(data.contact_data, data.contact_data_text || '');
-      setFieldValue(contactoDetalleField, contactoTexto);
-
-      if (titleEl) {
-        titleEl.textContent = data.cooperativa && data.cooperativa !== ''
-          ? data.cooperativa
-          : 'Detalle de seguimiento';
-      }
-
-      if (subtitleEl) {
-        var subtitleParts = [];
-        if (data.fecha_texto) {
-          subtitleParts.push(data.fecha_texto);
-        }
-        if (data.tipo) {
-          subtitleParts.push(data.tipo);
-        }
-        if (data.ticket) {
-          subtitleParts.push('Ticket ' + data.ticket);
-        }
-        subtitleEl.textContent = subtitleParts.length > 0 ? subtitleParts.join(' · ') : '';
-      }
-
-      if (editBtn) {
-        editBtn.disabled = !data.id;
-      }
-      if (deleteBtn) {
-        deleteBtn.disabled = !data.id;
-      }
-
-      renderMeta(data);
-
-      if (fechaField && typeof fechaField.focus === 'function') {
-        setTimeout(function () {
-          fechaField.focus();
-        }, 60);
-      }
-    }
-
-    var cards = document.querySelectorAll('[data-seguimiento-card]');
-    cards.forEach(function (card) {
-      card.addEventListener('click', function () {
-        var data = parseCardData(card);
-        if (data) {
-          openModal(data);
-        }
-      });
-
-      card.addEventListener('keydown', function (event) {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          var data = parseCardData(card);
-          if (data) {
-            openModal(data);
-          }
-        }
-      });
-    });
-
-    if (overlay) {
-      overlay.addEventListener('click', closeModal);
-    }
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', function (event) {
-        event.preventDefault();
-        closeModal();
-      });
-    }
-    if (closeBtn) {
-      closeBtn.addEventListener('click', function (event) {
-        event.preventDefault();
-        closeModal();
-      });
-    }
-
-    if (modal) {
-      modal.addEventListener('click', function (event) {
-        if (event.target === modal) {
-          closeModal();
-        }
-      });
-      modal.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          closeModal();
-        }
-      });
-    }
-
-    if (dialog) {
-      dialog.addEventListener('click', function (event) {
-        event.stopPropagation();
-      });
-    }
-
-    if (form) {
-      form.addEventListener('submit', function (event) {
-        event.preventDefault();
-      });
-    }
-
-    if (editBtn) {
-      editBtn.addEventListener('click', function () {
-        if (!currentData || !currentData.id) {
-          return;
-        }
-        var editEvent = new CustomEvent('seguimiento:edit', {
-          detail: currentData,
-        });
-        document.dispatchEvent(editEvent);
-      });
-    }
-
-    if (deleteBtn) {
-      deleteBtn.addEventListener('click', function () {
-        if (!currentData || !currentData.id) {
-          return;
-        }
-        var deleteEvent = new CustomEvent('seguimiento:delete', {
-          detail: currentData,
-        });
-        document.dispatchEvent(deleteEvent);
-      });
-    }
+    setupCreateForm(document.querySelector('[data-seguimiento-create]'));
+    setupModal();
   });
 })();

@@ -36,8 +36,6 @@ $tipoFiltro  = isset($filters['tipo']) ? (string)$filters['tipo'] : '';
 $qFiltro     = isset($filters['q']) ? (string)$filters['q'] : '';
 $ticketFiltro = isset($filters['ticket']) ? (string)$filters['ticket'] : '';
 
-$fechaForm = $fechaFiltro !== '' ? $fechaFiltro : date('Y-m-d');
-
 function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage): string
 {
     $query = array_merge($filters, [
@@ -77,7 +75,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
     <form class="seguimiento-filters" method="get" action="/comercial/eventos" role="search">
       <div class="seguimiento-filters__field">
         <label for="seguimiento-fecha">Fecha</label>
-        <input id="seguimiento-fecha" type="date" name="fecha" value="<?= seguimiento_h($fechaFiltro) ?>" data-default="<?= seguimiento_h($fechaForm) ?>">
+        <input id="seguimiento-fecha" type="date" name="fecha" value="<?= seguimiento_h($fechaFiltro) ?>">
       </div>
       <div class="seguimiento-filters__field">
         <label for="seguimiento-desde">Desde</label>
@@ -88,7 +86,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         <input id="seguimiento-hasta" type="date" name="hasta" value="<?= seguimiento_h($hastaFiltro) ?>">
       </div>
       <div class="seguimiento-filters__field">
-        <label for="seguimiento-coop">Cooperativa</label>
+        <label for="seguimiento-coop">Entidad</label>
         <select id="seguimiento-coop" name="coop">
           <option value="">Todas</option>
           <?php foreach ($cooperativas as $coop): ?>
@@ -109,7 +107,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
       </div>
       <div class="seguimiento-filters__field">
         <label for="seguimiento-ticket">Ticket</label>
-        <input id="seguimiento-ticket" type="text" name="ticket" value="<?= seguimiento_h($ticketFiltro) ?>" placeholder="Ej. 1250">
+        <input id="seguimiento-ticket" type="text" name="ticket" value="<?= seguimiento_h($ticketFiltro) ?>" placeholder="Ej. INC-2025-00001">
       </div>
       <div class="seguimiento-filters__field seguimiento-filters__field--wide">
         <label for="seguimiento-q">Descripción</label>
@@ -144,41 +142,48 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
       <div class="seguimiento-cards">
         <?php foreach ($items as $item): ?>
           <?php
-            $fecha = isset($item['fecha']) ? (string)$item['fecha'] : '';
-            $fechaTexto = '';
-            if ($fecha !== '') {
-                $ts = strtotime($fecha);
-                if ($ts !== false) {
-                    $fechaTexto = date('d/m/Y', $ts);
-                }
+            $fechaInicio = isset($item['fecha_inicio']) ? (string)$item['fecha_inicio'] : '';
+            $fechaFin = isset($item['fecha_fin']) ? (string)$item['fecha_fin'] : '';
+            $fechaInicioTexto = '';
+            $fechaFinTexto = '';
+            if ($fechaInicio !== '' && ($ts = strtotime($fechaInicio)) !== false) {
+                $fechaInicioTexto = date('d/m/Y', $ts);
             }
-            $descripcion = isset($item['descripcion']) ? (string)$item['descripcion'] : '';
-            $ticket = isset($item['ticket']) ? trim((string)$item['ticket']) : '';
-            $usuario = isset($item['usuario']) ? (string)$item['usuario'] : '';
-            $creado = isset($item['creado_en']) ? (string)$item['creado_en'] : '';
-            $contactNumber = isset($item['contact_number']) ? (int)$item['contact_number'] : 0;
-            $contactDataRaw = $item['contact_data'] ?? null;
-            $contactData = '';
-            if (is_array($contactDataRaw)) {
-                $pairs = [];
-                foreach ($contactDataRaw as $key => $value) {
-                    if ($value === null || $value === '') {
-                        continue;
-                    }
-                    $label = is_string($key) ? trim((string)$key) : '';
-                    $textValue = is_scalar($value) ? trim((string)$value) : '';
-                    if ($textValue === '') {
-                        continue;
-                    }
-                    if ($label !== '') {
-                        $pairs[] = $label . ': ' . $textValue;
-                    } else {
-                        $pairs[] = $textValue;
-                    }
-                }
-                $contactData = implode('; ', $pairs);
-            } elseif (is_string($contactDataRaw)) {
-                $contactData = trim($contactDataRaw);
+            if ($fechaFin !== '' && ($tsFin = strtotime($fechaFin)) !== false) {
+                $fechaFinTexto = date('d/m/Y', $tsFin);
+            }
+
+            $payload = [
+                'id'                  => isset($item['id']) ? (int)$item['id'] : 0,
+                'id_cooperativa'      => isset($item['id_cooperativa']) ? (int)$item['id_cooperativa'] : 0,
+                'entidad'             => isset($item['cooperativa']) ? (string)$item['cooperativa'] : '',
+                'cooperativa'         => isset($item['cooperativa']) ? (string)$item['cooperativa'] : '',
+                'fecha_inicio'        => $fechaInicio,
+                'fecha_inicio_texto'  => $fechaInicioTexto,
+                'fecha_fin'           => $fechaFin,
+                'fecha_fin_texto'     => $fechaFinTexto,
+                'tipo'                => isset($item['tipo']) ? (string)$item['tipo'] : '',
+                'descripcion'         => isset($item['descripcion']) ? (string)$item['descripcion'] : '',
+                'contacto_id'         => isset($item['id_contacto']) ? (int)$item['id_contacto'] : null,
+                'contacto_nombre'     => isset($item['contacto_nombre']) ? (string)$item['contacto_nombre'] : '',
+                'contacto_telefono'   => isset($item['contacto_telefono']) ? (string)$item['contacto_telefono'] : '',
+                'contacto_email'      => isset($item['contacto_email']) ? (string)$item['contacto_email'] : '',
+                'ticket_id'           => isset($item['ticket_id']) ? (int)$item['ticket_id'] : null,
+                'ticket_codigo'       => isset($item['ticket_codigo']) ? (string)$item['ticket_codigo'] : '',
+                'ticket_departamento' => isset($item['ticket_departamento']) ? (string)$item['ticket_departamento'] : '',
+                'ticket_tipo'         => isset($item['ticket_tipo']) ? (string)$item['ticket_tipo'] : '',
+                'ticket_prioridad'    => isset($item['ticket_prioridad']) ? (string)$item['ticket_prioridad'] : '',
+                'ticket_estado'       => isset($item['ticket_estado']) ? (string)$item['ticket_estado'] : '',
+                'datos_reunion'       => isset($item['datos_reunion']) ? $item['datos_reunion'] : null,
+                'datos_ticket'        => isset($item['datos_ticket']) ? $item['datos_ticket'] : null,
+                'usuario'             => isset($item['usuario']) ? (string)$item['usuario'] : '',
+                'creado_en'           => isset($item['creado_en']) ? (string)$item['creado_en'] : '',
+                'editado_en'          => isset($item['editado_en']) ? (string)$item['editado_en'] : '',
+            ];
+
+            $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if ($jsonPayload === false) {
+                $jsonPayload = '{}';
             }
 
             $payload = [
@@ -207,53 +212,47 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
             role="button"
             tabindex="0"
             data-seguimiento-card
-            data-item="<?= seguimiento_h($jsonPayload) ?>"
+            data-item='<?= seguimiento_h($jsonPayload) ?>'
             aria-haspopup="dialog"
             aria-label="Ver seguimiento de <?= seguimiento_h($item['cooperativa'] ?? '') ?>"
             title="Ver seguimiento de <?= seguimiento_h($item['cooperativa'] ?? '') ?>"
           >
             <span class="seguimiento-card__accent" aria-hidden="true"></span>
             <header class="seguimiento-card__header">
-              <div>
-                <p class="seguimiento-card__date"><?= seguimiento_h($fechaTexto ?: $fecha) ?></p>
-                <h2 class="seguimiento-card__title"><?= seguimiento_h($item['cooperativa'] ?? '') ?></h2>
-              </div>
+              <h2 class="seguimiento-card__title"><?= seguimiento_h($item['cooperativa'] ?? '') ?></h2>
               <?php if (!empty($item['tipo'])): ?>
                 <span class="seguimiento-card__badge"><?= seguimiento_h($item['tipo']) ?></span>
               <?php endif; ?>
             </header>
-            <p class="seguimiento-card__desc"><?= seguimiento_h($descripcion) ?></p>
-            <dl class="seguimiento-card__meta">
-              <?php if ($ticket !== ''): ?>
-                <div>
-                  <dt>Ticket</dt>
-                  <dd><?= seguimiento_h($ticket) ?></dd>
-                </div>
-              <?php endif; ?>
-              <?php if ($usuario !== ''): ?>
-                <div>
-                  <dt>Registrado por</dt>
-                  <dd><?= seguimiento_h($usuario) ?></dd>
-                </div>
-              <?php endif; ?>
-              <?php if ($creado !== ''): ?>
-                <div>
-                  <dt>Creado</dt>
-                  <dd><?= seguimiento_h($creado) ?></dd>
-                </div>
-              <?php endif; ?>
-              <?php if ($contactNumber > 0): ?>
-                <div>
-                  <dt>No. contacto</dt>
-                  <dd><?= seguimiento_h((string)$contactNumber) ?></dd>
-                </div>
-              <?php endif; ?>
-              <?php if ($contactData !== ''): ?>
-                <div>
-                  <dt>Detalle de contacto</dt>
-                  <dd><?= seguimiento_h($contactData) ?></dd>
-                </div>
-              <?php endif; ?>
+            <p class="seguimiento-card__desc"><?= seguimiento_h($item['descripcion'] ?? '') ?></p>
+            <dl class="seguimiento-card__meta seguimiento-card__meta--grid">
+              <div>
+                <dt>Fecha inicio</dt>
+                <dd>
+                  <?php $inicioVacio = $fechaInicioTexto === ''; ?>
+                  <span class="seguimiento-card__value<?= $inicioVacio ? ' seguimiento-card__value--empty' : '' ?>" data-field="inicio">
+                    <?= seguimiento_h($inicioVacio ? '' : $fechaInicioTexto) ?>
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt>Fecha finalización</dt>
+                <dd>
+                  <?php $finVacio = $fechaFinTexto === ''; ?>
+                  <span class="seguimiento-card__value<?= $finVacio ? ' seguimiento-card__value--empty' : '' ?>" data-field="fin">
+                    <?= seguimiento_h($finVacio ? '' : $fechaFinTexto) ?>
+                  </span>
+                </dd>
+              </div>
+              <div>
+                <dt>Registrado por</dt>
+                <dd>
+                  <?php $usuarioTexto = isset($item['usuario']) ? (string)$item['usuario'] : ''; ?>
+                  <span class="seguimiento-card__value<?= $usuarioTexto === '' ? ' seguimiento-card__value--empty' : '' ?>" data-field="usuario">
+                    <?= seguimiento_h($usuarioTexto) ?>
+                  </span>
+                </dd>
+              </div>
             </dl>
           </article>
         <?php endforeach; ?>
@@ -286,18 +285,23 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
     </button>
     <header class="seguimiento-modal__header">
       <h2 id="seguimiento-modal-title" data-seguimiento-modal-title>Detalle de seguimiento</h2>
-      <p class="seguimiento-modal__subtitle" data-seguimiento-modal-subtitle></p>
     </header>
     <form class="seguimiento-modal__form seguimiento-form" data-seguimiento-form>
       <input type="hidden" name="id" value="">
-      <div class="seguimiento-form__field">
-        <label for="modal-fecha">Fecha de actividad</label>
-        <input id="modal-fecha" type="date" name="fecha" required>
+      <div class="seguimiento-form__row">
+        <div class="seguimiento-form__field">
+          <label for="modal-fecha-inicio">Fecha de inicio</label>
+          <input id="modal-fecha-inicio" type="date" name="fecha_inicio" required>
+        </div>
+        <div class="seguimiento-form__field">
+          <label for="modal-fecha-fin">Fecha de finalización</label>
+          <input id="modal-fecha-fin" type="date" name="fecha_fin">
+        </div>
       </div>
 
-      <div class="seguimiento-form__field">
-        <label for="modal-coop">Cooperativa</label>
-        <select id="modal-coop" name="id_cooperativa" required>
+      <div class="seguimiento-form__field seguimiento-form__field--wide">
+        <label for="modal-entidad">Entidad</label>
+        <select id="modal-entidad" name="id_cooperativa" required>
           <option value="">Seleccione</option>
           <?php foreach ($cooperativas as $coop): ?>
             <?php $value = isset($coop['id']) ? (string)$coop['id'] : ''; ?>
@@ -308,8 +312,8 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
 
       <div class="seguimiento-form__field">
         <label for="modal-tipo">Tipo de gestión</label>
-        <select id="modal-tipo" name="tipo">
-          <option value="">Seguimiento</option>
+        <select id="modal-tipo" name="tipo" required>
+          <option value="">Seleccione</option>
           <?php foreach ($tipos as $tipo): ?>
             <?php $tipoNombre = (string)$tipo; ?>
             <option value="<?= seguimiento_h($tipoNombre) ?>"><?= seguimiento_h($tipoNombre) ?></option>
@@ -322,20 +326,62 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         <textarea id="modal-descripcion" name="descripcion" rows="4" maxlength="600" required></textarea>
       </div>
 
-      <div class="seguimiento-form__field">
-        <label for="modal-ticket">Ticket relacionado</label>
-        <input id="modal-ticket" type="text" name="ticket" placeholder="Opcional">
-      </div>
+      <section class="seguimiento-form__section" data-seguimiento-section="contacto" hidden>
+        <h3>Contacto relacionado</h3>
+        <div class="seguimiento-form__field">
+          <label for="modal-contacto">Seleccionar contacto</label>
+          <select id="modal-contacto" name="id_contacto">
+            <option value="">Seleccione</option>
+          </select>
+        </div>
+        <div class="seguimiento-contacto-resumen" data-contacto-resumen>
+          <div>
+            <span>Nombre</span>
+            <p data-contacto-dato="nombre"></p>
+          </div>
+          <div>
+            <span>Celular</span>
+            <p data-contacto-dato="telefono"></p>
+          </div>
+          <div>
+            <span>Correo</span>
+            <p data-contacto-dato="email"></p>
+          </div>
+        </div>
+      </section>
 
-      <div class="seguimiento-form__field">
-        <label for="modal-contacto">No. contacto</label>
-        <input id="modal-contacto" type="text" name="numero_contacto" placeholder="Opcional">
-      </div>
-
-      <div class="seguimiento-form__field seguimiento-form__field--wide">
-        <label for="modal-contacto-detalle">Detalle de contacto</label>
-        <textarea id="modal-contacto-detalle" name="datos_contacto" rows="3" placeholder="Información adicional"></textarea>
-      </div>
+      <section class="seguimiento-form__section" data-seguimiento-section="ticket" hidden>
+        <h3>Ticket relacionado</h3>
+        <div class="seguimiento-form__field">
+          <label for="modal-ticket-buscar">Buscar ticket</label>
+          <input id="modal-ticket-buscar" type="text" name="ticket_buscar" placeholder="Ej. INC-2025-00001" autocomplete="off">
+          <datalist id="modal-ticket-opciones"></datalist>
+          <input type="hidden" name="ticket_id" id="modal-ticket-id" value="">
+          <input type="hidden" name="ticket_datos" id="modal-ticket-datos" value="">
+        </div>
+        <div class="seguimiento-ticket-resumen" data-ticket-resumen>
+          <div>
+            <span>Código</span>
+            <p data-ticket-dato="codigo"></p>
+          </div>
+          <div>
+            <span>Departamento</span>
+            <p data-ticket-dato="departamento"></p>
+          </div>
+          <div>
+            <span>Tipo incidencia</span>
+            <p data-ticket-dato="tipo"></p>
+          </div>
+          <div>
+            <span>Prioridad</span>
+            <p data-ticket-dato="prioridad"></p>
+          </div>
+          <div>
+            <span>Estado</span>
+            <p data-ticket-dato="estado"></p>
+          </div>
+        </div>
+      </section>
 
       <div class="seguimiento-modal__meta" data-seguimiento-modal-meta></div>
 
@@ -347,10 +393,6 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         <button type="button" class="btn btn-danger" data-seguimiento-delete>
           <span class="material-symbols-outlined" aria-hidden="true">delete</span>
           Eliminar
-        </button>
-        <button type="button" class="btn btn-outline" data-seguimiento-cancel>
-          <span class="material-symbols-outlined" aria-hidden="true">close</span>
-          Cerrar
         </button>
       </div>
     </form>
