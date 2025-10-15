@@ -143,12 +143,14 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         <?php foreach ($items as $item): ?>
           <?php
             $fechaInicio = isset($item['fecha_inicio']) ? (string)$item['fecha_inicio'] : '';
-            $fechaFin = isset($item['fecha_fin']) ? (string)$item['fecha_fin'] : '';
+            $fechaFin    = isset($item['fecha_fin']) ? (string)$item['fecha_fin'] : '';
+
             $fechaInicioTexto = '';
-            $fechaFinTexto = '';
-            if ($fechaInicio !== '' && ($ts = strtotime($fechaInicio)) !== false) {
-                $fechaInicioTexto = date('d/m/Y', $ts);
+            if ($fechaInicio !== '' && ($tsInicio = strtotime($fechaInicio)) !== false) {
+                $fechaInicioTexto = date('d/m/Y', $tsInicio);
             }
+
+            $fechaFinTexto = '';
             if ($fechaFin !== '' && ($tsFin = strtotime($fechaFin)) !== false) {
                 $fechaFinTexto = date('d/m/Y', $tsFin);
             }
@@ -182,28 +184,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
             ];
 
             $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            if ($jsonPayload === false) {
-                $jsonPayload = '{}';
-            }
-
-            $payload = [
-                'id'                 => isset($item['id']) ? (int)$item['id'] : 0,
-                'cooperativa_id'     => isset($item['id_cooperativa']) ? (int)$item['id_cooperativa'] : 0,
-                'cooperativa'        => isset($item['cooperativa']) ? (string)$item['cooperativa'] : '',
-                'fecha'              => $fecha !== '' ? $fecha : '',
-                'fecha_texto'        => $fechaTexto !== '' ? $fechaTexto : $fecha,
-                'tipo'               => isset($item['tipo']) ? (string)$item['tipo'] : '',
-                'descripcion'        => $descripcion,
-                'ticket'             => $ticket,
-                'usuario'            => $usuario,
-                'creado_en'          => $creado,
-                'contact_number'     => $contactNumber > 0 ? $contactNumber : null,
-                'contact_data'       => $contactDataRaw,
-                'contact_data_text'  => $contactData,
-            ];
-
-            $jsonPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-            if ($jsonPayload === false) {
+            if (!is_string($jsonPayload)) {
                 $jsonPayload = '{}';
             }
           ?>
