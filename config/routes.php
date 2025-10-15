@@ -83,12 +83,12 @@ $router->post(
     ['middleware'=>['auth','role:comercial']]
 );
 $router->get(
-    '/comercial/contactos/editar',
+    '/comercial/contactos/{id}/editar',
     [ContactosController::class, 'editForm'],
     ['middleware'=>['auth','role:comercial']]
 );
 $router->post(
-    '/comercial/contactos/{id}',
+    '/comercial/contactos/{id}/editar',
     [ContactosController::class, 'update'],
     ['middleware'=>['auth','role:comercial']]
 );
@@ -102,6 +102,11 @@ $router->post(
 $router->get(
     '/comercial/eventos',
     [SeguimientoController::class, 'index'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->get(
+    '/comercial/eventos/crear',
+    [SeguimientoController::class, 'createForm'],
     ['middleware'=>['auth','role:comercial']]
 );
 $router->post(

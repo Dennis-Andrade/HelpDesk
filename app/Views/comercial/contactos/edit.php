@@ -29,7 +29,8 @@ $fechaEvento  = $contacto['fecha_evento'] ?? date('Y-m-d');
 
   <section class="card" aria-labelledby="form-editar-contacto">
     <h2 id="form-editar-contacto" class="ent-title">Información del contacto</h2>
-    <form method="post" action="/comercial/contactos/<?= h((string)$contactId) ?>" class="form ent-form">
+    <form method="post" action="/comercial/contactos/<?= h((string)$contactId) ?>/editar" class="form ent-form">
+      <input type="hidden" name="id" value="<?= h((string)$contactId) ?>">
       <div class="form-row">
         <label for="contacto-entidad">Entidad</label>
         <select id="contacto-entidad" name="id_entidad" required>
