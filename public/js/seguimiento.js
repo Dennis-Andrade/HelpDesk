@@ -46,13 +46,137 @@
     if (!form) {
       return;
     }
-    var fechaField = form.querySelector('#seguimiento-fecha');
+    var fechaField = form.querySelector('input[name="fecha"]');
     var remembered = fechaField ? fechaField.value : '';
     form.reset();
-    if (fechaField && remembered) {
+    if (fechaField) {
       fechaField.value = remembered;
     }
     form.submit();
+  }
+
+  function setupTicketFilterSearch(form) {
+    if (!form) {
+      return;
+    }
+    var input = form.querySelector('[data-ticket-filter]');
+    if (!input) {
+      return;
+    }
+    var listId = input.getAttribute('list');
+    var datalist = listId ? document.getElementById(listId) : null;
+    var debounceTimer = null;
+
+    function clearOptions() {
+      if (!datalist) {
+        return;
+      }
+      datalist.innerHTML = '';
+    }
+
+    function populate(options) {
+      if (!datalist) {
+        return;
+      }
+      datalist.innerHTML = '';
+      options.forEach(function (item) {
+        if (!item || !item.codigo) {
+          return;
+        }
+        var option = document.createElement('option');
+        option.value = item.codigo;
+        option.label = item.codigo + ' — ' + (item.titulo || '');
+        datalist.appendChild(option);
+      });
+    }
+
+    function performSearch(term) {
+      var normalized = term.trim();
+      if (normalized.length < 3) {
+        clearOptions();
+        return;
+      }
+      fetchJson('/comercial/eventos/tickets/buscar?q=' + encodeURIComponent(normalized))
+        .then(function (response) {
+          if (!response || !response.ok || !Array.isArray(response.items)) {
+            return;
+          }
+          populate(response.items);
+        })
+        .catch(function () {
+          clearOptions();
+        });
+    }
+
+    if (input.value && input.value.trim().length >= 3) {
+      performSearch(input.value);
+    }
+
+    input.addEventListener('input', function () {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      var term = input.value || '';
+      debounceTimer = setTimeout(function () {
+        performSearch(term);
+      }, 220);
+    });
+  }
+
+  function setupFilters(form) {
+    if (!form) {
+      return;
+    }
+
+    var toggle = form.querySelector('[data-action="seguimiento-toggle-filtros"]');
+    var advanced = form.querySelector('[data-seguimiento-filters-advanced]');
+    var openLabel = toggle ? toggle.querySelector('[data-label-open]') : null;
+    var closeLabel = toggle ? toggle.querySelector('[data-label-close]') : null;
+
+    function setState(expanded) {
+      if (!toggle || !advanced) {
+        return;
+      }
+      if (expanded) {
+        advanced.removeAttribute('hidden');
+        toggle.setAttribute('aria-expanded', 'true');
+        toggle.dataset.expanded = 'true';
+        if (openLabel) {
+          openLabel.setAttribute('hidden', '');
+        }
+        if (closeLabel) {
+          closeLabel.removeAttribute('hidden');
+        }
+      } else {
+        advanced.setAttribute('hidden', 'hidden');
+        toggle.setAttribute('aria-expanded', 'false');
+        delete toggle.dataset.expanded;
+        if (openLabel) {
+          openLabel.removeAttribute('hidden');
+        }
+        if (closeLabel) {
+          closeLabel.setAttribute('hidden', '');
+        }
+      }
+    }
+
+    if (toggle && advanced) {
+      var hasValue = false;
+      advanced.querySelectorAll('input, select').forEach(function (field) {
+        if (field.value && field.value !== '') {
+          hasValue = true;
+        }
+      });
+      setState(hasValue || !advanced.hasAttribute('hidden'));
+
+      toggle.addEventListener('click', function (event) {
+        event.preventDefault();
+        var expanded = toggle.dataset.expanded === 'true';
+        setState(!expanded);
+      });
+    }
+
+    setupTicketFilterSearch(form);
   }
 
   function setSelectOptions(select, items, selected) {
@@ -867,6 +991,8 @@
       });
     }
 
+    var filtersForm = document.querySelector('.seguimiento-filters');
+    setupFilters(filtersForm);
     setupCreateForm(document.querySelector('[data-seguimiento-create]'));
     setupModal();
   });

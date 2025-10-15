@@ -28,13 +28,14 @@ $pages = $pagination->pages();
 $prev  = max(1, $page - 1);
 $next  = min($pages, $page + 1);
 
-$fechaFiltro = isset($filters['fecha']) ? (string)$filters['fecha'] : '';
-$desdeFiltro = isset($filters['desde']) ? (string)$filters['desde'] : '';
-$hastaFiltro = isset($filters['hasta']) ? (string)$filters['hasta'] : '';
-$coopFiltro  = isset($filters['coop']) ? (string)$filters['coop'] : '';
-$tipoFiltro  = isset($filters['tipo']) ? (string)$filters['tipo'] : '';
-$qFiltro     = isset($filters['q']) ? (string)$filters['q'] : '';
+$fechaFiltro  = isset($filters['fecha']) ? (string)$filters['fecha'] : '';
+$desdeFiltro  = isset($filters['desde']) ? (string)$filters['desde'] : '';
+$hastaFiltro  = isset($filters['hasta']) ? (string)$filters['hasta'] : '';
+$coopFiltro   = isset($filters['coop']) ? (string)$filters['coop'] : '';
+$tipoFiltro   = isset($filters['tipo']) ? (string)$filters['tipo'] : '';
+$qFiltro      = isset($filters['q']) ? (string)$filters['q'] : '';
 $ticketFiltro = isset($filters['ticket']) ? (string)$filters['ticket'] : '';
+$advancedOpen = $hastaFiltro !== '' || $ticketFiltro !== '' || $fechaFiltro !== '';
 
 function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage): string
 {
@@ -73,47 +74,50 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
 
   <section class="seguimiento-card seguimiento-card--filters">
     <form class="seguimiento-filters" method="get" action="/comercial/eventos" role="search">
-      <div class="seguimiento-filters__field">
-        <label for="seguimiento-fecha">Fecha</label>
-        <input id="seguimiento-fecha" type="date" name="fecha" value="<?= seguimiento_h($fechaFiltro) ?>">
+      <input type="hidden" name="fecha" value="<?= seguimiento_h($fechaFiltro) ?>">
+      <div class="seguimiento-filters__basic">
+        <div class="seguimiento-filters__field seguimiento-filters__field--wide">
+          <label for="seguimiento-q">Buscar descripción</label>
+          <input id="seguimiento-q" type="text" name="q" value="<?= seguimiento_h($qFiltro) ?>" placeholder="Buscar en las notas">
+        </div>
+        <div class="seguimiento-filters__field">
+          <label for="seguimiento-desde">Fecha de inicio</label>
+          <input id="seguimiento-desde" type="date" name="desde" value="<?= seguimiento_h($desdeFiltro) ?>">
+        </div>
+        <div class="seguimiento-filters__field">
+          <label for="seguimiento-coop">Entidad</label>
+          <select id="seguimiento-coop" name="coop">
+            <option value="">Todas</option>
+            <?php foreach ($cooperativas as $coop): ?>
+              <?php $value = isset($coop['id']) ? (string)$coop['id'] : ''; ?>
+              <option value="<?= seguimiento_h($value) ?>" <?= $value === $coopFiltro ? 'selected' : '' ?>><?= seguimiento_h($coop['nombre'] ?? '') ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="seguimiento-filters__field">
+          <label for="seguimiento-tipo">Tipo</label>
+          <select id="seguimiento-tipo" name="tipo">
+            <option value="">Todos</option>
+            <?php foreach ($tipos as $tipo): ?>
+              <?php $tipoNombre = (string)$tipo; ?>
+              <option value="<?= seguimiento_h($tipoNombre) ?>" <?= $tipoNombre === $tipoFiltro ? 'selected' : '' ?>><?= seguimiento_h($tipoNombre) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
       </div>
-      <div class="seguimiento-filters__field">
-        <label for="seguimiento-desde">Desde</label>
-        <input id="seguimiento-desde" type="date" name="desde" value="<?= seguimiento_h($desdeFiltro) ?>">
-      </div>
-      <div class="seguimiento-filters__field">
-        <label for="seguimiento-hasta">Hasta</label>
-        <input id="seguimiento-hasta" type="date" name="hasta" value="<?= seguimiento_h($hastaFiltro) ?>">
-      </div>
-      <div class="seguimiento-filters__field">
-        <label for="seguimiento-coop">Entidad</label>
-        <select id="seguimiento-coop" name="coop">
-          <option value="">Todas</option>
-          <?php foreach ($cooperativas as $coop): ?>
-            <?php $value = isset($coop['id']) ? (string)$coop['id'] : ''; ?>
-            <option value="<?= seguimiento_h($value) ?>" <?= $value === $coopFiltro ? 'selected' : '' ?>><?= seguimiento_h($coop['nombre'] ?? '') ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="seguimiento-filters__field">
-        <label for="seguimiento-tipo">Tipo</label>
-        <select id="seguimiento-tipo" name="tipo">
-          <option value="">Todos</option>
-          <?php foreach ($tipos as $tipo): ?>
-            <?php $tipoNombre = (string)$tipo; ?>
-            <option value="<?= seguimiento_h($tipoNombre) ?>" <?= $tipoNombre === $tipoFiltro ? 'selected' : '' ?>><?= seguimiento_h($tipoNombre) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="seguimiento-filters__field">
-        <label for="seguimiento-ticket">Ticket</label>
-        <input id="seguimiento-ticket" type="text" name="ticket" value="<?= seguimiento_h($ticketFiltro) ?>" placeholder="Ej. INC-2025-00001">
-      </div>
-      <div class="seguimiento-filters__field seguimiento-filters__field--wide">
-        <label for="seguimiento-q">Descripción</label>
-        <input id="seguimiento-q" type="text" name="q" value="<?= seguimiento_h($qFiltro) ?>" placeholder="Buscar en las notas">
-      </div>
+
       <div class="seguimiento-filters__actions">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          data-action="seguimiento-toggle-filtros"
+          aria-expanded="<?= $advancedOpen ? 'true' : 'false' ?>"
+          aria-controls="seguimiento-filtros-avanzados"
+        >
+          <span class="material-symbols-outlined" aria-hidden="true">tune</span>
+          <span data-label-open<?= $advancedOpen ? ' hidden' : '' ?>>Más filtros</span>
+          <span data-label-close<?= $advancedOpen ? '' : ' hidden' ?>>Menos filtros</span>
+        </button>
         <a class="btn btn-secondary" href="/comercial/eventos/crear">
           <span class="material-symbols-outlined" aria-hidden="true">add</span>
           Nuevo
@@ -126,6 +130,33 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
           <span class="material-symbols-outlined" aria-hidden="true">undo</span>
           Limpiar
         </button>
+      </div>
+
+      <div
+        class="seguimiento-filters__advanced"
+        id="seguimiento-filtros-avanzados"
+        data-seguimiento-filters-advanced
+        <?= $advancedOpen ? '' : 'hidden' ?>
+      >
+        <div class="seguimiento-filters__field">
+          <label for="seguimiento-hasta">Fecha de finalización</label>
+          <input id="seguimiento-hasta" type="date" name="hasta" value="<?= seguimiento_h($hastaFiltro) ?>">
+        </div>
+        <div class="seguimiento-filters__field seguimiento-filters__field--wide">
+          <label for="seguimiento-ticket">Ticket o descripción</label>
+          <input
+            id="seguimiento-ticket"
+            type="text"
+            name="ticket"
+            value="<?= seguimiento_h($ticketFiltro) ?>"
+            placeholder="Ej. INC-2025-00001"
+            autocomplete="off"
+            list="seguimiento-ticket-opciones"
+            data-ticket-filter
+          >
+          <datalist id="seguimiento-ticket-opciones"></datalist>
+          <p class="seguimiento-filters__hint">Escribe al menos 3 caracteres para ver sugerencias por código o descripción.</p>
+        </div>
       </div>
     </form>
   </section>
