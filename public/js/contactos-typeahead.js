@@ -310,6 +310,7 @@
   if (!modal) { return; }
 
   const form = modal.querySelector('[data-contact-edit-form]');
+  const idField = modal.querySelector('[data-contact-id]');
   const entidad = modal.querySelector('#modal-editar-contacto-entidad');
   const nombre = modal.querySelector('#modal-editar-contacto-nombre');
   const titulo = modal.querySelector('#modal-editar-contacto-titulo');
@@ -318,11 +319,35 @@
   const correo = modal.querySelector('#modal-editar-contacto-correo');
   const nota = modal.querySelector('#modal-editar-contacto-nota');
   const fecha = modal.querySelector('#modal-editar-contacto-fecha');
+  const baseAction = form instanceof HTMLFormElement
+    ? (form.getAttribute('data-action-base') || '/comercial/contactos/')
+    : '/comercial/contactos/';
+
+  function normalizedBase() {
+    return baseAction.endsWith('/') ? baseAction : baseAction + '/';
+  }
 
   function setValue(field, value) {
     if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
       field.value = value || '';
     }
+  }
+
+  function configureAction(contactId) {
+    if (!(form instanceof HTMLFormElement)) { return; }
+    const url = normalizedBase() + encodeURIComponent(contactId) + '/editar';
+    form.setAttribute('action', url);
+  }
+
+  if (form instanceof HTMLFormElement) {
+    form.addEventListener('submit', (event) => {
+      const value = idField instanceof HTMLInputElement ? idField.value.trim() : '';
+      if (!value) {
+        event.preventDefault();
+        return;
+      }
+      configureAction(value);
+    });
   }
 
   document.querySelectorAll('[data-contact-edit]').forEach((button) => {
@@ -332,7 +357,11 @@
       const contactId = button.getAttribute('data-contact-id') || '';
       if (contactId === '') { return; }
 
-      form.setAttribute('action', '/comercial/contactos/' + encodeURIComponent(contactId));
+      if (idField instanceof HTMLInputElement) {
+        idField.value = contactId;
+      }
+
+      configureAction(contactId);
       setValue(entidad, button.getAttribute('data-contact-entidad') || '');
       setValue(nombre, button.getAttribute('data-contact-nombre') || '');
       setValue(titulo, button.getAttribute('data-contact-titulo') || '');

@@ -7,9 +7,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
-  <main class="content-auth">
+<body class="auth-body">
+  <canvas id="auth-stars" aria-hidden="true"></canvas>
+  <main class="content-auth" role="main">
     <?php include $___viewFile; ?>
   </main>
+  <script src="/js/auth-stars.js" defer></script>
 </body>
 </html>
