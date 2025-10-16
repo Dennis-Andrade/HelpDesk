@@ -83,12 +83,12 @@ $router->post(
     ['middleware'=>['auth','role:comercial']]
 );
 $router->get(
-    '/comercial/contactos/editar',
+    '/comercial/contactos/{id}/editar',
     [ContactosController::class, 'editForm'],
     ['middleware'=>['auth','role:comercial']]
 );
 $router->post(
-    '/comercial/contactos/{id}',
+    '/comercial/contactos/{id}/editar',
     [ContactosController::class, 'update'],
     ['middleware'=>['auth','role:comercial']]
 );
@@ -104,9 +104,44 @@ $router->get(
     [SeguimientoController::class, 'index'],
     ['middleware'=>['auth','role:comercial']]
 );
+$router->get(
+    '/comercial/eventos/contactos',
+    [SeguimientoController::class, 'contactos'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->get(
+    '/comercial/eventos/sugerencias/tickets',
+    [SeguimientoController::class, 'ticketFilterSearch'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->get(
+    '/comercial/eventos/tickets/buscar',
+    [SeguimientoController::class, 'ticketSearch'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->get(
+    '/comercial/eventos/tickets/{id}',
+    [SeguimientoController::class, 'ticketInfo'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->get(
+    '/comercial/eventos/crear',
+    [SeguimientoController::class, 'createForm'],
+    ['middleware'=>['auth','role:comercial']]
+);
 $router->post(
     '/comercial/eventos',
     [SeguimientoController::class, 'store'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/eventos/{id}',
+    [SeguimientoController::class, 'update'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/eventos/{id}/eliminar',
+    [SeguimientoController::class, 'delete'],
     ['middleware'=>['auth','role:comercial']]
 );
 $router->get(
