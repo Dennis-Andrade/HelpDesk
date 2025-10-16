@@ -140,19 +140,37 @@ h1 { color: var(--text-heading); margin: 0 0 12px; }
 }
 
 .login-stage__container {
+  position: relative;
+  overflow: hidden;
   backdrop-filter: blur(14px);
-  padding: 24px;
+  padding: 32px;
   border-radius: 28px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(26, 32, 64, 0.78);
+  background: rgba(26, 32, 64, 0.82);
   box-shadow: 0 38px 88px rgba(10, 15, 35, 0.65);
 }
 
-.login-stage__grid {
+.login-stage__tile-grid {
+  position: absolute;
+  inset: 0;
   display: grid;
-  gap: 24px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  align-items: stretch;
+  padding: 24px;
+  grid-template-columns: repeat(auto-fill, minmax(15px, 15px));
+  grid-auto-rows: 15px;
+  gap: 8px;
+  justify-content: center;
+  align-content: center;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-stage__content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  width: min(100%, 520px);
+  margin: 0 auto;
 }
 
 .login-tile {
@@ -186,14 +204,32 @@ h1 { color: var(--text-heading); margin: 0 0 12px; }
 }
 
 .login-tile--accent {
-  min-height: 200px;
-  aspect-ratio: 1 / 1;
-  background: rgba(58, 74, 128, 0.2);
+  width: 15px;
+  height: 15px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: 0 6px 16px rgba(10, 15, 35, 0.35);
+  opacity: 0.92;
 }
 
-.login-tile--accent-one { background: rgba(255, 133, 51, 0.22); }
-.login-tile--accent-two { background: rgba(33, 42, 83, 0.35); }
-.login-tile--accent-three { background: rgba(255, 255, 255, 0.12); }
+.login-stage__tile-grid .login-tile--accent {
+  transition: transform 0.65s ease, opacity 0.65s ease;
+}
+
+.login-stage__tile-grid .login-tile--accent:nth-child(4n+1),
+.login-tile--accent-one { background: rgba(255, 102, 0, 0.62); }
+.login-stage__tile-grid .login-tile--accent:nth-child(4n+2),
+.login-tile--accent-two { background: rgba(255, 133, 51, 0.54); }
+.login-stage__tile-grid .login-tile--accent:nth-child(4n+3),
+.login-tile--accent-three { background: rgba(58, 74, 128, 0.55); }
+.login-stage__tile-grid .login-tile--accent:nth-child(4n+4),
+.login-tile--accent-four { background: rgba(255, 255, 255, 0.35); }
+
+.login-stage__tile-grid .login-tile--accent:hover {
+  transform: scale(1.25);
+  opacity: 1;
+}
 
 .login-tile--form {
   padding: 36px 32px 38px;
@@ -203,6 +239,7 @@ h1 { color: var(--text-heading); margin: 0 0 12px; }
   background: var(--color-secondary-dark);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 28px 65px rgba(12, 16, 35, 0.7);
+  width: 100%;
 }
 
 .login-tile--form:hover {

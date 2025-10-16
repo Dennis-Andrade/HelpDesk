@@ -1,7 +1,20 @@
 <section class="login-stage" aria-labelledby="login-title">
   <div class="login-stage__container">
-    <div class="login-stage__grid">
-      <div class="login-tile login-tile--accent login-tile--accent-one" aria-hidden="true"></div>
+    <div class="login-stage__tile-grid" aria-hidden="true">
+      <?php
+      $accentClasses = [
+        'login-tile--accent-one',
+        'login-tile--accent-two',
+        'login-tile--accent-three',
+        'login-tile--accent-four',
+      ];
+      for ($i = 0; $i < 400; $i++):
+        $accentClass = $accentClasses[$i % count($accentClasses)];
+      ?>
+        <span class="login-tile login-tile--accent <?= $accentClass ?>"></span>
+      <?php endfor; ?>
+    </div>
+    <div class="login-stage__content">
       <div class="login-tile login-tile--form">
         <img class="login-logo" src="/img/logoblanco.png" alt="HelpDesk" width="168" height="64">
         <h1 id="login-title">Bienvenido nuevamente</h1>
@@ -23,8 +36,6 @@
           </div>
         </form>
       </div>
-      <div class="login-tile login-tile--accent login-tile--accent-two" aria-hidden="true"></div>
-      <div class="login-tile login-tile--accent login-tile--accent-three" aria-hidden="true"></div>
     </div>
   </div>
 </section>
