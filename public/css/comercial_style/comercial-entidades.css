@@ -1468,9 +1468,16 @@ body.is-modal-open{
 }
 
 .seguimiento-filters__basic {
-  display: grid;
-  gap: 1rem 1.25rem;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1rem 1.5rem;
+}
+
+.seguimiento-filters__field {
+  flex: 1 1 200px;
+  min-width: 200px;
 }
 
 .seguimiento-filters__field label,
@@ -1518,6 +1525,11 @@ body.is-modal-open{
   border-top: 1px dashed rgba(67, 97, 238, 0.25);
 }
 
+.seguimiento-filters__advanced .seguimiento-filters__field {
+  flex: initial;
+  min-width: 0;
+}
+
 .seguimiento-filters__hint {
   margin: 0.35rem 0 0 0;
   font-size: 0.75rem;
@@ -1543,8 +1555,12 @@ body.is-modal-open{
   display: flex;
   gap: 0.75rem;
   align-items: center;
-  justify-content: flex-end;
-  grid-column: 1 / -1;
+  justify-content: center;
+  flex: 1 1 280px;
+}
+
+.seguimiento-filters__actions .btn {
+  min-width: 130px;
 }
 
 .seguimiento-divider {

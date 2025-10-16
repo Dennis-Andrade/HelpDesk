@@ -35,7 +35,7 @@ $coopFiltro   = isset($filters['coop']) ? (string)$filters['coop'] : '';
 $tipoFiltro   = isset($filters['tipo']) ? (string)$filters['tipo'] : '';
 $qFiltro      = isset($filters['q']) ? (string)$filters['q'] : '';
 $ticketFiltro = isset($filters['ticket']) ? (string)$filters['ticket'] : '';
-$advancedOpen = $hastaFiltro !== '' || $ticketFiltro !== '' || $fechaFiltro !== '';
+$advancedOpen = $qFiltro !== '' || $hastaFiltro !== '' || $ticketFiltro !== '';
 
 function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage): string
 {
@@ -76,10 +76,6 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
     <form class="seguimiento-filters" method="get" action="/comercial/eventos" role="search">
       <input type="hidden" name="fecha" value="<?= seguimiento_h($fechaFiltro) ?>">
       <div class="seguimiento-filters__basic">
-        <div class="seguimiento-filters__field seguimiento-filters__field--wide">
-          <label for="seguimiento-q">Buscar descripción</label>
-          <input id="seguimiento-q" type="text" name="q" value="<?= seguimiento_h($qFiltro) ?>" placeholder="Buscar en las notas">
-        </div>
         <div class="seguimiento-filters__field">
           <label for="seguimiento-desde">Fecha de inicio</label>
           <input id="seguimiento-desde" type="date" name="desde" value="<?= seguimiento_h($desdeFiltro) ?>">
@@ -104,14 +100,12 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
             <?php endforeach; ?>
           </select>
         </div>
-      </div>
-
-      <div class="seguimiento-filters__actions">
-        <button
-          type="button"
-          class="btn btn-ghost"
-          data-action="seguimiento-toggle-filtros"
-          aria-expanded="<?= $advancedOpen ? 'true' : 'false' ?>"
+        <div class="seguimiento-filters__actions">
+          <button
+            type="button"
+            class="btn btn-ghost"
+            data-action="seguimiento-toggle-filtros"
+            aria-expanded="<?= $advancedOpen ? 'true' : 'false' ?>"
           aria-controls="seguimiento-filtros-avanzados"
         >
           <span class="material-symbols-outlined" aria-hidden="true">tune</span>
@@ -130,6 +124,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
           <span class="material-symbols-outlined" aria-hidden="true">undo</span>
           Limpiar
         </button>
+        </div>
       </div>
 
       <div
@@ -138,6 +133,10 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         data-seguimiento-filters-advanced
         <?= $advancedOpen ? '' : 'hidden' ?>
       >
+        <div class="seguimiento-filters__field seguimiento-filters__field--wide">
+          <label for="seguimiento-q">Descripción</label>
+          <input id="seguimiento-q" type="text" name="q" value="<?= seguimiento_h($qFiltro) ?>" placeholder="Buscar en las notas del seguimiento">
+        </div>
         <div class="seguimiento-filters__field">
           <label for="seguimiento-hasta">Fecha de finalización</label>
           <input id="seguimiento-hasta" type="date" name="hasta" value="<?= seguimiento_h($hastaFiltro) ?>">
@@ -155,7 +154,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
             data-ticket-filter
           >
           <datalist id="seguimiento-ticket-opciones"></datalist>
-          <p class="seguimiento-filters__hint">Escribe al menos 3 caracteres para ver sugerencias de tickets registrados.</p>
+          <p class="seguimiento-filters__hint">Escribe al menos 3 caracteres para ver sugerencias de tickets registrados en el historial.</p>
         </div>
       </div>
     </form>
