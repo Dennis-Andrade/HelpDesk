@@ -131,7 +131,8 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         class="seguimiento-filters__advanced"
         id="seguimiento-filtros-avanzados"
         data-seguimiento-filters-advanced
-        <?= $advancedOpen ? '' : 'hidden' ?>
+        data-initially-open="<?= $advancedOpen ? 'true' : 'false' ?>"
+        hidden
       >
         <div class="seguimiento-filters__field seguimiento-filters__field--wide">
           <label for="seguimiento-q">Descripción</label>

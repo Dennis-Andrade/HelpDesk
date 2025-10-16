@@ -141,6 +141,7 @@
 
     var toggle = form.querySelector('[data-action="seguimiento-toggle-filtros"]');
     var advanced = form.querySelector('[data-seguimiento-filters-advanced]');
+    var initialAdvancedState = advanced && advanced.dataset && advanced.dataset.initiallyOpen === 'true';
     var openLabel = toggle ? toggle.querySelector('[data-label-open]') : null;
     var closeLabel = toggle ? toggle.querySelector('[data-label-close]') : null;
 
@@ -150,6 +151,8 @@
       }
       if (expanded) {
         advanced.hidden = false;
+        advanced.removeAttribute('hidden');
+        advanced.style.display = 'grid';
         advanced.classList.add('is-open');
         toggle.setAttribute('aria-expanded', 'true');
         toggle.dataset.expanded = 'true';
@@ -161,6 +164,8 @@
         }
       } else {
         advanced.hidden = true;
+        advanced.setAttribute('hidden', '');
+        advanced.style.display = 'none';
         advanced.classList.remove('is-open');
         toggle.setAttribute('aria-expanded', 'false');
         toggle.dataset.expanded = 'false';
@@ -180,8 +185,8 @@
           hasValue = true;
         }
       });
-      var initiallyExpanded = toggle.getAttribute('aria-expanded') === 'true';
-      setState(hasValue || initiallyExpanded);
+
+      setState(hasValue || initialAdvancedState);
 
       toggle.addEventListener('click', function (event) {
         event.preventDefault();
