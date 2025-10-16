@@ -110,6 +110,11 @@ $router->get(
     ['middleware'=>['auth','role:comercial']]
 );
 $router->get(
+    '/comercial/eventos/sugerencias/tickets',
+    [SeguimientoController::class, 'ticketFilterSearch'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->get(
     '/comercial/eventos/tickets/buscar',
     [SeguimientoController::class, 'ticketSearch'],
     ['middleware'=>['auth','role:comercial']]
@@ -132,6 +137,11 @@ $router->post(
 $router->post(
     '/comercial/eventos/{id}',
     [SeguimientoController::class, 'update'],
+    ['middleware'=>['auth','role:comercial']]
+);
+$router->post(
+    '/comercial/eventos/{id}/eliminar',
+    [SeguimientoController::class, 'delete'],
     ['middleware'=>['auth','role:comercial']]
 );
 $router->get(

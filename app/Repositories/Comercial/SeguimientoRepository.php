@@ -373,6 +373,67 @@ final class SeguimientoRepository extends BaseRepository
     }
 
     /**
+     * @return array<int,array<string,mixed>>
+     */
+    public function buscarTicketsSeguimiento(string $term): array
+    {
+        $term = trim($term);
+        if ($term === '') {
+            return [];
+        }
+
+        $sql = 'SELECT DISTINCT'
+            . ' s.ticket_id,'
+            . ' COALESCE(s.datos_ticket->>\'codigo\', \'\') AS codigo,'
+            . ' LEFT(COALESCE(s.datos_ticket->>\'descripcion\', s.descripcion), 120) AS descripcion'
+            . ' FROM ' . self::TABLE . ' s'
+            . ' WHERE ('
+            . ' (s.ticket_id IS NOT NULL AND CAST(s.ticket_id AS TEXT) ILIKE :term)'
+            . ' OR (COALESCE(s.datos_ticket->>\'codigo\', \'\') ILIKE :term)'
+            . ' OR (s.descripcion ILIKE :term)'
+            . ' )'
+            . ' ORDER BY COALESCE(s.ticket_id, 0) DESC, codigo DESC, s.fecha_actividad DESC'
+            . ' LIMIT 10';
+
+        try {
+            $rows = $this->db->fetchAll($sql, [':term' => ['%' . $term . '%', PDO::PARAM_STR]]);
+        } catch (Throwable $e) {
+            throw new RuntimeException('No se pudieron obtener los tickets registrados en seguimiento.', 0, $e);
+        }
+
+        $items = [];
+        foreach ($rows as $row) {
+            $ticketId = isset($row['ticket_id']) ? (int)$row['ticket_id'] : 0;
+            $codigo = isset($row['codigo']) ? (string)$row['codigo'] : '';
+            if ($codigo === '' && $ticketId > 0) {
+                $codigo = 'Ticket #' . $ticketId;
+            }
+            $items[] = [
+                'ticket_id'   => $ticketId,
+                'codigo'      => $codigo,
+                'descripcion' => isset($row['descripcion']) ? (string)$row['descripcion'] : '',
+            ];
+        }
+
+        return $items;
+    }
+
+    public function delete(int $id): void
+    {
+        if ($id <= 0) {
+            throw new RuntimeException('El identificador del seguimiento no es válido.');
+        }
+
+        $sql = 'DELETE FROM ' . self::TABLE . ' WHERE id = :id';
+
+        try {
+            $this->db->execute($sql, [':id' => [$id, PDO::PARAM_INT]]);
+        } catch (Throwable $e) {
+            throw new RuntimeException('No se pudo eliminar el seguimiento.', 0, $e);
+        }
+    }
+
+    /**
      * @param array<string,mixed> $filters
      * @param array<string,array{0:mixed,1:int}> $params
      */
@@ -411,7 +472,8 @@ final class SeguimientoRepository extends BaseRepository
 
         $ticket = isset($filters['ticket']) ? trim((string)$filters['ticket']) : '';
         if ($ticket !== '') {
-            $conditions[] = '(CAST(s.ticket_id AS TEXT) ILIKE :ticket OR vt.codigo_ticket ILIKE :ticket)';
+            $conditions[] = '((CAST(s.ticket_id AS TEXT) ILIKE :ticket)'
+                . ' OR (COALESCE(s.datos_ticket::text, \'\') ILIKE :ticket))';
             $params[':ticket'] = ['%' . $ticket . '%', PDO::PARAM_STR];
         }
 

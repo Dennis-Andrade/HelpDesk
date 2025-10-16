@@ -156,6 +156,19 @@ final class SeguimientoController
         echo json_encode(['ok' => true, 'items' => $items], JSON_UNESCAPED_UNICODE);
     }
 
+    public function ticketFilterSearch(): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        $term = isset($_GET['q']) ? trim((string)$_GET['q']) : '';
+        if ($term === '') {
+            echo json_encode(['ok' => true, 'items' => []], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        $items = $this->repo->buscarTicketsSeguimiento($term);
+        echo json_encode(['ok' => true, 'items' => $items], JSON_UNESCAPED_UNICODE);
+    }
+
     public function ticketInfo(int $id): void
     {
         header('Content-Type: application/json; charset=UTF-8');
@@ -167,6 +180,26 @@ final class SeguimientoController
         }
 
         echo json_encode(['ok' => true, 'item' => $ticket], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function delete(int $id): void
+    {
+        header('Content-Type: application/json; charset=UTF-8');
+        if ($id <= 0) {
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'errors' => ['Seguimiento inválido.']], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        try {
+            $this->repo->delete($id);
+        } catch (RuntimeException $e) {
+            http_response_code(500);
+            echo json_encode(['ok' => false, 'errors' => [$e->getMessage()]], JSON_UNESCAPED_UNICODE);
+            return;
+        }
+
+        echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
     }
 
     /**

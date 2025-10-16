@@ -143,7 +143,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
           <input id="seguimiento-hasta" type="date" name="hasta" value="<?= seguimiento_h($hastaFiltro) ?>">
         </div>
         <div class="seguimiento-filters__field seguimiento-filters__field--wide">
-          <label for="seguimiento-ticket">Ticket o descripción</label>
+          <label for="seguimiento-ticket">Ticket</label>
           <input
             id="seguimiento-ticket"
             type="text"
@@ -155,7 +155,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
             data-ticket-filter
           >
           <datalist id="seguimiento-ticket-opciones"></datalist>
-          <p class="seguimiento-filters__hint">Escribe al menos 3 caracteres para ver sugerencias por código o descripción.</p>
+          <p class="seguimiento-filters__hint">Escribe al menos 3 caracteres para ver sugerencias de tickets registrados.</p>
         </div>
       </div>
     </form>
