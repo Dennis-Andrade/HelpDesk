@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/css/app.css">
 </head>
 <body class="auth-body">
+  <div class="auth-body__grid" aria-hidden="true"></div>
   <main class="auth-shell" role="main">
     <?php include $___viewFile; ?>
   </main>
