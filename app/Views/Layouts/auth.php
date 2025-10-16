@@ -11,5 +11,6 @@
   <main class="auth-shell" role="main">
     <?php include $___viewFile; ?>
   </main>
+  <script src="/js/auth-stars.js" defer></script>
 </body>
 </html>
