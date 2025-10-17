@@ -1,0 +1,36 @@
+--
+-- Script de sincronización para HelpDesk
+-- Genera y mantiene el código legible (INC-YYYY-XXXXX) sobre la tabla
+-- public.incidencias_comercial, que es la fuente real de tickets para
+-- el módulo comercial.
+--
+BEGIN;
+
+ALTER TABLE public.incidencias_comercial
+    ADD COLUMN IF NOT EXISTS codigo TEXT;
+
+UPDATE public.incidencias_comercial AS i
+SET codigo = 'INC-' || TO_CHAR(COALESCE(i.created_at::date, CURRENT_DATE), 'YYYY') || '-' || LPAD(i.id_incidencia::text, 5, '0')
+WHERE COALESCE(i.codigo, '') = '';
+
+CREATE OR REPLACE FUNCTION public.trg_incidencias_codigo()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.codigo IS NULL OR NEW.codigo = '' THEN
+        NEW.codigo := 'INC-' || TO_CHAR(COALESCE(NEW.created_at::date, CURRENT_DATE), 'YYYY') || '-' || LPAD(NEW.id_incidencia::text, 5, '0');
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_incidencias_codigo ON public.incidencias_comercial;
+
+CREATE TRIGGER trg_incidencias_codigo
+BEFORE INSERT OR UPDATE ON public.incidencias_comercial
+FOR EACH ROW
+WHEN (NEW.codigo IS NULL OR NEW.codigo = '')
+EXECUTE FUNCTION public.trg_incidencias_codigo();
+
+COMMIT;
