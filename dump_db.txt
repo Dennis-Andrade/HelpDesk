@@ -1,36 +1,3391 @@
---
--- Script de sincronización para HelpDesk
--- Genera y mantiene el código legible (INC-YYYY-XXXXX) sobre la tabla
--- public.incidencias_comercial, que es la fuente real de tickets para
--- el módulo comercial.
---
-BEGIN;
 
-ALTER TABLE public.incidencias_comercial
-    ADD COLUMN IF NOT EXISTS codigo TEXT;
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
 
-UPDATE public.incidencias_comercial AS i
-SET codigo = 'INC-' || TO_CHAR(COALESCE(i.created_at::date, CURRENT_DATE), 'YYYY') || '-' || LPAD(i.id_incidencia::text, 5, '0')
-WHERE COALESCE(i.codigo, '') = '';
 
-CREATE OR REPLACE FUNCTION public.trg_incidencias_codigo()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    IF NEW.codigo IS NULL OR NEW.codigo = '' THEN
-        NEW.codigo := 'INC-' || TO_CHAR(COALESCE(NEW.created_at::date, CURRENT_DATE), 'YYYY') || '-' || LPAD(NEW.id_incidencia::text, 5, '0');
-    END IF;
-    RETURN NEW;
-END;
+CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
+
+
+
+COMMENT ON EXTENSION unaccent IS 'text search dictionary that removes accents';
+
+
+
+CREATE TYPE public.ticket_estado AS ENUM (
+    'enviado',
+    'completado',
+    'cancelado'
+);
+
+
+ALTER TYPE public.ticket_estado OWNER TO postgres;
+
+
+CREATE TYPE public.ticket_prioridad AS ENUM (
+    'baja',
+    'media',
+    'alta',
+    'crítica'
+);
+
+
+ALTER TYPE public.ticket_prioridad OWNER TO postgres;
+CREATE FUNCTION public.f_cooperativas_cards(_q text, _limit integer DEFAULT 20, _offset integer DEFAULT 0) RETURNS TABLE(id integer, nombre text, ruc text, telefono text, email text, provincia text, canton text, segmento integer, nombre_segmento text, servicios_text text, activa boolean, total bigint)
+    LANGUAGE sql STABLE
+    AS $$
+WITH base AS (
+    SELECT * FROM public.v_cooperativas_cards
+),
+filtered AS (
+    SELECT *
+    FROM base
+    WHERE _q IS NULL OR _q = ''
+       OR unaccent(nombre) ILIKE '%' || unaccent(_q) || '%'
+       OR ruc ILIKE '%' || _q || '%'
+       OR unaccent(provincia) ILIKE '%' || unaccent(_q) || '%'
+       OR unaccent(canton) ILIKE '%' || unaccent(_q) || '%'
+       OR unaccent(servicios_text) ILIKE '%' || unaccent(_q) || '%'
+),
+counted AS (
+    SELECT *, COUNT(*) OVER()::bigint AS total
+    FROM filtered
+)
+SELECT *
+FROM counted
+ORDER BY nombre
+LIMIT COALESCE(_limit, 20)
+OFFSET COALESCE(_offset, 0);
 $$;
 
-DROP TRIGGER IF EXISTS trg_incidencias_codigo ON public.incidencias_comercial;
 
-CREATE TRIGGER trg_incidencias_codigo
-BEFORE INSERT OR UPDATE ON public.incidencias_comercial
-FOR EACH ROW
-WHEN (NEW.codigo IS NULL OR NEW.codigo = '')
-EXECUTE FUNCTION public.trg_incidencias_codigo();
+ALTER FUNCTION public.f_cooperativas_cards(_q text, _limit integer, _offset integer) OWNER TO postgres;
 
-COMMIT;
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+
+CREATE TABLE public.agenda (
+    id_agenda integer NOT NULL,
+    fecha timestamp without time zone NOT NULL,
+    id_entidad integer,
+    nombre_contacto character varying(200) NOT NULL,
+    telefono character varying(20),
+    email character varying(200),
+    titulo character varying(200) NOT NULL,
+    notas text,
+    estado character varying(20) DEFAULT 'pendiente'::character varying NOT NULL,
+    created_at timestamp without time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.agenda OWNER TO postgres;
+
+
+CREATE TABLE public.agenda_contactos (
+    id_evento integer NOT NULL,
+    id_cooperativa integer,
+    titulo character varying(150) NOT NULL,
+    fecha_evento date NOT NULL,
+    contacto character varying(100),
+    nota text,
+    creado_por integer,
+    estado character varying(20) DEFAULT 'Pendiente'::character varying,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now(),
+    telefono_contacto character varying(50),
+    oficial_nombre character varying(100),
+    oficial_correo character varying(120),
+    cargo character varying(100),
+    CONSTRAINT agenda_contactos_estado_check CHECK (((estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('Completado'::character varying)::text, ('Cancelado'::character varying)::text])))
+);
+
+
+ALTER TABLE public.agenda_contactos OWNER TO postgres;
+
+
+CREATE SEQUENCE public.agenda_contactos_id_evento_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.agenda_contactos_id_evento_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.agenda_contactos_id_evento_seq OWNED BY public.agenda_contactos.id_evento;
+
+
+
+CREATE SEQUENCE public.agenda_id_agenda_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.agenda_id_agenda_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.agenda_id_agenda_seq OWNED BY public.agenda.id_agenda;
+
+
+
+CREATE TABLE public.asistentes_capacitacion (
+    id_asistente integer NOT NULL,
+    id_capacitacion integer NOT NULL,
+    id_personal integer NOT NULL,
+    asistio boolean DEFAULT false,
+    evaluacion integer,
+    CONSTRAINT asistentes_capacitacion_evaluacion_check CHECK (((evaluacion >= 1) AND (evaluacion <= 5)))
+);
+
+
+ALTER TABLE public.asistentes_capacitacion OWNER TO postgres;
+
+
+CREATE SEQUENCE public.asistentes_capacitacion_id_asistente_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.asistentes_capacitacion_id_asistente_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.asistentes_capacitacion_id_asistente_seq OWNED BY public.asistentes_capacitacion.id_asistente;
+
+
+
+CREATE TABLE public.canton (
+    id integer NOT NULL,
+    provincia_id integer NOT NULL,
+    nombre character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.canton OWNER TO postgres;
+
+
+CREATE SEQUENCE public.canton_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.canton_id_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.canton_id_seq OWNED BY public.canton.id;
+
+
+
+CREATE VIEW public.cantones AS
+ SELECT c.id AS id_canton,
+    c.provincia_id,
+    c.nombre
+   FROM public.canton c;
+
+
+ALTER TABLE public.cantones OWNER TO postgres;
+
+
+COMMENT ON VIEW public.cantones IS 'Vista de compatibilidad. Mapea canton.id -> id_canton';
+
+
+
+CREATE TABLE public.capacitaciones (
+    id_capacitacion integer NOT NULL,
+    id_contratacion integer NOT NULL,
+    id_usuario_capacitador integer,
+    fecha_capacitacion date NOT NULL,
+    fecha_completada date,
+    asistentes integer,
+    estado character varying(20),
+    observaciones text,
+    CONSTRAINT capacitaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('Planificada'::character varying)::text, ('En progreso'::character varying)::text, ('Completada'::character varying)::text, ('Cancelada'::character varying)::text])))
+);
+
+
+ALTER TABLE public.capacitaciones OWNER TO postgres;
+
+
+CREATE SEQUENCE public.capacitaciones_id_capacitacion_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.capacitaciones_id_capacitacion_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.capacitaciones_id_capacitacion_seq OWNED BY public.capacitaciones.id_capacitacion;
+
+
+
+CREATE TABLE public.capacitaciones_providencias (
+    id_capacitacion_providencia integer NOT NULL,
+    id_capacitacion integer NOT NULL,
+    tema_especifico character varying(200),
+    normativas text,
+    casos_practicos text
+);
+
+
+ALTER TABLE public.capacitaciones_providencias OWNER TO postgres;
+
+
+CREATE SEQUENCE public.capacitaciones_providencias_id_capacitacion_providencia_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.capacitaciones_providencias_id_capacitacion_providencia_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.capacitaciones_providencias_id_capacitacion_providencia_seq OWNED BY public.capacitaciones_providencias.id_capacitacion_providencia;
+
+
+
+CREATE TABLE public.categorias (
+    id_categoria integer NOT NULL,
+    nombre_categoria character varying(50) NOT NULL,
+    descripcion text
+);
+
+
+ALTER TABLE public.categorias OWNER TO postgres;
+
+
+CREATE SEQUENCE public.categorias_id_categoria_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.categorias_id_categoria_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.categorias_id_categoria_seq OWNED BY public.categorias.id_categoria;
+
+
+
+CREATE TABLE public.comercial_seguimientos (
+    id integer NOT NULL,
+    id_cooperativa integer,
+    fecha_actividad date DEFAULT CURRENT_DATE,
+    tipo character varying(120),
+    descripcion text NOT NULL,
+    ticket_id integer,
+    creado_por integer,
+    created_at timestamp with time zone DEFAULT now(),
+    numero_contacto integer,
+    datos_contacto jsonb,
+    observaciones text,
+    fecha_finalizacion date,
+    id_contacto integer,
+    datos_reunion jsonb,
+    datos_ticket jsonb,
+    editado_por integer,
+    editado_en timestamp with time zone
+);
+
+
+ALTER TABLE public.comercial_seguimientos OWNER TO postgres;
+
+
+COMMENT ON COLUMN public.comercial_seguimientos.fecha_finalizacion IS 'Fecha de finalización del seguimiento (para el cuadro de fecha finalización)';
+
+
+
+COMMENT ON COLUMN public.comercial_seguimientos.id_contacto IS 'Contacto seleccionado de la entidad';
+
+
+
+COMMENT ON COLUMN public.comercial_seguimientos.datos_reunion IS 'Datos específicos para tipo Reunión (JSON)';
+
+
+
+COMMENT ON COLUMN public.comercial_seguimientos.datos_ticket IS 'Datos específicos para tipo Ticket (JSON)';
+
+
+
+COMMENT ON COLUMN public.comercial_seguimientos.editado_por IS 'Usuario que editó por última vez';
+
+
+
+COMMENT ON COLUMN public.comercial_seguimientos.editado_en IS 'Fecha y hora de la última edición';
+
+
+
+CREATE SEQUENCE public.comercial_seguimientos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.comercial_seguimientos_id_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.comercial_seguimientos_id_seq OWNED BY public.comercial_seguimientos.id;
+
+
+
+CREATE TABLE public.conm (
+    "LISTADO DE COOPERATIVAS ACTUALIZADAS DESDE JUNIO 2025;;;;;;;;;;" character varying(512)
+);
+
+
+ALTER TABLE public.conm OWNER TO postgres;
+
+
+CREATE TABLE public.contactos_cooperativa (
+    id_contacto integer NOT NULL,
+    id_cooperativa integer NOT NULL,
+    nombre_contacto character varying(200) NOT NULL,
+    telefono character varying(20),
+    email character varying(200),
+    cargo character varying(100),
+    departamento character varying(100),
+    activo boolean DEFAULT true,
+    created_at timestamp without time zone DEFAULT now(),
+    updated_at timestamp without time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.contactos_cooperativa OWNER TO postgres;
+
+
+COMMENT ON TABLE public.contactos_cooperativa IS 'Tabla de contactos asociados a las entidades (cooperativas)';
+
+
+
+COMMENT ON COLUMN public.contactos_cooperativa.id_contacto IS 'ID único del contacto';
+
+
+
+COMMENT ON COLUMN public.contactos_cooperativa.id_cooperativa IS 'ID de la entidad (cooperativa) asociada';
+
+
+
+COMMENT ON COLUMN public.contactos_cooperativa.nombre_contacto IS 'Nombre completo del contacto';
+
+
+
+COMMENT ON COLUMN public.contactos_cooperativa.telefono IS 'Teléfono del contacto';
+
+
+
+COMMENT ON COLUMN public.contactos_cooperativa.email IS 'Email del contacto';
+
+
+
+COMMENT ON COLUMN public.contactos_cooperativa.cargo IS 'Cargo del contacto en la entidad';
+
+
+
+CREATE SEQUENCE public.contactos_cooperativa_id_contacto_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.contactos_cooperativa_id_contacto_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.contactos_cooperativa_id_contacto_seq OWNED BY public.contactos_cooperativa.id_contacto;
+
+
+
+CREATE TABLE public.contrataciones (
+    id_contratacion integer NOT NULL,
+    id_cooperativa integer NOT NULL,
+    id_servicio integer NOT NULL,
+    fecha_contratacion date NOT NULL,
+    fecha_inicio date,
+    fecha_fin date,
+    estado character varying(20),
+    observaciones text,
+    precio_individual numeric(10,2),
+    precio_grupal numeric(10,2),
+    iva numeric(5,2),
+    fecha_suscripcion date,
+    fecha_caducidad date,
+    fecha_desvinculacion date,
+    estado_servicio character varying(50),
+    CONSTRAINT contrataciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('Activo'::character varying)::text, ('Suspendido'::character varying)::text, ('Cancelado'::character varying)::text]))),
+    CONSTRAINT estado_servicio_check CHECK (((estado_servicio)::text = ANY (ARRAY[('Activo'::character varying)::text, ('Suspendido'::character varying)::text, ('Cancelado'::character varying)::text, ('Pendiente'::character varying)::text])))
+);
+
+
+ALTER TABLE public.contrataciones OWNER TO postgres;
+
+
+CREATE SEQUENCE public.contrataciones_id_contratacion_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.contrataciones_id_contratacion_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.contrataciones_id_contratacion_seq OWNED BY public.contrataciones.id_contratacion;
+
+
+
+CREATE TABLE public.contrataciones_servicios (
+    id_contratacion integer NOT NULL,
+    id_cooperativa integer,
+    id_servicio integer,
+    fecha_contratacion date DEFAULT CURRENT_DATE,
+    valor_contratado numeric(10,2) NOT NULL,
+    periodo_facturacion character varying(20),
+    activo boolean DEFAULT true,
+    documento_contable character varying(255),
+    fecha_finalizacion character varying(255),
+    numero_licencias integer DEFAULT 1,
+    fecha_ultimo_pago date,
+    estado_pago character varying(20) DEFAULT 'PENDIENTE'::character varying,
+    licencias_pj_matrix integer DEFAULT 0 NOT NULL,
+    licencias_sic_matrix integer DEFAULT 0 NOT NULL,
+    licencias_gratis_matrix integer DEFAULT 0 NOT NULL,
+    licencias_pj_gratis integer DEFAULT 0 NOT NULL,
+    licencias_sic_gratis integer DEFAULT 0 NOT NULL,
+    licencias_sispla_matrix integer DEFAULT 0 NOT NULL,
+    CONSTRAINT contrataciones_servicios_periodo_facturacion_check CHECK (((periodo_facturacion)::text = ANY (ARRAY[('Mensual'::character varying)::text, ('Trimestral'::character varying)::text, ('Semestral'::character varying)::text, ('Anual'::character varying)::text, ('Indefinido'::character varying)::text])))
+);
+
+
+ALTER TABLE public.contrataciones_servicios OWNER TO postgres;
+
+
+CREATE SEQUENCE public.contrataciones_servicios_id_contratacion_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.contrataciones_servicios_id_contratacion_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.contrataciones_servicios_id_contratacion_seq OWNED BY public.contrataciones_servicios.id_contratacion;
+
+
+
+CREATE TABLE public.cooperativa_red (
+    id_cooperativa integer NOT NULL,
+    codigo_red character varying(20) NOT NULL
+);
+
+
+ALTER TABLE public.cooperativa_red OWNER TO postgres;
+
+
+CREATE TABLE public.cooperativa_servicio (
+    id_cooperativa integer NOT NULL,
+    id_servicio integer NOT NULL,
+    activo boolean DEFAULT true NOT NULL,
+    fecha_alta date DEFAULT CURRENT_DATE,
+    fecha_baja date,
+    notas text
+);
+
+
+ALTER TABLE public.cooperativa_servicio OWNER TO postgres;
+
+
+CREATE TABLE public.cooperativas (
+    id_cooperativa integer NOT NULL,
+    nombre character varying(100) NOT NULL,
+    ruc character varying(20),
+    telefono character varying(12),
+    email character varying(100),
+    id_segmento integer,
+    fecha_registro timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    activa boolean DEFAULT true,
+    tipo_entidad character varying(20) DEFAULT 'cooperativa'::character varying NOT NULL,
+    telefono_fijo_1 character varying(12),
+    telefono_fijo_2 character varying(12),
+    telefono_movil character varying(12),
+    pais character varying(40) DEFAULT 'Ecuador'::character varying,
+    notas text,
+    red character varying(20),
+    provincia_id integer,
+    canton_id integer,
+    CONSTRAINT cooperativas_email_check CHECK (((email IS NULL) OR ((email)::text ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'::text))),
+    CONSTRAINT cooperativas_red_check CHECK (((red IS NULL) OR ((red)::text = ANY (ARRAY[('UPROCACHT'::character varying)::text, ('UCACNOR'::character varying)::text, ('FECOAC'::character varying)::text])))),
+    CONSTRAINT cooperativas_ruc_check_digits CHECK (((ruc IS NULL) OR ((ruc)::text ~ '^[0-9]{10,13}$'::text))),
+    CONSTRAINT cooperativas_tel_check CHECK ((((telefono IS NULL) OR ((telefono)::text ~ '^[0-9+ -]{7,15}$'::text)) AND ((telefono_fijo_1 IS NULL) OR ((telefono_fijo_1)::text ~ '^[0-9+ -]{7,15}$'::text)) AND ((telefono_fijo_2 IS NULL) OR ((telefono_fijo_2)::text ~ '^[0-9+ -]{7,15}$'::text)) AND ((telefono_movil IS NULL) OR ((telefono_movil)::text ~ '^[0-9+ -]{7,15}$'::text))))
+);
+
+
+ALTER TABLE public.cooperativas OWNER TO postgres;
+
+
+COMMENT ON COLUMN public.cooperativas.red IS 'DEPRECATED: usar tabla cooperativa_red para múltiples redes.';
+
+
+
+CREATE TABLE public.cooperativas_backup (
+    id_cooperativa integer,
+    nombre character varying(100),
+    ruc character varying(20),
+    telefono character varying(12),
+    email character varying(100),
+    id_segmento integer,
+    fecha_registro timestamp without time zone,
+    activa boolean,
+    provincia character varying(100),
+    canton character varying(100),
+    tipo_entidad character varying(20),
+    servicio_activo character varying(255),
+    telefono_fijo_1 character varying(12),
+    telefono_fijo_2 character varying(12),
+    telefono_movil character varying(12),
+    email2 character varying(160),
+    pais character varying(40),
+    notas text,
+    red character varying(20),
+    provincia_id integer,
+    canton_id integer
+);
+
+
+ALTER TABLE public.cooperativas_backup OWNER TO postgres;
+
+
+CREATE TABLE public.cooperativas_backup_before_email_cleanup (
+    id_cooperativa integer,
+    nombre character varying(100),
+    ruc character varying(20),
+    telefono character varying(12),
+    email character varying(100),
+    id_segmento integer,
+    fecha_registro timestamp without time zone,
+    activa boolean,
+    tipo_entidad character varying(20),
+    telefono_fijo_1 character varying(12),
+    telefono_fijo_2 character varying(12),
+    telefono_movil character varying(12),
+    email2 character varying(160),
+    pais character varying(40),
+    notas text,
+    red character varying(20),
+    provincia_id integer,
+    canton_id integer
+);
+
+
+ALTER TABLE public.cooperativas_backup_before_email_cleanup OWNER TO postgres;
+
+
+CREATE SEQUENCE public.cooperativas_id_cooperativa_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.cooperativas_id_cooperativa_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.cooperativas_id_cooperativa_seq OWNED BY public.cooperativas.id_cooperativa;
+
+
+
+CREATE TABLE public.datos_facturacion (
+    id_facturacion integer NOT NULL,
+    id_cooperativa integer NOT NULL,
+    direccion text,
+    provincia character varying(100),
+    canton character varying(100),
+    email1 character varying(100),
+    email2 character varying(100),
+    email3 character varying(100),
+    email4 character varying(100),
+    email5 character varying(100),
+    tel_fijo1 character varying(12),
+    tel_fijo2 character varying(12),
+    tel_fijo3 character varying(12),
+    tel_cel1 character varying(12),
+    tel_cel2 character varying(12),
+    tel_cel3 character varying(12),
+    contabilidad_nombre character varying(100),
+    contabilidad_telefono character varying(20),
+    fecha_registro timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    provincia_id integer,
+    canton_id integer,
+    email_canonical text
+);
+
+
+ALTER TABLE public.datos_facturacion OWNER TO postgres;
+
+
+CREATE TABLE public.datos_facturacion_backup_before_email_cleanup (
+    id_facturacion integer,
+    id_cooperativa integer,
+    direccion text,
+    provincia character varying(100),
+    canton character varying(100),
+    email1 character varying(100),
+    email2 character varying(100),
+    email3 character varying(100),
+    email4 character varying(100),
+    email5 character varying(100),
+    tel_fijo1 character varying(12),
+    tel_fijo2 character varying(12),
+    tel_fijo3 character varying(12),
+    tel_cel1 character varying(12),
+    tel_cel2 character varying(12),
+    tel_cel3 character varying(12),
+    contabilidad_nombre character varying(100),
+    contabilidad_telefono character varying(20),
+    fecha_registro timestamp without time zone,
+    provincia_id integer,
+    canton_id integer
+);
+
+
+ALTER TABLE public.datos_facturacion_backup_before_email_cleanup OWNER TO postgres;
+
+
+CREATE SEQUENCE public.datos_facturacion_id_facturacion_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.datos_facturacion_id_facturacion_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.datos_facturacion_id_facturacion_seq OWNED BY public.datos_facturacion.id_facturacion;
+
+
+
+CREATE TABLE public.departamentos (
+    id integer NOT NULL,
+    clave character varying(50) NOT NULL,
+    nombre character varying(100) NOT NULL,
+    creado_en timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.departamentos OWNER TO postgres;
+
+
+CREATE SEQUENCE public.departamentos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.departamentos_id_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.departamentos_id_seq OWNED BY public.departamentos.id;
+
+
+
+CREATE TABLE public.email_cleanup_problems (
+    id_cooperativa integer,
+    nombre character varying(100),
+    email_final character varying(100),
+    email2_original character varying(160),
+    email_canonical text,
+    email1 character varying(100),
+    email2 character varying(100),
+    email3 character varying(100),
+    email4 character varying(100),
+    email5 character varying(100),
+    personal_email_sample text
+);
+
+
+ALTER TABLE public.email_cleanup_problems OWNER TO postgres;
+
+
+CREATE TABLE public.email_cleanup_problems_coop (
+    id_cooperativa integer,
+    nombre character varying(100),
+    email_final character varying(100),
+    email2_original character varying(160)
+);
+
+
+ALTER TABLE public.email_cleanup_problems_coop OWNER TO postgres;
+
+
+CREATE TABLE public.equipos (
+    id_equipo integer NOT NULL,
+    codigo_patrimonial character varying(50),
+    nombre_equipo character varying(100) NOT NULL,
+    tipo character varying(50),
+    marca character varying(50),
+    modelo character varying(50),
+    id_usuario_asignado integer,
+    fecha_adquisicion date,
+    garantia_hasta date,
+    especificaciones text,
+    estado character varying(20),
+    CONSTRAINT equipos_estado_check CHECK (((estado)::text = ANY (ARRAY[('Activo'::character varying)::text, ('En mantenimiento'::character varying)::text, ('Retirado'::character varying)::text, ('Dañado'::character varying)::text])))
+);
+
+
+ALTER TABLE public.equipos OWNER TO postgres;
+
+
+CREATE SEQUENCE public.equipos_id_equipo_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.equipos_id_equipo_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.equipos_id_equipo_seq OWNED BY public.equipos.id_equipo;
+
+
+
+CREATE TABLE public.incidencia_tipos (
+    id integer NOT NULL,
+    nombre character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.incidencia_tipos OWNER TO postgres;
+
+
+CREATE SEQUENCE public.incidencia_tipos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.incidencia_tipos_id_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.incidencia_tipos_id_seq OWNED BY public.incidencia_tipos.id;
+
+
+
+CREATE TABLE public.incidencias_comercial (
+    id_incidencia integer NOT NULL,
+    id_cooperativa integer NOT NULL,
+    asunto character varying(150) NOT NULL,
+    descripcion text,
+    prioridad character varying(20) DEFAULT 'Medio'::character varying,
+    estado character varying(20) DEFAULT 'Borrador'::character varying,
+    creado_por integer,
+    id_ticket integer,
+    created_at timestamp without time zone DEFAULT now(),
+    tipo_incidencia_id integer NOT NULL,
+    departamento_id integer,
+    tipo_incidencia_departamento_id integer,
+    CONSTRAINT chk_incidencias_tipo_exists CHECK (((tipo_incidencia_id IS NOT NULL) OR (tipo_incidencia_departamento_id IS NOT NULL))),
+    CONSTRAINT incidencias_comercial_estado_check CHECK (((estado)::text = ANY (ARRAY[('Borrador'::character varying)::text, ('Listo'::character varying)::text, ('Enviado'::character varying)::text, ('Atendido'::character varying)::text, ('Cerrado'::character varying)::text, ('Rechazado'::character varying)::text]))),
+    CONSTRAINT incidencias_comercial_prioridad_check CHECK (((prioridad)::text = ANY (ARRAY[('Crítico'::character varying)::text, ('Alto'::character varying)::text, ('Medio'::character varying)::text, ('Bajo'::character varying)::text])))
+);
+
+
+ALTER TABLE public.incidencias_comercial OWNER TO postgres;
+
+
+CREATE SEQUENCE public.incidencias_comercial_id_incidencia_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.incidencias_comercial_id_incidencia_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.incidencias_comercial_id_incidencia_seq OWNED BY public.incidencias_comercial.id_incidencia;
+
+
+
+CREATE TABLE public.incidencias_vistas (
+    id_usuario integer NOT NULL,
+    id_incidencia integer NOT NULL,
+    visto_cerrada_at timestamp without time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.incidencias_vistas OWNER TO postgres;
+
+
+CREATE TABLE public.info_contabilidad (
+    id_info integer NOT NULL,
+    id_cooperativa integer,
+    responsable_contable character varying(100) NOT NULL,
+    email_contable character varying(100) NOT NULL,
+    telefono_contable character varying(20) NOT NULL,
+    ruc_contabilidad character varying(13) NOT NULL,
+    direccion_contabilidad text,
+    fecha_actualizacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP
+);
+
+
+ALTER TABLE public.info_contabilidad OWNER TO postgres;
+
+
+CREATE SEQUENCE public.info_contabilidad_id_info_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.info_contabilidad_id_info_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.info_contabilidad_id_info_seq OWNED BY public.info_contabilidad.id_info;
+
+
+
+CREATE TABLE public.instalaciones (
+    id_instalacion integer NOT NULL,
+    id_contratacion integer NOT NULL,
+    id_usuario_tecnico integer,
+    fecha_instalacion date NOT NULL,
+    fecha_completada date,
+    estado character varying(20),
+    observaciones text,
+    CONSTRAINT instalaciones_estado_check CHECK (((estado)::text = ANY (ARRAY[('Pendiente'::character varying)::text, ('En progreso'::character varying)::text, ('Completada'::character varying)::text, ('Fallida'::character varying)::text])))
+);
+
+
+ALTER TABLE public.instalaciones OWNER TO postgres;
+
+
+CREATE SEQUENCE public.instalaciones_id_instalacion_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.instalaciones_id_instalacion_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.instalaciones_id_instalacion_seq OWNED BY public.instalaciones.id_instalacion;
+
+
+
+CREATE TABLE public.listas_control (
+    id_lista_control integer NOT NULL,
+    id_cooperativa integer NOT NULL,
+    fecha_actualizacion date NOT NULL,
+    responsable character varying(100),
+    observaciones text
+);
+
+
+ALTER TABLE public.listas_control OWNER TO postgres;
+
+
+CREATE SEQUENCE public.listas_control_id_lista_control_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.listas_control_id_lista_control_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.listas_control_id_lista_control_seq OWNED BY public.listas_control.id_lista_control;
+
+
+
+CREATE TABLE public.pagos (
+    id_pago integer NOT NULL,
+    id_contratacion integer,
+    monto numeric(10,2),
+    fecha_pago date,
+    metodo_pago character varying(50),
+    comprobante character varying(100),
+    estado character varying(20),
+    observaciones text
+);
+
+
+ALTER TABLE public.pagos OWNER TO postgres;
+
+
+CREATE SEQUENCE public.pagos_id_pago_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.pagos_id_pago_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.pagos_id_pago_seq OWNED BY public.pagos.id_pago;
+
+
+
+CREATE TABLE public.personal_cooperativa (
+    id_personal integer NOT NULL,
+    id_cooperativa integer NOT NULL,
+    nombre character varying(100) NOT NULL,
+    cargo character varying(100),
+    telefono character varying(20),
+    email character varying(100),
+    departamento character varying(100)
+);
+
+
+ALTER TABLE public.personal_cooperativa OWNER TO postgres;
+
+
+CREATE SEQUENCE public.personal_cooperativa_id_personal_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.personal_cooperativa_id_personal_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.personal_cooperativa_id_personal_seq OWNED BY public.personal_cooperativa.id_personal;
+
+
+
+CREATE TABLE public.provincia (
+    id integer NOT NULL,
+    nombre character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.provincia OWNER TO postgres;
+
+
+CREATE SEQUENCE public.provincia_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.provincia_id_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.provincia_id_seq OWNED BY public.provincia.id;
+
+
+
+CREATE VIEW public.provincias AS
+ SELECT p.id AS id_provincia,
+    p.nombre
+   FROM public.provincia p;
+
+
+ALTER TABLE public.provincias OWNER TO postgres;
+
+
+COMMENT ON VIEW public.provincias IS 'Vista de compatibilidad. Mapea provincia.id -> id_provincia';
+
+
+
+CREATE TABLE public.red (
+    codigo character varying(20) NOT NULL,
+    nombre character varying(100) NOT NULL
+);
+
+
+ALTER TABLE public.red OWNER TO postgres;
+
+
+CREATE TABLE public.roles (
+    id_rol integer NOT NULL,
+    nombre_rol character varying(50) NOT NULL,
+    descripcion text
+);
+
+
+ALTER TABLE public.roles OWNER TO postgres;
+
+
+CREATE SEQUENCE public.roles_id_rol_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.roles_id_rol_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.roles_id_rol_seq OWNED BY public.roles.id_rol;
+
+
+
+CREATE TABLE public.segmentos (
+    id_segmento integer NOT NULL,
+    nombre_segmento character varying(100) NOT NULL,
+    descripcion text
+);
+
+
+ALTER TABLE public.segmentos OWNER TO postgres;
+
+
+CREATE SEQUENCE public.segmentos_id_segmento_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.segmentos_id_segmento_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.segmentos_id_segmento_seq OWNED BY public.segmentos.id_segmento;
+
+
+
+CREATE TABLE public.seguimiento_tipos (
+    id integer NOT NULL,
+    nombre character varying(120) NOT NULL,
+    orden integer DEFAULT 100
+);
+
+
+ALTER TABLE public.seguimiento_tipos OWNER TO postgres;
+
+
+CREATE SEQUENCE public.seguimiento_tipos_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.seguimiento_tipos_id_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.seguimiento_tipos_id_seq OWNED BY public.seguimiento_tipos.id;
+
+
+
+CREATE VIEW public.seguimientos AS
+ SELECT comercial_seguimientos.id,
+    comercial_seguimientos.id_cooperativa,
+    comercial_seguimientos.fecha_actividad,
+    comercial_seguimientos.tipo,
+    comercial_seguimientos.descripcion,
+    comercial_seguimientos.ticket_id,
+    comercial_seguimientos.creado_por,
+    comercial_seguimientos.created_at,
+    comercial_seguimientos.numero_contacto,
+    comercial_seguimientos.datos_contacto,
+    comercial_seguimientos.observaciones
+   FROM public.comercial_seguimientos;
+
+
+ALTER TABLE public.seguimientos OWNER TO postgres;
+
+
+CREATE VIEW public.seguimientos_comercial AS
+ SELECT comercial_seguimientos.id,
+    comercial_seguimientos.id_cooperativa,
+    comercial_seguimientos.fecha_actividad,
+    comercial_seguimientos.tipo,
+    comercial_seguimientos.descripcion,
+    comercial_seguimientos.ticket_id,
+    comercial_seguimientos.creado_por,
+    comercial_seguimientos.created_at,
+    comercial_seguimientos.numero_contacto,
+    comercial_seguimientos.datos_contacto,
+    comercial_seguimientos.observaciones
+   FROM public.comercial_seguimientos;
+
+
+ALTER TABLE public.seguimientos_comercial OWNER TO postgres;
+
+
+CREATE TABLE public.servicios (
+    id_servicio integer NOT NULL,
+    nombre_servicio character varying(100) NOT NULL,
+    descripcion text,
+    activo boolean DEFAULT true
+);
+
+
+ALTER TABLE public.servicios OWNER TO postgres;
+
+
+CREATE SEQUENCE public.servicios_id_servicio_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.servicios_id_servicio_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.servicios_id_servicio_seq OWNED BY public.servicios.id_servicio;
+
+
+
+CREATE TABLE public.ticket_historial (
+    id_historial integer NOT NULL,
+    id_ticket integer,
+    fecha_cambio timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    campo_modificado character varying(50),
+    valor_anterior text,
+    valor_nuevo text,
+    id_usuario integer
+);
+
+
+ALTER TABLE public.ticket_historial OWNER TO postgres;
+
+
+CREATE SEQUENCE public.ticket_historial_id_historial_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.ticket_historial_id_historial_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.ticket_historial_id_historial_seq OWNED BY public.ticket_historial.id_historial;
+
+
+
+CREATE TABLE public.tickets (
+    id_ticket integer NOT NULL,
+    titulo character varying(100) NOT NULL,
+    descripcion text,
+    id_usuario_reporta integer,
+    id_equipo integer,
+    id_categoria integer,
+    prioridad character varying(20),
+    estado character varying(20),
+    fecha_apertura timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    fecha_cierre timestamp without time zone,
+    solucion text,
+    id_tecnico_asignado integer,
+    departamento_id integer,
+    CONSTRAINT tickets_estado_check CHECK (((estado)::text = ANY (ARRAY[('Abierto'::character varying)::text, ('En progreso'::character varying)::text, ('Pendiente'::character varying)::text, ('Cerrado'::character varying)::text, ('Rechazado'::character varying)::text]))),
+    CONSTRAINT tickets_prioridad_check CHECK (((prioridad)::text = ANY (ARRAY[('Crítico'::character varying)::text, ('Alto'::character varying)::text, ('Medio'::character varying)::text, ('Bajo'::character varying)::text])))
+);
+
+
+ALTER TABLE public.tickets OWNER TO postgres;
+
+
+CREATE SEQUENCE public.tickets_id_ticket_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.tickets_id_ticket_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.tickets_id_ticket_seq OWNED BY public.tickets.id_ticket;
+
+
+
+CREATE TABLE public.tipos_incidencias_departamento (
+    id integer NOT NULL,
+    departamento_id integer NOT NULL,
+    nombre character varying(200) NOT NULL,
+    referencia_id integer,
+    orden integer DEFAULT 100,
+    creado_en timestamp with time zone DEFAULT now()
+);
+
+
+ALTER TABLE public.tipos_incidencias_departamento OWNER TO postgres;
+
+
+CREATE SEQUENCE public.tipos_incidencias_departamento_id_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.tipos_incidencias_departamento_id_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.tipos_incidencias_departamento_id_seq OWNED BY public.tipos_incidencias_departamento.id;
+
+
+
+CREATE TABLE public.usuario_categorias (
+    id_usuario integer NOT NULL,
+    id_categoria integer NOT NULL
+);
+
+
+ALTER TABLE public.usuario_categorias OWNER TO postgres;
+
+
+CREATE TABLE public.usuarios (
+    id_usuario integer NOT NULL,
+    username character varying(50) NOT NULL,
+    password_md5 character varying(32) NOT NULL,
+    id_rol integer NOT NULL,
+    nombre_completo character varying(100) NOT NULL,
+    email character varying(100) NOT NULL,
+    activo boolean DEFAULT true,
+    fecha_creacion timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    departamento character varying(20)
+);
+
+
+ALTER TABLE public.usuarios OWNER TO postgres;
+
+
+CREATE SEQUENCE public.usuarios_id_usuario_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE public.usuarios_id_usuario_seq OWNER TO postgres;
+
+
+ALTER SEQUENCE public.usuarios_id_usuario_seq OWNED BY public.usuarios.id_usuario;
+
+
+
+CREATE VIEW public.v_cooperativas_cards AS
+ SELECT c.id_cooperativa AS id,
+    c.nombre,
+    c.ruc,
+    COALESCE(NULLIF(btrim((c.telefono)::text), ''::text), NULLIF(btrim((c.telefono_movil)::text), ''::text), NULLIF(btrim((c.telefono_fijo_1)::text), ''::text), NULLIF(btrim((c.telefono_fijo_2)::text), ''::text)) AS telefono,
+    NULLIF(btrim((c.email)::text), ''::text) AS email,
+    p.nombre AS provincia,
+    t.nombre AS canton,
+    c.id_segmento AS segmento,
+    s.nombre_segmento,
+    string_agg((
+        CASE
+            WHEN cs.activo THEN srv.nombre_servicio
+            ELSE NULL::character varying
+        END)::text, ', '::text ORDER BY srv.nombre_servicio) AS servicios_text,
+    c.activa
+   FROM (((((public.cooperativas c
+     LEFT JOIN public.provincia p ON ((c.provincia_id = p.id)))
+     LEFT JOIN public.canton t ON ((c.canton_id = t.id)))
+     LEFT JOIN public.segmentos s ON ((c.id_segmento = s.id_segmento)))
+     LEFT JOIN public.cooperativa_servicio cs ON ((c.id_cooperativa = cs.id_cooperativa)))
+     LEFT JOIN public.servicios srv ON ((cs.id_servicio = srv.id_servicio)))
+  GROUP BY c.id_cooperativa, c.nombre, c.ruc, c.telefono, c.telefono_movil, c.telefono_fijo_1, c.telefono_fijo_2, c.email, c.activa, p.nombre, t.nombre, c.id_segmento, s.nombre_segmento;
+
+
+ALTER TABLE public.v_cooperativas_cards OWNER TO postgres;
+
+
+CREATE VIEW public.v_tickets_busqueda AS
+ SELECT t.id_ticket,
+    t.titulo,
+    t.descripcion,
+    t.prioridad,
+    t.estado,
+    t.departamento_id,
+    d.nombre AS departamento_nombre,
+    c.nombre_categoria,
+    t.id_categoria,
+    ((('INC-'::text || to_char(t.fecha_apertura, 'YYYY'::text)) || '-'::text) || lpad((t.id_ticket)::text, 5, '0'::text)) AS codigo_ticket,
+    t.fecha_apertura,
+    t.id_tecnico_asignado,
+    u.nombre_completo AS tecnico_asignado
+   FROM (((public.tickets t
+     LEFT JOIN public.departamentos d ON ((t.departamento_id = d.id)))
+     LEFT JOIN public.categorias c ON ((t.id_categoria = c.id_categoria)))
+     LEFT JOIN public.usuarios u ON ((t.id_tecnico_asignado = u.id_usuario)))
+  WHERE (((t.estado)::text <> ALL ((ARRAY['Cerrado'::character varying, 'Rechazado'::character varying])::text[])) OR (t.estado IS NULL));
+
+
+ALTER TABLE public.v_tickets_busqueda OWNER TO postgres;
+
+
+COMMENT ON VIEW public.v_tickets_busqueda IS 'Vista para búsqueda y autocompletado de tickets en seguimientos';
+
+
+
+CREATE VIEW public.vw_tickets AS
+ SELECT t.id_ticket,
+    t.titulo,
+    t.descripcion,
+    t.id_usuario_reporta,
+    t.id_equipo,
+    t.id_categoria,
+    t.prioridad,
+    t.estado,
+    t.fecha_apertura,
+    t.fecha_cierre,
+    t.solucion,
+    t.id_tecnico_asignado,
+    ((('SIS-'::text || to_char(t.fecha_apertura, 'YYMMDD'::text)) || '-'::text) || lpad((t.id_ticket)::text, 6, '0'::text)) AS codigo
+   FROM public.tickets t;
+
+
+ALTER TABLE public.vw_tickets OWNER TO postgres;
+
+
+ALTER TABLE ONLY public.agenda ALTER COLUMN id_agenda SET DEFAULT nextval('public.agenda_id_agenda_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.agenda_contactos ALTER COLUMN id_evento SET DEFAULT nextval('public.agenda_contactos_id_evento_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.asistentes_capacitacion ALTER COLUMN id_asistente SET DEFAULT nextval('public.asistentes_capacitacion_id_asistente_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.canton ALTER COLUMN id SET DEFAULT nextval('public.canton_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.capacitaciones ALTER COLUMN id_capacitacion SET DEFAULT nextval('public.capacitaciones_id_capacitacion_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.capacitaciones_providencias ALTER COLUMN id_capacitacion_providencia SET DEFAULT nextval('public.capacitaciones_providencias_id_capacitacion_providencia_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.categorias ALTER COLUMN id_categoria SET DEFAULT nextval('public.categorias_id_categoria_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.comercial_seguimientos ALTER COLUMN id SET DEFAULT nextval('public.comercial_seguimientos_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.contactos_cooperativa ALTER COLUMN id_contacto SET DEFAULT nextval('public.contactos_cooperativa_id_contacto_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.contrataciones ALTER COLUMN id_contratacion SET DEFAULT nextval('public.contrataciones_id_contratacion_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.contrataciones_servicios ALTER COLUMN id_contratacion SET DEFAULT nextval('public.contrataciones_servicios_id_contratacion_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.cooperativas ALTER COLUMN id_cooperativa SET DEFAULT nextval('public.cooperativas_id_cooperativa_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.datos_facturacion ALTER COLUMN id_facturacion SET DEFAULT nextval('public.datos_facturacion_id_facturacion_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.departamentos ALTER COLUMN id SET DEFAULT nextval('public.departamentos_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.equipos ALTER COLUMN id_equipo SET DEFAULT nextval('public.equipos_id_equipo_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.incidencia_tipos ALTER COLUMN id SET DEFAULT nextval('public.incidencia_tipos_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.incidencias_comercial ALTER COLUMN id_incidencia SET DEFAULT nextval('public.incidencias_comercial_id_incidencia_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.info_contabilidad ALTER COLUMN id_info SET DEFAULT nextval('public.info_contabilidad_id_info_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.instalaciones ALTER COLUMN id_instalacion SET DEFAULT nextval('public.instalaciones_id_instalacion_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.listas_control ALTER COLUMN id_lista_control SET DEFAULT nextval('public.listas_control_id_lista_control_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.pagos ALTER COLUMN id_pago SET DEFAULT nextval('public.pagos_id_pago_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.personal_cooperativa ALTER COLUMN id_personal SET DEFAULT nextval('public.personal_cooperativa_id_personal_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.provincia ALTER COLUMN id SET DEFAULT nextval('public.provincia_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.roles ALTER COLUMN id_rol SET DEFAULT nextval('public.roles_id_rol_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.segmentos ALTER COLUMN id_segmento SET DEFAULT nextval('public.segmentos_id_segmento_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.seguimiento_tipos ALTER COLUMN id SET DEFAULT nextval('public.seguimiento_tipos_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.servicios ALTER COLUMN id_servicio SET DEFAULT nextval('public.servicios_id_servicio_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.ticket_historial ALTER COLUMN id_historial SET DEFAULT nextval('public.ticket_historial_id_historial_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.tickets ALTER COLUMN id_ticket SET DEFAULT nextval('public.tickets_id_ticket_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.tipos_incidencias_departamento ALTER COLUMN id SET DEFAULT nextval('public.tipos_incidencias_departamento_id_seq'::regclass);
+
+
+
+ALTER TABLE ONLY public.usuarios ALTER COLUMN id_usuario SET DEFAULT nextval('public.usuarios_id_usuario_seq'::regclass);
+
+
+
+COPY public.agenda (id_agenda, fecha, id_entidad, nombre_contacto, telefono, email, titulo, notas, estado, created_at) FROM stdin;
+\.
+
+
+
+COPY public.agenda_contactos (id_evento, id_cooperativa, titulo, fecha_evento, contacto, nota, creado_por, estado, created_at, updated_at, telefono_contacto, oficial_nombre, oficial_correo, cargo) FROM stdin;
+5	58	XD	2025-10-15	\N	\N	\N	Pendiente	2025-10-15 03:44:37.812712	2025-10-15 03:44:37.812712	1111111111	Prueba 1	daandrade11@espe.edu.ec	XD
+\.
+
+
+
+COPY public.asistentes_capacitacion (id_asistente, id_capacitacion, id_personal, asistio, evaluacion) FROM stdin;
+\.
+
+
+
+COPY public.canton (id, provincia_id, nombre) FROM stdin;
+1	1	Cuenca
+2	1	Girón
+3	1	Gualaceo
+4	1	Nabón
+5	1	Paute
+6	1	Pucará
+7	1	San Fernando
+8	1	Santa Isabel
+9	1	Sígsig
+10	1	Oña
+11	1	Chordeleg
+12	1	El Pan
+13	1	Sevilla de Oro
+14	1	Guachapala
+15	1	Camilo Ponce Enríquez
+16	2	Guaranda
+17	2	Chimbo
+18	2	San Miguel
+19	2	Echeandía
+20	2	Caluma
+21	2	Las Naves
+22	2	Chillanes
+23	3	Azogues
+24	3	Biblián
+25	3	Cañar
+26	3	La Troncal
+27	3	El Tambo
+28	3	Suscal
+29	3	Déleg
+30	4	Tulcán
+31	4	Bolívar
+32	4	Espejo
+33	4	Mira
+34	4	Montúfar
+35	4	San Pedro de Huaca
+36	5	Latacunga
+37	5	La Maná
+38	5	Pangua
+39	5	Pujilí
+40	5	Salcedo
+41	5	Saquisilí
+42	5	Sigchos
+43	6	Riobamba
+44	6	Alausí
+45	6	Colta
+46	6	Chambo
+47	6	Chunchi
+48	6	Guamote
+49	6	Guano
+50	6	Pallatanga
+51	6	Penipe
+52	6	Cumandá
+53	7	Machala
+54	7	Arenillas
+55	7	Atahualpa
+56	7	Balsas
+57	7	Chilla
+58	7	El Guabo
+59	7	Huaquillas
+60	7	Las Lajas
+61	7	Marcabelí
+62	7	Pasaje
+63	7	Piñas
+64	7	Portovelo
+65	7	Santa Rosa
+66	7	Zaruma
+67	8	Esmeraldas
+68	8	Eloy Alfaro
+69	8	Muisne
+70	8	Quinindé
+71	8	Rioverde
+72	8	San Lorenzo
+73	8	Atacames
+74	9	San Cristóbal
+75	9	Santa Cruz
+76	9	Isabela
+77	10	Guayaquil
+78	10	Alfredo Baquerizo Moreno (Jujan)
+79	10	Balao
+80	10	Balzar
+81	10	Colimes
+82	10	Daule
+83	10	Durán
+84	10	El Empalme
+85	10	El Triunfo
+86	10	General Antonio Elizalde (Bucay)
+87	10	Isidro Ayora
+88	10	Lomas de Sargentillo
+89	10	Marcelino Maridueña
+90	10	Milagro
+91	10	Naranjal
+92	10	Naranjito
+93	10	Nobol (Narcisa de Jesús)
+94	10	Palestina
+95	10	Pedro Carbo
+96	10	Playas (General Villamil)
+97	10	Salitre (Urbina Jado)
+98	10	Samborondón
+99	10	Santa Lucía
+100	10	Simón Bolívar
+101	10	Yaguachi
+102	11	Ibarra
+103	11	Antonio Ante
+104	11	Cotacachi
+105	11	Otavalo
+106	11	Pimampiro
+107	11	San Miguel de Urcuquí
+108	12	Loja
+109	12	Calvas
+110	12	Catamayo
+111	12	Celica
+112	12	Chaguarpamba
+113	12	Espíndola
+114	12	Gonzanamá
+115	12	Macará
+116	12	Olmedo
+117	12	Paltas
+118	12	Pindal
+119	12	Puyango
+120	12	Quilanga
+121	12	Saraguro
+122	12	Sozoranga
+123	12	Zapotillo
+124	13	Babahoyo
+125	13	Baba
+126	13	Buena Fe
+127	13	Montalvo
+128	13	Mocache
+129	13	Palenque
+130	13	Puebloviejo
+131	13	Quevedo
+132	13	Quinsaloma
+133	13	Urdaneta
+134	13	Valencia
+135	13	Ventanas
+136	13	Vinces
+137	14	Portoviejo
+138	14	Bolívar
+139	14	Chone
+140	14	El Carmen
+141	14	Flavio Alfaro
+142	14	Jama
+143	14	Jaramijó
+144	14	Jipijapa
+145	14	Junín
+146	14	Manta
+147	14	Montecristi
+148	14	Olmedo
+149	14	Paján
+150	14	Pedernales
+151	14	Pichincha
+152	14	Puerto López
+153	14	Rocafuerte
+154	14	San Vicente
+155	14	Santa Ana
+156	14	Sucre
+157	14	Tosagua
+158	14	24 de Mayo
+159	15	Morona
+160	15	Gualaquiza
+161	15	Limón Indanza
+162	15	Logroño
+163	15	Pablo Sexto
+164	15	Palora
+165	15	San Juan Bosco
+166	15	Santiago de Méndez
+167	15	Sucúa
+168	15	Tiwintza
+169	15	Huamboya
+170	15	Taisha
+171	16	Tena
+172	16	Archidona
+173	16	Carlos Julio Arosemena Tola
+174	16	El Chaco
+175	16	Quijos
+176	17	Aguarico
+177	17	La Joya de los Sachas
+178	17	Loreto
+179	17	Orellana
+180	18	Pastaza
+181	18	Arajuno
+182	18	Mera
+183	18	Santa Clara
+184	19	Quito
+185	19	Cayambe
+186	19	Mejía
+187	19	Pedro Moncayo
+188	19	Pedro Vicente Maldonado
+189	19	Puerto Quito
+190	19	Rumiñahui
+191	19	San Miguel de los Bancos
+192	20	Santa Elena
+193	20	La Libertad
+194	20	Salinas
+195	21	Santo Domingo
+196	21	La Concordia
+197	22	Lago Agrio
+198	22	Cuyabeno
+199	22	Gonzalo Pizarro
+200	22	Putumayo
+201	22	Shushufindi
+202	22	Sucumbíos
+203	22	Cascales
+204	23	Ambato
+205	23	Baños de Agua Santa
+206	23	Cevallos
+207	23	Mocha
+208	23	Patate
+209	23	Pelileo
+210	23	Santiago de Píllaro
+211	23	Quero
+212	23	Tisaleo
+213	24	Zamora
+214	24	Chinchipe
+215	24	Yacuambi
+216	24	Yantzaza
+217	24	El Pangui
+218	24	Paquisha
+219	24	Nangaritza
+220	24	Centinela del Cóndor
+221	24	Palanda
+\.
+
+
+
+COPY public.capacitaciones (id_capacitacion, id_contratacion, id_usuario_capacitador, fecha_capacitacion, fecha_completada, asistentes, estado, observaciones) FROM stdin;
+\.
+
+
+
+COPY public.capacitaciones_providencias (id_capacitacion_providencia, id_capacitacion, tema_especifico, normativas, casos_practicos) FROM stdin;
+\.
+
+
+
+COPY public.categorias (id_categoria, nombre_categoria, descripcion) FROM stdin;
+1	Seguridad	Virus, malware, problemas de acceso no autorizado
+2	Servidores	Incidentes con servidores internos o en la nube
+3	Base de Datos	Problemas con SQL Server, MySQL, PostgreSQL, etc.
+4	Telefonía IP	Problemas con sistemas de voz sobre IP
+5	Sistemas Especializados	Problemas con software ERP, CRM o sistemas verticales
+6	Acceso Remoto	Problemas con VPN, escritorio remoto o TeamViewer
+7	Dispositivos Móviles	Problemas con tablets, smartphones o sus aplicaciones
+8	Soporte a Usuarios	Asesoría en el uso de sistemas y capacitación
+9	Instalaciones	Instalacion Matrix, PJ, SIC o SISPLA
+\.
+
+
+
+COPY public.comercial_seguimientos (id, id_cooperativa, fecha_actividad, tipo, descripcion, ticket_id, creado_por, created_at, numero_contacto, datos_contacto, observaciones, fecha_finalizacion, id_contacto, datos_reunion, datos_ticket, editado_por, editado_en) FROM stdin;
+1	\N	2025-10-12	Contacto	Prueba: contacto inicial con cooperativa X - llamada telefónica	\N	\N	2025-10-12 20:28:36.020841-05	1	\N	\N	2025-10-12	\N	\N	\N	\N	2025-10-12 20:28:36.020841-05
+2	67	2025-10-13	Reunión	opom	\N	9	2025-10-13 15:49:41.818509-05	\N	\N	\N	2025-10-13	\N	\N	\N	9	2025-10-13 15:49:41.818509-05
+3	58	2025-10-13	Soporte	kini	0	9	2025-10-14 15:36:40.348485-05	\N	\N	\N	2025-10-13	\N	\N	\N	9	2025-10-14 15:36:40.348485-05
+4	54	2025-10-17	Seguimiento	hjjjjjj	0	9	2025-10-14 15:38:57.469556-05	\N	\N	\N	2025-10-17	\N	\N	\N	9	2025-10-14 15:38:57.469556-05
+5	54	2025-10-14	Seguimiento	dfddf	\N	9	2025-10-14 15:39:09.842915-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 15:39:09.842915-05
+6	29	2025-10-14	Soporte	dfdfv	\N	9	2025-10-14 15:40:06.293728-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 15:40:06.293728-05
+7	54	2025-10-10	Reunión	vvv	0	9	2025-10-14 15:42:49.632616-05	\N	\N	\N	2025-10-10	\N	\N	\N	9	2025-10-14 15:42:49.632616-05
+8	54	2025-10-14	Ticket	gjjgf	0	9	2025-10-14 15:44:24.169249-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 15:44:24.169249-05
+9	37	2025-11-01	Soporte	fdhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk	\N	9	2025-10-14 15:59:36.971739-05	\N	\N	\N	2025-11-01	\N	\N	\N	9	2025-10-14 15:59:36.971739-05
+10	37	2025-10-14	Seguimiento	jggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg	\N	9	2025-10-14 16:00:04.725486-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 16:00:04.725486-05
+11	54	2025-10-23	Seguimiento	jhyyjyyjyj	\N	9	2025-10-14 16:23:26.921156-05	\N	\N	\N	2025-10-23	\N	\N	\N	9	2025-10-14 16:23:26.921156-05
+12	54	2025-10-14	Reunión	ewewew	\N	9	2025-10-14 19:25:47.583174-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 19:25:47.583174-05
+13	17	2025-10-15	Reunión	dss	\N	9	2025-10-14 19:25:55.492906-05	\N	\N	\N	2025-10-15	\N	\N	\N	9	2025-10-14 19:25:55.492906-05
+\.
+
+
+
+COPY public.conm ("LISTADO DE COOPERATIVAS ACTUALIZADAS DESDE JUNIO 2025;;;;;;;;;;") FROM stdin;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+NOMBRE DE LA COOPERATIVA;SERVICIOS QUE RECIBEN;;;N. OFC.;NO LLAMAR;SEGMENTO;TELEFONO COOPERATIVA;CIUDAD;CELULAR;CORREO INSTITUCIONAL;OFICIAL DE CUMPLIMIEMTO;NOVEDADES;CARGO;REQUERIMIENTOS;SEGUIMIENTO;NUEVO CONTROL JULIO 25;REQUERIMIENTO;RESUELTO?;CONTROL DESDE 21 DE AGOSTO 2025 ;RESUELTO?;;;;;;
+COOPERATIVA DE AHORRO Y CREDITO SEÑOR DEL ARBOL;MATRIX;OK;CH;1;;4;987654321/98799257;Latacunga;991939235;jose.iza@coacsenordelarbol.com;JOSE IZA;OK;OC;NECESITA SABER QUE TECNOLOGIA USAMOS PARA EL CALCULO  DE LA MATRIZ DE RIESGO
+SIGUE;;;CH;;;;;;984994921;cumplimiento@coacsenordelarbol.com;NATALY CHASILOA;;OCS;;;;;;;;;;;;;
+COOPERATIVA DE AHORRO Y CREDITO VONNELAN;MATRIX;;;;;4;22851527;Rumiñahui;998836606;;JESSICA MARTINEZ;X;OC;SOLICITARON CANCELACION;;;;;;;;;;;;
+COAC. EDUCADORES DE BOLIVAR ;MATRIX;OK;CH;2;;4;32550525/6;Guaranda;988784524;coopebolivar@yahoo.com;EMILIA DEL CARMEN ABRIL PARRA;OK;OC;JUSTO AHORA ESTAN TRABAJADO CON DIEGO;;;;;TODO OK. ACTUALIZAR LA INFO DE JULIO. DAR CITA. PASADO DATO A DIEGO;DIEGO LLAMÓ Y LA ING. QUEDO EN ELLA LLAMAR CUANDO SUBA INSUMOS;;;;;;
+COOPERATIVA DE AHORRO Y CREDITO COORAMBATO LTDA.;PLA;OK;CH;3;;3;32826057;Ambato;+593 98 620 1200;ofi_cumplimiento@coorambato.fin.ec;JUAN YUCAILLA;;OC;;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;985459110;ofi_cumplimiento@coorambato.fin.ec;JENNY CAPUZ;OK;OCS;ENVIE WATHSAPP 13/06;YA RESPONDIO Y SE ACTUALIZO DATOS. NECESITA AYUDA PARA BAJAR UNOS LISTADOS AUTOMATICOS 16/06;;;;AYUDA CON LISTAS DE PROVEEDORES DUPLICADOS NOMBRES Y APARECEN MAS .Y DE PLA CON MATRIZ DE RIESGO;NO CONTESTA;;;;;;
+COOPERATIVA DE AHORRO Y CREDITO ANDINA ;MATRIX;OK;CH;4;;2;329943107/32802100;Latacunga;962521811;gvalencia@coopandina.fin.ec;EDGAR GABRIEL VALENCIA RODRIGUEZ;OK;OC;;;;;;;;;;;;;
+SIGUE;;;;;;;;;995928667;afadul@coopandina.fin.ec;ADRIAN OSWALDO FADUL MARCA;;OCS;;;;;;;;;;;;;
+COAC DE LA MICROEMPRESA LA FORTUNA;MATRIX;invi;CH;5;;3;72 572 954;Loja;995250617;oficialcumplimiento@cofortunafin.ec;PEGGUI BAILON;OK;OC;TRASPASO PARA LAS CREDENCIALES DE ELLA A AGENCIA SARAGURO / GLEN;GLEN ENVIO REQUERIMIENTO PARA EL CAMBIO Y NO HAN RESPONDIDO. HOY 18/06 YO ENVIE RECORDATORIO WATHSAPP;;;;TODO OK. SOLO REQUIERE COMPARTIR USUARIO LISTAS DE CONTROL. KAREN PARDOENCARGADA DE PJ COMPARTIRA CON LEONARDO LUDEÑA. PASE EL DATO A SISTEMAS PARA QUE LE AYUDEN ;;;;;;;
+COAC CHUNCHI ;MATRIX;OK;CH;6;;3;32936497/32936610;Chunchi;998571736;coop.chunchi.ltda@gmail.com / oficialcumplimiento@coacchunchi.fin.ec;YURIKA ZUÑA;OK;OC;;;;;;;;;;;;;
+COAC GUAMOTE ;MATRIX;invi;CH;7;;4;32916258;Guamote;987788595;mmanuelay@hotmail.com;MANUELA YASACA;OK;OC;;;;;;TODO NORMAL. Y LE INVITE A LA REUNION. DICE QUE CUANDO HACEN EN RIOBAMBA PARA LOS DE UPROCACH;;;;;;;
+COAC SOL DE LOS ANDES ;MATRIX;OK;CH;8;;3;32948545;Riobamba;989482879;emiranda@coacsoldelosandes.fin.ec;ESTHER CAROLINA MIRANDA;OK;OC;;;;;;VA A LLAMAR POR TEMA DE MATRICES DE RIESGO AHORA NO ESTA EN LA OFICINA;;;;;;;
+COOPERATIVA DE AHORRO Y CREDITO NUEVO AMANECER LTDA. COTOPAXI;MATRIX;invi;CH;9;;5;32597709/998911061;Salcedo;988459290;edwin_m@coacnuevoamannecer.com;EDWIN MAÑAY;OK;OC;;;;;;;;;;;;;
+SIGUE;;;CH;;;;984153073;;984153073;yajairauafe@coacnuevoamanecer.com;YAJAIRA TOAPANTA;;OCS;;;;;;;;;;;;;
+COOPERATIVA DE AHORRO Y CREDITO RIOBAMBA LTDA.;MATRIX;OK;CH;10;;1;032 962 – 431;Riobamba;984330014;cumplimiento@cooprio.fin.ec;CRISTIAN CUADRADO;OK;;NO PASAN LOS INSUMOS TODAVIA TOTALES SI NECESITAN ALGO
+SIGUE;;;;;;;;;984319564;luis.yuqui@cooprio.fin.ec;LUIS FERNANDO YUQUI ORDOÑEZ;;OCS;;;;;;;;;;;;;
+UCACNOR;;;;;;;;;;;;;;;;;;;;;;;;;;
+;MATRIX;invi;CH;11;;;63700380;Ibarra;995458855;;LUIS VASCONEZ;NC;OC;NUNCA CONTESTA. DIEGO LE ESCRIBIO Y DIJO TODO OK;;;;;;;;;;;;
+SIGUE;MATRIX;;CH;;;;;;997552693;;DIEGO ARENAS;;OCS;ES EL SUPLETENTE PIDE HABLAR CON EL OC;;;;;;;;;;;;
+COAC. SAN ANTONIO IMBABURA;PJ / MATRIX;invi;CH;12;;2;65005304;Ibarra;981179891;golivo@sanantonio.fin.ec;GABRIELA LISSETHE OLIVO ANDRADE;OK;OC;;;;;;SOLO UTILIZAN PROVIDENCIAS A PESAR DE TENER MATRIX Y ES FACTURACION DIRECTA DE VIP-G POR PJ;;;;;;;
+SIGUE;;;CH;;;;;;982214478;mbenalcazar@coopsanantonio.com;MARCELA ALEXANDRA BENALCAZAR ANDRADE;;OCS;;;;;;;;;;;;;
+COAC. SANTA ANITA LTDA;LC-DIG/ MATRIX;OK;CH;13;;3;62916031/62554193;Ibarra;983369363;hugo_venegas@coacsantaanita.fin.ec;HUGO TARCISIO VENEGAS MONCAYO;OK;OC;;;;;;NO HAY BASES DE SENTENCIADOS Y PEPS. NO ESTAN USANDO PLA.  SI VA A VENIR A LA REUNION Y FACRURA STEFEY 30  O ALGO ASI;COBRAMOS 150 PARA SEGMENTO. POR EL TIEMPO QUE ESTAN CON NOSOTROS 70 MAS IVA Y HACER UN ADENDUM;;;;;;
+SIGUE;;;CH;;;;;;995473238;diana_robles@coacsantaanita.fin.ec;DIANA ELIZABETH ROBLES FLORES;;OCS;;;;;;;;;;;;;
+COAC. SAN GABRIEL;MATRIX;;;;NUNCA CONTESTA;;;;978759057;;ALEXANDRA NAVARRETE;NC2;;;;;;;;;;;;;;
+COAC. ARTESANOS;MATRIX;OK;CH;14;;2;62602940;Ibarra;967349081;oficial_cumplimiento@coopartesanos.fin.ec;CYNTHIA LOPEZ;X;OC;HACE MUCHO TIEMPO HAN PEDIDO SOPORTE POR QUE NO SE GENERAL LOS PERFILES FINANCIEROS DE LAS PERSONAS JURIDICAS;YA HABLARON GENERACION DE PERFILES PERSONAS JUDICAS/ NO GERENA ALERTAS PLA;;;;;;;;;;;
+RED DE ESTRUCTURAS FINANCIERAS POPULARES Y SOLIDARIAS EQUINOCCIO REDFINPSEQ  (2130);;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC. 16 DE JULIO LTDA.;PLA-PJ;OK;CH;15;;2;2784376;Ascazubi;999261241;eduardo.cumplimiento@16dejulio.fin.ec;JOSÉ EDUARDO FLORES PEÑAFIEL;OK;OC;HOY JUSTAMENTE ESPERAN CONECCION CON SOPORTE A 3:30PM;;;;;;;;;;;;
+SIGUE;;;;;;;;;;;;;OCS;;;;;;;;;;;;;
+COAC. MANANTIAL DE ORO;PJ;OK;CH;16;;2;25002222;Machachi;984073434;sleime@manantialdeoro.fin.ec;SONIA LEIME;OK;OC;LLAMAR A PARTIR DEL 20 DE JUNIO QUE TIENE COMITÉ
+SIGUE;;;CH;;;;;;978676161;faheredia@manantialdeoro.fin.ec;FRANK ANDRES HEREDIA JARAMILLO;;OCS;;;;;;;;;;;;;
+COAC.  SAN CRISTOBAL;PJ-LC-PLA;OK;CH;17;;3;22230347;Quito;995478571;rproano@cristobal.fin.ec;ROBERTO PROAÑO;OK;OC;;;;;;;;;;;;;
+COAC.  ESPERANZA Y PROGRESO DEL VALLE;PJ /OFICIAL ES QUIÑONEZ;invi;NA;X;NO LLAMAR;;2334368/995206387;Quito;987026528;;PATRICIA GUALOTUÑA;;OC;;;;;;;;;;;;;
+COAC.  17 DE MARZO LTDA.;PJ-LC;OK;NA;X;ACTUALIZADO 21 FEBRERO;3;22832510;Quito;998226333;of.cumplimiento@17demarzo.fin.ec;LORENA HINOSTROZA;NC;OC;BORRE PLA.. DIEGO INDICA SOLO TIENEN PJ;;;;;;;;;;;;
+COAC.  COOPARTAMOS;LC-PJ-PLA;invi;NA;18;;4;995326631;Sangolquí;995367690;oficialdecumplimiento@coopartamos.fin.ec;SANDRA VILLACIS;OK;OC;QUEDARON HOY EN INSTALAR EL SISTEMA A LA 3PM;;;;;;;;;;;;
+COAC. EL MOLINO LTDA.;PJ-PLA;OK;CH;19;;3;0988516847/ 0994191089/22022047;Quito;987928519;kllugsha@cooperativaelmolino.fin.ec;KATHERINE LLUGSHA;OK;OC;YA TIENE EL EQUIPO PARA INSTALAR PLA Y PROCESOS JUDICIALES. SE CAMBIO FECHA INSTALACION PJ  EL LUNES A 2PM;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;0994265608;jguaman@cooperativaelmolino.fin.ec;JESSICA KARINA GUAMAN MORALES;;OCS;;;;;;;;;;;;;
+COAC SAN JUAN DE COTOGCHOA;;;;;;;;;;;;;;;;;;;;;;;;;;
+CASA DE VALORES EQUITY;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC.  IMBABURA LTDA FINANZCOOP;LC-PJ-PLA;OK;CH;20;;4;062 922 846;Otavalo;+593 96 081 4698;cumplimientoimbabura@gmail.com;DIEGO ANRANGO;OK;OC;SE HABLO YA CON VIP-G  DE LA INSTALACION DE LISTAS DE CONTROL;;;;;;;;;;;;
+COAC. CÁMARA DE COMERCIO EL CARMEN LTDA;MATRIX;invi;CH;21;ACTUALIZADO 19 MARZO;3;52661705/52661652/986469680;El Carmen;983225408;bella.alvarado@cccelcarmen.fin.ec;BELLA ALVARADO;OK;OC;REVISO DIEGO CHATS ANTERIORES Y TODO ESTA EN ORDEN 13/06;;;;;;;;;;;;
+COAC. SAN ANTONIO LTDA LOS RIOS;PLA-LC;invi;CH;23;;2;52714004;Montalvo;989628519;adriana.jimenez@coopsanantonio.fin.ec;ADRIANA JIMENEZ;OK;OC;;;;;;;;;;;;;
+COAC.  SALITRE;MATRIX;OK;CH;24;;3;42792311 ;Salitre;985576796;cumplimiento@coacsalitre.fin.ec;GEOMAYRA SANTANA;OK;OC;YA HABLO CON DIEGO SOBRE QUE LOS DEPOSITOS SE SUMAN CON LOS RETIROS Y ESO INCREMENTA EL RIESGO. TAMBIEN DICE QUE EL SISTEMA NO ESTA DANDO SUFICIENTES ALERTAS QUE FACILITAN EL TRABAJO;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;+593 99 140 1192;;JULIO CESAR MALAGON;;OCS;;;;;;;;;;;;;
+COAC.  GRUPO DIFARE;MATRIX;OK;CH;25;;3;4 3731390 ;Guayaquil;991865989;claudia.castillo@grupodifare.com;CLAUDIA CASTILLO;OK;OC;;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;+593 99 225 4700;elena.lainez@grupodifare.com;ELENA LAINEZ;;OCS;;;;;;;;;;;;;
+COAC.  CAMARA DE COMERCIO LA JOYA DE LOS SACHAS;MATRIX;invi;CH;26;;3;988166219;Joya de los Sachas;985801129;rmendoza@cccjs.fin.ec;RONNY MENDOZA;OK;OC;11 JUNIO HAN PROGRAMADO CITA TEMA PROVIDENCIAS A 2:30;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;988166219;ychavez@cccjs.fin.ec;YADIRA CHAVEZ;;OCS;;;;;;;;;;;;;
+COAC.  COCA LTDA;MATRIX;OK;CH;27;;3;63700260 ext 1001;El Coca;988417300;oficial.cumplimiento@cocaltda.fin.ec;VIVIANA OLAYA;OK;OC;;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;(593 6) 3700-260 ext. 1018;talento.humano@cocaltda.fin.ec;VERONICA JIMENEZ;;OCS;;;;;;;;;;;;;
+COAC.  HERMES GAIBOR VERDESOTO;MATRIX;ok;CH;28;;3;32680450;Moraspungo;993397245;dorisyepez@coachermesgaibor.fin.ec;DORIS YEPEZ;OK;OC;TIENEN PERSONAL NUEVO
+SIGUE;;;CH;;;;;;980744210;pabloborja@coachermesgaiborv.fin.ec;PABLO JOSE BORJA TASIGCHANA;;OCS;;;;;;;;;;;;;
+COAC.  FUTURO ESFUERZO Y DISCIPLINA;PJ-PLA;invi;CH;30;;4;23342498;Quito;995288765;mf.burgos@hotmail.com;FERNANDA BURGOS;LLAMO DIEGO;OC;LUNES A 16/06 A 12PM INSTALACION DE  PLA;;;;;;;;;;;;
+COAC.  FUTURO LAMANENSE;PJ-LC-Dig;n/a;;31;NO LLAMAR;3; 32568510;La Mana;996168937;oficialcumplimiento@futurolamanense.fin.ec;ROSA VALENCIA;NC;OC;;;;;;;;;;;;;
+COAC. EMPLEADOS Y JUBILADOS BANCO CENTRAL DEL ECUADOR ;MATRIX;invi;CH;32;ACTUALIZADO 1 ABRIL;3; 22279145/963088334;Quito;998060805;oficial.cumplimiento@cacebce.com;MARIA TOAPANTA;NC;OC;YA HABLO DIEGO VAN A HACER UNA ACTUALIZACION DEL SISTEMA HOY 13/06;;;;;;;;;;;;
+COAC. HUAICANA;MATRIX;invi;CH;33;;2;22884225/22885322;Quito;995810092;iespinosa@huaicana.fin.ec;IVAN ESPINOSA;OK;OC;;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;979272137;ccaizaluisa@huaicana.fin.ec;CRISTIAN CAIZALUISA;;OCS;;;;;;;;;;;;;
+COAC. ORDEN Y SEGURIDAD;MATRIX;ok;CH;34;;3;255-0798;Quito;961141919;cumplimiento@ordenyseguridad.fin.ec;OMAYRA MINDA;X;OC;PROV JUDIC. SE DESABILITO Y NO HAN HECHO ACTUALIZACION. NO HICIERON DE MANERA ORDENADA.. YA HABLO CON GLEN Y LE VOLVIERON A PONER EL ANTERIOR. NO LO HICIERON EN ORDEN ES LA QUEJA. NO AVISARON CON TIEMPO PARA COMPRAR EQUIPOS ETC. ETC. TAMBIEN SE QUEJA DE QUE LE PIDAN DATOS TODO EL TIEMPO CORREOS ETC;;;;;;;;;;;;
+COAC. MARCABELI;MATRIX;ok;CH;35;;3; 72956171 – Ext. 100;Marcabelí;962379135;csgaona@coacmarcabeli.fin.ec;SILVIA CARMEN GAONA;OK;OC;;;;;;;;;;;;;
+SIGUE;;;;;;;;;986487634;esapolo@coacmarcabeli.fin.ec;ELANNY SAMANTHA;;;;;;;;;;;;;;;
+COAC. CORPORACION CENTRO;MATRIX;ok;CH;36;ACTUALIZADO 4 ABRIL;; 22520 644/2502123/2558135/2566 004/2541 477;Quito;998749412;william.lopez@coopcentro.fin.ec;WILIAM LOPEZ;NC;OC;DIEGO INDICO NO LLAMAR 13/06;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;983803430;william.chiluisa@coopcentro.fin.ec;WILIAM CHILUISA;;OCS;;;;;;;;;;;;;
+COAC. UNIVERSIDAD CATOLICA DEL ECUADOR ;MATRIX;OK;CH;37;;3;22991664/987378811;Quito;995559321;damorochop@coopuce.fin.ec;DIEGO MOROCHO;OK;OC;;;;;;;;;;;;;
+COAC. ALLI TARPURK LTDA;PLA-PJ;OK;CH;38;ACTUALIZADO 2 ABRIL;4;22286525;Quito;987811257;marys41992@hotmail.com;MARIA PEREZ;NC;OC;DIEGO ENVIO WATHSAPP VEAMOS SI RESPONDE;;;;;;;;;;;;
+SIGUE;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC. ACCION IMBABURAPAK;MATRIX;OK;CH;39;;2; 062922846 ext 1010;Otavalo;994178630;landrade@accionimbaburapak.com.ec;LUIS ANDRADE;X;OC;REQUIRIMIENTOS PARA HACER NUEVAMENTE LAS ESTRUCTURAS DEL PLA;;;;;;;;;;;;
+COAC. MAGISTERIO MANABITA;MATRIX;OK;CH;40;;3;52639597/52360184;Portoviejo;982997783;cristina.garcia@coopmagisteriomanabita.fin.ec;CRISTINA GARCIA;OK;OC;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+ASOCIACION MUTUALISTA AMBATO;PLA-PJ;ok;CH;41;;1;32994790 ext: 63/41/48;Ambato;988560366;elizabeth.yungan@mutualistaambato.fin.ec;ELIZABETH YUNGAN;X;OC;REVISAR COINCIDENCIAS LC /PREVENSION…SALEN ALERTAS COMO RIESGO BAJO A PESAR DE QUE 
+COAC.  EMPRENDEDORES COOPEMPRENDER LTDA;MATRIX;ok;CH;42;;3;22387332/22120508;El Quinche;958721788;cumplimiento@coopemprender.fin.ec;RUTH ANDINO;X;OC;PERSONA SENTENCIADA Y NO PUEDEN VER LA INFO. RENATO ESTABA AL TANTO;;;;;;;;;;;;
+COAC. SAN VALENTIN;MATRIX;OK;CH;43;;4;022844353 / 022844813 / 022844092;Quito;998774493;fer.g2@hotmail.com;FERNANDA GAIBOR;OK;OC;HABLO DIEGO HICIERON  CONFIG DEL SISTEMA 13/06;;;;;;;;;;;;
+COAC. PABLO MUÑOZ VEGA;MATRIX;ok;CH;44;;1;1800678678/997659033/64700678;Tulcán;999576122;veronicanarvaez@cpmv.fin.ec;VERONICA GARDENIA NARVAEZ;X;OC;TIENEN UN PROBLEMA CON SISTEMAS DE LA COOP. NO ES PROBLEMA DE NUESTRO SISTEMA. YA HABLARON CON PABLO PARA VISITARLOS Y RESOLVER. TAMBIEN PARA RENOVAR CONTRATO;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;+593 99 666 9914;lenintates@cpmv.fin.ec;LENIN TATES;;OCS;;;;;;;;;;;;;
+COAC. OCCIDENTAL;PJ-LC-PLA;ok;CH;45;NO LLAMAR;3;964052222;Pujilí;983865560;amora@coacoccidental.fin.ec;AMPARITO MORA;NC1;OC;;;;;;;;;;;;;
+SIGUE;;;CH;46;;;;;096 0478526;diana.lucero@coacoccidental.fin.ec;DIANA LUCERO;;OCS;;;;;;;;;;;;;
+COAC. UNION  POPULAR;MATRIX;invi;;;;4;32825660/32827484;Ambato;993331866;vicky.analuisa89@gmail.com;VIRGINIA ANALUIZA;OK;OC;TODO OK
+EQUITY CASA DE VALORES;LC-PJ;;;X;NO LLAMAR;NO APLICA;958845479;Quito;995552829;;GABRIELA GUAYASAMIN;;NO APLICA;;;;;;;;;;;;;
+COAC. INDIGENAS GALAPAGOS LTDA;PJ-LC-PLA;ok;CH;47;NO LLAMAR;4;32485116;;967504380;criztiandavid@hotmailcom;CRISTHIAN GUAMAN;NC;OC;;;X;En el tema de PLA si nos faltaba que nos expliquen el tema de la reporteria únicamente de los datos que se generan existía casos que nos indicaban NULL la información esa era la única duda 
+SIGUE;;;CH;;;;;;+593 98 229 0868;maritzalm03@outlook.com;MARITZA MASAQUIZA;;OCS;;;;;;;;;;;;;
+COAC. INTEGRACION SOLIDARIA;MATRIX;OK;CH;48;;4;995451471;Salcedo; 980460279;rtixilema@integracion.fin.ec;ROBERTH TIXILEMA ;OK;OC;;;;;;;;;;;;;
+COAC. 27 DE NOVIEMBRE;PLA-LC;OK;CH;49;;4;32965801;Riobamba;986916684;saruk.maila@coac27noviembre.com;SARUK MAILA;X;OC;NO ESTAN USANDO PLA POR QUE ESTAN ACTUALIZANDO INFO ALLA
+UCACNOR;MATRIX;;;;;NO APLICA;;;N/A;;;NO APLICA;;;;;;;;;;;;;;
+RED DE ESTRUCTURAS FINANCIERAS POPULARES Y SOLIDARIAS EQUINOCCIO REDFINPSEQ  (2130);MATRIX;;;;;;;;;;;;;;;;;;;;;;;;;
+UPROCACH;MATRIX;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC.  COOPROGRESO ;PJ;n/a;;X;NO LLAMAR;1;958678700;Quito/Pomasqui;N/A;;;;;;;;;;;;;;;;;
+COAC. ALIANZA DEL VALLE LTDA;PJ;n/a;;X;NO LLAMAR;1;22998600/990328625;Quito/Los Chillos;N/A;;;;;;;;;;;;;;;;;
+COAC. 15 DE ABRIL ;PJ-PLA-LC;OK;CH;50;NO LLAMAR;1;52633032;Portoviejo;997613924;;VIVIANA ARTEAGA;NC2;OC;;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;992018986;;GENESIS DELGADO;;OCS;;;;;;;;;;;;;
+COAC. SIERRA CENTRO ;LC-PJ;n/a;NA;X;;3;32802582/958929610;Latacunga;995258152;ochoa-paulina@sierracentro.fin.ec;PAULINA OCHOA;OK;OC;ESTAN CON MIGRACION DE DATOS COR FINANCIERO POR PARTE DE ELLOS;;;;;;;;;;;;
+HATUN MUSKUY ENTIDAD FINANCIERA ;LC;n/a;NA;X;NO LLAMAR;;;;N/A;;;;;;;;;;;;;;;;;
+COOPERATIVA DE AHORRO Y CERDITO ICHUBAMBA;PLA-PJ;OK;CH;51;;;32965921;Guamote;990102009;cesenhr@gmail.com;HENRY CESEN;;OC;Diego habló el 15/07/25 y están atrasados en subir la info desde febrero;;;;;;;;;;;;
+COAC LA DOLOROSA;MATRIX;ok;CH;52;;;;;+593 99 455 4625;;MARÍA GABRIELA MOSQUERA;;OC;;;;;;;;;;;;;
+SIGUE;;;CH;;;;;;+593 99 447 0202;;RENE CHANABA;;OCS;;;;;;;;;;;;;
+ECUAFUTURO;MATRIX;invi;CH;53;;3;;;+593 99 517 4542;nathaly_morales@ecuafuturo.fin.ec;NATHALY CAROLINA MORALES;;OC;;;DIEGO LLAMO Y REVISO EL PLA. ESTAN TRABAJANDO EN CONFIG. DE SISTEMA E INSUMOS PENDIENTES 25/07/25;;REUNION CON SISTEMAS 28/07 A 2PM;;;;;;;;
+;;;;;;;;;;marina_freire@ecuafuturo.fin.ec;MARINA FREIRE;;OCS;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+PROVIDENCIAS JUDICIALES;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC MARCABELÍ LTDA;;;;;;3;;;;;GALARZA ESPINOZA JOHANA DEL ROCIO;;ASIST.GEREN.;;;;;;;;;;;;;
+COAC HERMES GAIBOR;;;;;;3;;;;;DORIS MARIBEL YEPEZ PAÑO;;OC;;;;;;;;;;;;;
+COAC UNIVERSIDAD CATOLICA;;;;;;3;;;;;DIEGO ALBERTO MOROCHO;;OC;;;;;;;;;;;;;
+COAC INTEGRACIÓN SOLIDARIA;;;;;;4;;;;;JUAN CARLOS CHANGO TELENCHANA;;ABOGADO;;;;;;;;;;;;;
+COAC ANDINA LTDA;;;;;;2;;;;;EDGAR GABRIEL VALENCIA RODRIGUEZ;;OC;;;;;;;;;;;;;
+COAC CHUNCHI LTDA;;;;;;3;;;;;YURIKA ASUCENA ZUÑA CALLE;;OC;;;;;;;;;;;;;
+COAC ICHUBAMBA LTDA;;;;;;5;;;;;HENRY RUBEN CESEN VIMOS;;OC;;;;;;;;;;;;;
+COAC SOL DE LOS ANDES LTDA;;;;;;3;;;;;ESTHER CAROLINA MIRANDA MOROCHO;;PROV. JUD;;;;;;;;;;;;;
+COAC SAN ANTONIO LTDA DE LOS RIOS;;;;;;2;;;;;GABRIELA LUCILA MEDRANO SUAREZ;;ASIST.GEREN.;;;;;;;;;;;;;
+COAC INDIGENA GALAPAGOS;;;;;;4;;;;;CHRISTIAN DAVID GUAMAN MASAQUIZA;;OC;;;;;;;;;;;;;
+COAC SALITRE LTDA;;;;;;3;;;;;GEOMAYRA ELIZABETH SANTANA CASTRO;;OC;;;;;;;;;;;;;
+COAC FORTUNA LTDA;;;;;;3;;;985960961;;KAREN JOSE PARDO TENE;;SECRET. GEREN.;;;;;;;;;;;;;
+COAC HUAICANA;;;;;;2;;;;;ANDY ADRIAN LINCANGO CONDOR;;ASIST DE RIESG;;;;;;;;;;;;;
+COAC EMPRENDER LTDA;;;;;;3;;;;;JENNY ALEXANDRA SANCHEZ MELENDRES;;PROV. JUD;;;;;;;;;;;;;
+ASOCIACION MUTUALISTA DE AHORRO Y CRÉDITO PARA LA VIVIENDA AMBATO;;;;;;1;;;;;PAREDES JARRÍN IVONNE VERÓNICA;;ATTE CLIENTE;;;;;;;;;;;;;
+COAC SAN CRISTOBAL;;;;;;3;;;;;CRISTINA MARYSOL CORMEJO ARIAS;;OCS;;;;;;;;;;;;;
+COAC COOPARTAMOS;;;;;;4;;;;;SANDRA ELIZABETH VILLACIS PROAÑO;;PROV. JUD;;;;;;;;;;;;;
+COAC MANANTIAL DE ORO;;;;;;2;;;;;JAIME GABRIEL TOAPANTA QUISAGUANO;;PROV. JUD;;;;;;;;;;;;;
+COAC CAMARA DE COMERCIO LA JOYA DE LOS SACHAS;;;;;;3;;;;;RONNY ANTHONY MENDOZA ALONZO;;OCS;;;;;;;;;;;;;
+COAC CÁMARA DE COMERCIO INDÍGENA DE GUAMOTE LTDA;;;;;;5;;;;;LUIS HERNAN MORALES LEMA;;GERENTE G.;;;;;;;;;;;;;
+COAC SENOR DEL ARBOL;;;;;;4;;;;;NATALY ANGELICA CHASILOA CHIMBO;;OCS;;;;;;;;;;;;;
+COAC SAN JOSE LTDA;;;;;;;;;;;MARIA ALEXANDRA SALAZAR GUARACA;;OCS;;;;;;;;;;;;;
+COAC MAGISTERIO MANABITA;;;;;;3;;;;;ANGELA MARIA BARRAGAN OZAETA;;OC;;;;;;;;;;;;;
+COAC ESPERANZA Y PROGRESO DEL VALLE;;;;;;4;;;984176500;edisonquinionez@esperanzayprogreso.fin.ec;EDISON QUIÑONEZ;;PROV. JUD;;;;;;;;;;;;;
+COAC CAMARA DE COMERCIO EL CARMEN LTDA;;;;;;3;;;;;NAYELI LICETH CEDEÑO MERA;;ASIST. OPERAT.;;;;;;;;;;;;;
+COAC SAN VALENTIN;;;;;;4;;;;;MARIELA FERNANDA GAIBOR GAIBOR;;OC;;;;;;;;;;;;;
+COAC EL MOLINO;;;;;;3;;;;;KATHERINE ANDREA LLUGSHA AIÑA;;OC;;;;;;;;;;;;;
+COAC FUTURO ESFUERZO Y DISCIPLINA;;;;;;4;;;;;JOSE VINICIO GUACHAMIN PARRA;;PROV. JUD;;;;;;;;;;;;;
+COAC ARTESANOS;;;;;;2;;;;;VICTOR ALEJANDRO VITERI PROAÑO;;ASESOR LEGAL;;;;;;;;;;;;;
+COAC OCCIDENTAL LTDA;;;;;;3;;;;;AMPARO ELIZABETH MORA MASAPANTA;;OC;;;;;;;;;;;;;
+COAC UNION POPULAR;;;;;;4;;;;;ING VIRGINIA ANALUISA;;OC;;;;;;;;;;;;;
+COAC ORDEN Y SEGURIDAD;;;;;;3;;;;;MINDA NARVÁEZ OMAYRA VERÓNICA;;OC;;;;;;;;;;;;;
+COAC IMBABURA LTDA;;;;;;4;;;;;JESSICA MARIBEL CAMUENDO MORALES;;GERENTE G.;;;;;;;;;;;;;
+COAC EL COMERCIO ;;;;;;;;;;;LORENA NATALIA OROZCO MERA;;ASESOR LEGAL;;;;;;;;;;;;;
+COAC CORPORACION CENTRO;;;;;;3;;;;;WILLIAM ALONSO LOPEZ VELARDE;;OC;;;;;;;;;;;;;
+COAC BANCO CENTRAL;;;;;;3;;;;;BRENDA ESTEFANY PALLO TOBAR;;SECRET. GEREN.;;;;;;;;;;;;;
+COAS SAN ANTONIO IMBABURA;;;;;;2;;;;;ANALIA RAQUEL LOPEZ LOMAS;;ASIST. OPERAT.;;;;;;;;;;;;;
+COAC SIERRA CENTRO LTDA;;;;;;3;;;;;WILSON ALEXIS AMANCHA SANCHEZ;;JEFE TECNOLOGIA;;;;;;;;;;;;;
+COAC 27 DE NOVIEMBRE;;;;;;4;;;;;AIDA GLADYS GUAYAPACHA CRIOLLO;;JEFE DE OPERACIONES;;;;;;;;;;;;;
+HATUN MUSKUY ENTIDAD FIANCIERA;;;;;;;;;;;LARA CACHIMUEL;;PROV. JUD;;;;;;;;;;;;;
+COAC KULLKI WASI;;;;;;;;;;;NANCY YOLANDA QUINDIL UNAUCHO;;ASIST.LEGAL;;;;;;;;;;;;;
+COAC GRUPO DIFARE;;;;;;3;;;;;NICOLE DANIELA ALVAREZ ARREAGA;;ASIST. ADMIN.;;;;;;;;;;;;;
+COAC FUTURO LAMANENSE;;;;;;3;;;;;Bryan Moises Vega Oña;;Oficial de Seguridad de la Información;;;;;;;;;;;;;
+COAC NUEVO AMANECER;;;;;;;;;;;YAJAIRA TOAPANTA;;OCS;;;;;;;;;;;;;
+POR VERIFICAR INFO POR GLEN;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC 16 DE JULIO LTDA;;;;;;;;;;;JOSE EDUARDO FLORES PEÑAFIEL;;OC;;;;;;;;;;;;;
+COAC 17 DE MARZO;;;;;;;;;;;LORENA MARITSA HINOSTROZA LOACHAMIN;;OC;;;;;;;;;;;;;
+COAC COCA LTDA;;;;;;;;;;;XXXXXXXXXXXXXXX;;;;;;;;;;;;;;;
+COAC ALIANZA DEL VALLE LTDA;;;;;;;;;;;XXXXXXXXXXXXXXX;;;;;;;;;;;;;;;
+COAC CADMU MUJERES UNIDAS;;;;;;;;;;;UCACNOR;;;;;;;;;;;;;;;
+COAC ANDALUCIA LTDA;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC COOPROGRESO;;;;;;;;;;;OJOOOOOO;;;;;;;;;;;;;;;
+COAC PABLO MUÑOZ VEGA;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC ECUAFUTURO LTDA;;;;;;;;;;;EN ESPERA DE CONTRATO;;;;;;;;;;;;;;;
+COAC SANTA ANITA;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC LA DOLOROSA LTDA;;;;;;;;;;;Mario Rolando Chela Curi;;;;;;;;;;;;;;;
+COAC 15 DE ABRIL LTDA;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC ALLI TARPUK;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC EDUCADORES DE BOLIVAR LTDA;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC ACCION IMBABURAPAK;;;;;;;;;;;;;;;;;;;;;;;;;;
+COAC VONNELAN LTDA;;;;;;;;;;;OJOOOOOO;;;;;;;;;;;;;;;
+COAC ECUACREDITOS;;;;;;;;;;;OJO CANCELO CONTRATO ULTIMO DE JUNIO;;;;;;;;;;;;;;;
+COAC IMBACOOP LTDA;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;
+\.
+
+
+
+COPY public.contactos_cooperativa (id_contacto, id_cooperativa, nombre_contacto, telefono, email, cargo, departamento, activo, created_at, updated_at) FROM stdin;
+1	65	Contacto Principal UCACNOR	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+2	63	Contacto Principal RED DE ESTRUCTURAS FINANCIERAS POPULARES Y SOLIDARIAS EQUINOCCIO REDFINPSEQ (2130)	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+3	18	Contacto Principal COAC MANANTIAL DE ORO	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+4	25	Contacto Principal COAC HERMES GAIBOR	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+5	33	Contacto Principal COAC SALITRE LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+6	38	Contacto Principal COAC CAMARA DE COMERCIO LA JOYA DE LOS SACHAS	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+7	68	Contacto Principal COAC COCA LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+8	3	Contacto Principal COAC EDUCADORES DE BOLIVAR	3250525	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+9	61	Contacto Principal COAC LA DOLOROSA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+10	53	Contacto Principal COAC SIERRA CENTRO LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+11	5	Contacto Principal COAC ANDINA	329943107	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+12	1	Contacto Principal COAC SEÑOR DEL ARBOL	987654321	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+13	28	Contacto Principal COAC ANDINA LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+14	56	Contacto Principal COAC FUTURO LAMANENSE	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+15	30	Contacto Principal COAC ICHUBAMBA LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+16	10	Contacto Principal COAC NUEVO AMANECER COTOPAXI	32597709	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+17	54	Contacto Principal COAC 27 DE NOVIEMBRE	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+18	11	Contacto Principal COAC RIOBAMBA LTDA.	032962431	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+19	9	Contacto Principal COAC SOL DE LOS ANDES LTDA	32954855	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+20	29	Contacto Principal COAC CHUNCHI LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+21	7	Contacto Principal COAC CHUNCHI	32936497	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+22	39	Contacto Principal COAC CÁMARA DE COMERCIO INDÍGENA DE GUAMOTE LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+23	8	Contacto Principal COAC GUAMOTE	32916258	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+24	24	Contacto Principal COAC MARCABELÍ LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+25	55	Contacto Principal COAC GRUPO DIFARE	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+26	52	Contacto Principal COAC SAN ANTONIO IMBABURA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+27	16	Contacto Principal COAC ARTESANOS	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+28	14	Contacto Principal COAC SANTA ANITA LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+29	13	Contacto Principal COAC SAN ANTONIO-IMBABURA	65050304	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+30	12	Contacto Principal COAC MUJERES UNIDAS "TANTANAKUSHKA WARMIKUNAPAC" CACMU	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+31	15	Contacto Principal COAC SAN GABRIEL	65359843	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+32	58	Contacto Principal COAC ACCION IMBABURAPAK	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+33	48	Contacto Principal COAC IMBABURA LTDA (FINANZACOOP)	062922846	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+34	34	Contacto Principal COAC FORTUNA LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+35	6	Contacto Principal COAC DE LA MICROEMPRESA LA FORTUNA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+36	40	Contacto Principal COAC SAN JOSE LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+37	31	Contacto Principal COAC SAN ANTONIO LTDA DE LOS RIOS	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+38	41	Contacto Principal COAC MAGISTERIO MANABITA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+39	42	Contacto Principal COAC CAMARA DE COMERCIO EL CARMEN LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+40	69	Contacto Principal COAC ECUAFUTURO	\N	marina_freire@ecuafuturo.fin.ec	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+41	50	Contacto Principal COAC CORPORACION CENTRO	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+42	49	Contacto Principal COAC EL COMERCIO	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+43	47	Contacto Principal COAC ORDEN Y SEGURIDAD	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+44	45	Contacto Principal COAC OCCIDENTAL LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+45	62	Contacto Principal EQUITY CASA DE VALORES	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+46	35	Contacto Principal COAC HUAICANA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+47	23	Contacto Principal COAC EL MOLINO	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+48	21	Contacto Principal COAC 17 DE MARZO	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+49	19	Contacto Principal COAC SAN CRISTOBAL	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+50	60	Contacto Principal COAC PABLO MUÑOZ VEGA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+51	59	Contacto Principal COAC EMPRENDEDORES COOPEMPRENDER LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+52	51	Contacto Principal COAC BANCO CENTRAL	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+53	46	Contacto Principal COAC UNION POPULAR	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+54	43	Contacto Principal COAC SAN VALENTIN	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+55	57	Contacto Principal COAC EMPLEADOS Y JUBILADOS BANCO CENTRAL DEL ECUADOR	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+56	26	Contacto Principal COAC UNIVERSIDAD CATOLICA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+57	20	Contacto Principal COAC ESPERANZA Y PROGRESO DEL VALLE	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+58	66	Contacto Principal COAC COOPROGRESO	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+59	73	Contacto Principal HATUN MUSKUY ENTIDAD FINANCIERA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+60	72	Contacto Principal COAC KULLKI WASI	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+61	74	Contacto Principal COAC SAN JUAN DE COTOGCHOA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+62	75	Contacto Principal COAC ANDALUCIA LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+63	76	Contacto Principal COAC ECUACREDITOS	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+64	77	Contacto Principal COAC IMBACOOP LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+65	64	Contacto Principal UPROCACH	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+66	27	Contacto Principal COAC INTEGRACION SOLIDARIA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+67	32	Contacto Principal COAC INDIGENAS GALAPAGOS LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+68	36	Contacto Principal COAC EMPRENDER LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+69	67	Contacto Principal COAC ALIANZA DEL VALLE LTDA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+70	44	Contacto Principal COAC FUTURO ESFUERZO Y DISCIPLINA	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+71	78	Contacto Principal COAC 15 DE ABRIL LTDA	52633032	ejemplo@gmail.com	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+72	22	Contacto Principal COAC COOPARTAMOS	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+73	70	Contacto Principal COAC ALLI TARPURK LTDA	22286525	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+74	2	Contacto Principal COAC VONNELAN	22851527	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+75	37	Contacto Principal COAC ASOCIACION MUTUALISTA DE AHORRO Y CRÉDITO PARA LA VIVIENDA AMBATO	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+76	4	Contacto Principal COAC COORAMBATO LTDA.	32826057	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+77	17	Contacto Principal COAC 16 DE JULIO LTDA	\N	ejemplo@gmail.com	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+78	65	Contacto Secundario UCACNOR	\N	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+79	63	Contacto Secundario RED DE ESTRUCTURAS FINANCIERAS POPULARES Y SOLIDARIAS EQUINOCCIO REDFINPSEQ (2130)	\N	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+80	18	Contacto Secundario COAC MANANTIAL DE ORO	990102200	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+81	25	Contacto Secundario COAC HERMES GAIBOR	990874240	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+82	33	Contacto Secundario COAC SALITRE LTDA	985757696	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+83	38	Contacto Secundario COAC CAMARA DE COMERCIO LA JOYA DE LOS SACHAS	\N	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+84	68	Contacto Secundario COAC COCA LTDA	\N	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+85	3	Contacto Secundario COAC EDUCADORES DE BOLIVAR	987845244	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+86	61	Contacto Secundario COAC LA DOLOROSA	964052222	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+87	53	Contacto Secundario COAC SIERRA CENTRO LTDA	\N	\N	Asistente	Administración	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
+\.
+
+
+
+COPY public.contrataciones (id_contratacion, id_cooperativa, id_servicio, fecha_contratacion, fecha_inicio, fecha_fin, estado, observaciones, precio_individual, precio_grupal, iva, fecha_suscripcion, fecha_caducidad, fecha_desvinculacion, estado_servicio) FROM stdin;
+6	1	1	2025-01-01	2025-01-01	2025-12-31	Activo	Contrato demo 1	100.00	450.00	12.00	2025-01-01	2025-12-31	\N	Activo
+7	2	2	2025-02-15	2025-02-15	2025-12-31	Activo	Contrato demo 2	200.00	950.00	12.00	2025-02-15	2025-12-31	\N	Activo
+8	3	3	2025-03-01	2025-03-01	2025-12-31	Suspendido	Contrato demo 3	300.00	1400.00	12.00	2025-03-01	2025-12-31	\N	Suspendido
+9	4	4	2025-04-10	2025-04-10	2025-12-31	Pendiente	Contrato demo 4	120.00	550.00	12.00	2025-04-10	2025-12-31	\N	Pendiente
+10	5	8	2025-05-20	2025-05-20	2025-12-31	Activo	Contrato demo 5	180.00	850.00	12.00	2025-05-20	2025-12-31	\N	Activo
+\.
+
+
+
+COPY public.contrataciones_servicios (id_contratacion, id_cooperativa, id_servicio, fecha_contratacion, valor_contratado, periodo_facturacion, activo, documento_contable, fecha_finalizacion, numero_licencias, fecha_ultimo_pago, estado_pago, licencias_pj_matrix, licencias_sic_matrix, licencias_gratis_matrix, licencias_pj_gratis, licencias_sic_gratis, licencias_sispla_matrix) FROM stdin;
+\.
+
+
+
+COPY public.cooperativa_red (id_cooperativa, codigo_red) FROM stdin;
+\.
+
+
+
+COPY public.cooperativa_servicio (id_cooperativa, id_servicio, activo, fecha_alta, fecha_baja, notas) FROM stdin;
+78	1	t	2025-10-01	\N	\N
+17	2	t	2025-10-13	\N	\N
+\.
+
+
+
+COPY public.cooperativas (id_cooperativa, nombre, ruc, telefono, email, id_segmento, fecha_registro, activa, tipo_entidad, telefono_fijo_1, telefono_fijo_2, telefono_movil, pais, notas, red, provincia_id, canton_id) FROM stdin;
+65	UCACNOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	union	\N	\N	\N	Ecuador	\N	\N	\N	\N
+63	RED DE ESTRUCTURAS FINANCIERAS POPULARES Y SOLIDARIAS EQUINOCCIO REDFINPSEQ (2130)	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	red	\N	\N	\N	Ecuador	\N	\N	\N	\N
+18	COAC MANANTIAL DE ORO	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	990102200	Ecuador	\N	\N	19	\N
+25	COAC HERMES GAIBOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	990874240	Ecuador	\N	\N	5	\N
+33	COAC SALITRE LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	985757696	Ecuador	\N	\N	10	\N
+38	COAC CAMARA DE COMERCIO LA JOYA DE LOS SACHAS	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	17	\N
+68	COAC COCA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	17	\N
+3	COAC EDUCADORES DE BOLIVAR	\N	3250525	\N	3	2025-09-01 15:53:29.230944	t	cooperativa	3250525	\N	987845244	Ecuador	\N	\N	2	16
+61	COAC LA DOLOROSA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	964052222	Ecuador	\N	\N	4	30
+53	COAC SIERRA CENTRO LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	5	36
+5	COAC ANDINA	\N	329943107	\N	2	2025-09-01 15:53:29.230944	t	COAC	329943107	32802100	9854251911	Ecuador	\N	\N	5	36
+1	COAC SEÑOR DEL ARBOL	\N	987654321	\N	4	2025-09-01 15:53:29.230944	t	COAC	987654321	98799257	991939235	Ecuador	\N	\N	5	36
+28	COAC ANDINA LTDA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	5	36
+56	COAC FUTURO LAMANENSE	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	37
+30	COAC ICHUBAMBA LTDA	\N	\N	\N	5	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	5	39
+10	COAC NUEVO AMANECER COTOPAXI	\N	32597709	\N	5	2025-09-01 15:53:29.230944	t	COAC	32597709	998911061	988459290	Ecuador	\N	\N	5	40
+54	COAC 27 DE NOVIEMBRE	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	6	43
+11	COAC RIOBAMBA LTDA.	\N	032962431	\N	1	2025-09-01 15:53:29.230944	t	COAC	032962431	\N	983480014	Ecuador	\N	\N	6	43
+9	COAC SOL DE LOS ANDES LTDA	\N	32954855	\N	3	2025-09-01 15:53:29.230944	t	COAC	32954855	\N	988482879	Ecuador	\N	\N	6	43
+29	COAC CHUNCHI LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	6	47
+7	COAC CHUNCHI	\N	32936497	\N	3	2025-09-01 15:53:29.230944	t	COAC	32936497	32936610	995256017	Ecuador	\N	\N	6	47
+39	COAC CÁMARA DE COMERCIO INDÍGENA DE GUAMOTE LTDA	\N	\N	\N	5	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	6	48
+8	COAC GUAMOTE	\N	32916258	\N	3	2025-09-01 15:53:29.230944	t	COAC	32916258	\N	987378595	Ecuador	\N	\N	6	48
+24	COAC MARCABELÍ LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	7	61
+55	COAC GRUPO DIFARE	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	10	77
+52	COAC SAN ANTONIO IMBABURA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	11	102
+16	COAC ARTESANOS	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	11	102
+14	COAC SANTA ANITA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	11	102
+13	COAC SAN ANTONIO-IMBABURA	\N	65050304	\N	2	2025-09-01 15:53:29.230944	t	COAC	65050304	\N	983170991	Ecuador	\N	\N	11	102
+12	COAC MUJERES UNIDAS "TANTANAKUSHKA WARMIKUNAPAC" CACMU	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	11	102
+15	COAC SAN GABRIEL	\N	65359843	\N	3	2025-09-01 15:53:29.230944	t	COAC	65359843	\N	987367241	Ecuador	\N	\N	11	102
+58	COAC ACCION IMBABURAPAK	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	11	105
+48	COAC IMBABURA LTDA (FINANZACOOP)	\N	062922846	\N	4	2025-09-01 15:53:29.230944	t	COAC	062922846	\N	\N	Ecuador	\N	\N	11	105
+34	COAC FORTUNA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	12	108
+6	COAC DE LA MICROEMPRESA LA FORTUNA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	12	108
+40	COAC SAN JOSE LTDA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	12	108
+31	COAC SAN ANTONIO LTDA DE LOS RIOS	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	131
+41	COAC MAGISTERIO MANABITA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	14	137
+42	COAC CAMARA DE COMERCIO EL CARMEN LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	140
+69	COAC ECUAFUTURO	\N	\N	marina_freire@ecuafuturo.fin.ec	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+50	COAC CORPORACION CENTRO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+49	COAC EL COMERCIO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+47	COAC ORDEN Y SEGURIDAD	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+45	COAC OCCIDENTAL LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+62	EQUITY CASA DE VALORES	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	casa_valores	\N	\N	958854579	Ecuador	\N	\N	19	184
+35	COAC HUAICANA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+23	COAC EL MOLINO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+21	COAC 17 DE MARZO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+19	COAC SAN CRISTOBAL	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	987461741	Ecuador	\N	\N	19	184
+60	COAC PABLO MUÑOZ VEGA	\N	\N	\N	1	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+59	COAC EMPRENDEDORES COOPEMPRENDER LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+51	COAC BANCO CENTRAL	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+46	COAC UNION POPULAR	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+43	COAC SAN VALENTIN	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+57	COAC EMPLEADOS Y JUBILADOS BANCO CENTRAL DEL ECUADOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+26	COAC UNIVERSIDAD CATOLICA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+20	COAC ESPERANZA Y PROGRESO DEL VALLE	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+66	COAC COOPROGRESO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+73	HATUN MUSKUY ENTIDAD FINANCIERA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+72	COAC KULLKI WASI	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+74	COAC SAN JUAN DE COTOGCHOA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+75	COAC ANDALUCIA LTDA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+76	COAC ECUACREDITOS	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+77	COAC IMBACOOP LTDA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+64	UPROCACH	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	empresa	\N	\N	\N	Ecuador	\N	\N	\N	\N
+27	COAC INTEGRACION SOLIDARIA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+32	COAC INDIGENAS GALAPAGOS LTDA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+36	COAC EMPRENDER LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+67	COAC ALIANZA DEL VALLE LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+44	COAC FUTURO ESFUERZO Y DISCIPLINA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	\N	\N
+78	COAC 15 DE ABRIL LTDA	1111111111111	52633032	ejemplo@gmail.com	1	2025-09-03 16:01:09.015036	t	cooperativa	\N	\N	0000000000	Ecuador	CD	\N	6	45
+22	COAC COOPARTAMOS	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	19	184
+70	COAC ALLI TARPURK LTDA	\N	22286525	\N	4	2025-09-03 13:12:34.179973	t	COAC	22286525	\N	987811257	Ecuador	\N	\N	\N	184
+2	COAC VONNELAN	\N	22851527	\N	4	2025-09-01 15:53:29.230944	t	COAC	22851527	\N	988386066	Ecuador	\N	\N	19	190
+37	COAC ASOCIACION MUTUALISTA DE AHORRO Y CRÉDITO PARA LA VIVIENDA AMBATO	\N	\N	\N	1	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	Ecuador	\N	\N	23	204
+4	COAC COORAMBATO LTDA.	\N	32826057	\N	3	2025-09-01 15:53:29.230944	t	COAC	32826057	\N	986201200	Ecuador	\N	\N	23	204
+17	COAC 16 DE JULIO LTDA	\N	\N	ejemplo@gmail.com	3	2025-09-01 15:53:29.230944	t	cooperativa	\N	\N	0999261241	Ecuador	\N	\N	19	\N
+\.
+
+
+
+COPY public.cooperativas_backup (id_cooperativa, nombre, ruc, telefono, email, id_segmento, fecha_registro, activa, provincia, canton, tipo_entidad, servicio_activo, telefono_fijo_1, telefono_fijo_2, telefono_movil, email2, pais, notas, red, provincia_id, canton_id) FROM stdin;
+15	COAC SAN GABRIEL	\N	65359843	\N	3	2025-09-01 15:53:29.230944	t	Imbabura	Ibarra	COAC	\N	65359843	\N	987367241	\N	Ecuador	\N	\N	\N	\N
+66	COAC COOPROGRESO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+73	HATUN MUSKUY ENTIDAD FINANCIERA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+65	UCACNOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	\N	\N	union	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+72	COAC KULLKI WASI	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+74	COAC SAN JUAN DE COTOGCHOA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+75	COAC ANDALUCIA LTDA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+76	COAC ECUACREDITOS	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+77	COAC IMBACOOP LTDA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+2	COAC VONNELAN	\N	22851527	\N	4	2025-09-01 15:53:29.230944	t	Pichincha	Rumiñahui	COAC	\N	22851527	\N	988386066	\N	Ecuador	\N	\N	\N	\N
+64	UPROCACH	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	\N	\N	empresa	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+20	COAC ESPERANZA Y PROGRESO DEL VALLE	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+22	COAC COOPARTAMOS	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+26	COAC UNIVERSIDAD CATOLICA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+27	COAC INTEGRACION SOLIDARIA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+28	COAC ANDINA LTDA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	Cotopaxi	Latacunga	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+30	COAC ICHUBAMBA LTDA	\N	\N	\N	5	2025-09-01 15:53:29.230944	t	Cotopaxi	Pujilí	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+31	COAC SAN ANTONIO LTDA DE LOS RIOS	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	\N	Quevedo	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+32	COAC INDIGENAS GALAPAGOS LTDA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+57	COAC EMPLEADOS Y JUBILADOS BANCO CENTRAL DEL ECUADOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+36	COAC EMPRENDER LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+67	COAC ALIANZA DEL VALLE LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+40	COAC SAN JOSE LTDA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	Loja	Loja	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+63	RED DE ESTRUCTURAS FINANCIERAS POPULARES Y SOLIDARIAS EQUINOCCIO REDFINPSEQ (2130)	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	\N	\N	red	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+43	COAC SAN VALENTIN	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+44	COAC FUTURO ESFUERZO Y DISCIPLINA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	\N	\N	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+46	COAC UNION POPULAR	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+51	COAC BANCO CENTRAL	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+59	COAC EMPRENDEDORES COOPEMPRENDER LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+60	COAC PABLO MUÑOZ VEGA	\N	\N	\N	1	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+70	COAC ALLI TARPURK LTDA	\N	22286525	\N	4	2025-09-03 13:12:34.179973	t	\N	Quito	COAC	\N	22286525	\N	987811257	\N	Ecuador	\N	\N	\N	\N
+1	COAC SEÑOR DEL ARBOL	\N	987654321	\N	4	2025-09-01 15:53:29.230944	t	Cotopaxi	Latacunga	COAC	\N	987654321	98799257	991939235	\N	Ecuador	\N	\N	\N	\N
+4	COAC COORAMBATO LTDA.	\N	32826057	\N	3	2025-09-01 15:53:29.230944	t	Tungurahua	Ambato	COAC	\N	32826057	\N	986201200	\N	Ecuador	\N	\N	\N	\N
+5	COAC ANDINA	\N	329943107	\N	2	2025-09-01 15:53:29.230944	t	Cotopaxi	Latacunga	COAC	\N	329943107	32802100	9854251911	\N	Ecuador	\N	\N	\N	\N
+6	COAC DE LA MICROEMPRESA LA FORTUNA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Loja	Loja	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+7	COAC CHUNCHI	\N	32936497	\N	3	2025-09-01 15:53:29.230944	t	Chimborazo	Chunchi	COAC	\N	32936497	32936610	995256017	\N	Ecuador	\N	\N	\N	\N
+8	COAC GUAMOTE	\N	32916258	\N	3	2025-09-01 15:53:29.230944	t	Chimborazo	Guamote	COAC	\N	32916258	\N	987378595	\N	Ecuador	\N	\N	\N	\N
+9	COAC SOL DE LOS ANDES LTDA	\N	32954855	\N	3	2025-09-01 15:53:29.230944	t	Chimborazo	Riobamba	COAC	\N	32954855	\N	988482879	\N	Ecuador	\N	\N	\N	\N
+10	COAC NUEVO AMANECER COTOPAXI	\N	32597709	\N	5	2025-09-01 15:53:29.230944	t	Cotopaxi	Salcedo	COAC	\N	32597709	998911061	988459290	\N	Ecuador	\N	\N	\N	\N
+11	COAC RIOBAMBA LTDA.	\N	032962431	\N	1	2025-09-01 15:53:29.230944	t	Chimborazo	Riobamba	COAC	\N	032962431	\N	983480014	\N	Ecuador	\N	\N	\N	\N
+12	COAC MUJERES UNIDAS "TANTANAKUSHKA WARMIKUNAPAC" CACMU	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Imbabura	Ibarra	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+13	COAC SAN ANTONIO-IMBABURA	\N	65050304	\N	2	2025-09-01 15:53:29.230944	t	Imbabura	Ibarra	COAC	\N	65050304	\N	983170991	\N	Ecuador	\N	\N	\N	\N
+14	COAC SANTA ANITA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Imbabura	Ibarra	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+16	COAC ARTESANOS	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	Imbabura	Ibarra	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+18	COAC MANANTIAL DE ORO	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	Pichincha	Machachi	COAC	\N	\N	\N	990102200	\N	Ecuador	\N	\N	\N	\N
+19	COAC SAN CRISTOBAL	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	987461741	\N	Ecuador	\N	\N	\N	\N
+21	COAC 17 DE MARZO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+23	COAC EL MOLINO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+24	COAC MARCABELÍ LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	El Oro	Marcabelí	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+25	COAC HERMES GAIBOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Cotopaxi	Moraspungo	COAC	\N	\N	\N	990874240	\N	Ecuador	\N	\N	\N	\N
+29	COAC CHUNCHI LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Chimborazo	Chunchi	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+33	COAC SALITRE LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Guayas	Salitre	COAC	\N	\N	\N	985757696	\N	Ecuador	\N	\N	\N	\N
+34	COAC FORTUNA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Loja	Loja	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+35	COAC HUAICANA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+37	COAC ASOCIACION MUTUALISTA DE AHORRO Y CRÉDITO PARA LA VIVIENDA AMBATO	\N	\N	\N	1	2025-09-01 15:53:29.230944	t	Tungurahua	Ambato	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+38	COAC CAMARA DE COMERCIO LA JOYA DE LOS SACHAS	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Orellana	El Coca	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+17	COAC 16 DE JULIO LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Ascazubi	cooperativa	\N	\N	\N	0999261241	\N	Ecuador	\N	\N	\N	\N
+39	COAC CÁMARA DE COMERCIO INDÍGENA DE GUAMOTE LTDA	\N	\N	\N	5	2025-09-01 15:53:29.230944	t	Chimborazo	Guamote	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+62	EQUITY CASA DE VALORES	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	Pichincha	Quito	casa_valores	\N	\N	\N	958854579	\N	Ecuador	\N	\N	\N	\N
+41	COAC MAGISTERIO MANABITA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Manabí	Portoviejo	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+42	COAC CAMARA DE COMERCIO EL CARMEN LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	\N	El Carmen	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+45	COAC OCCIDENTAL LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+47	COAC ORDEN Y SEGURIDAD	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+48	COAC IMBABURA LTDA (FINANZACOOP)	\N	062922846	\N	4	2025-09-01 15:53:29.230944	t	Imbabura	Otavalo	COAC	\N	062922846	\N	\N	\N	Ecuador	\N	\N	\N	\N
+49	COAC EL COMERCIO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+50	COAC CORPORACION CENTRO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+52	COAC SAN ANTONIO IMBABURA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	Imbabura	Ibarra	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+53	COAC SIERRA CENTRO LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Cotopaxi	Latacunga	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+54	COAC 27 DE NOVIEMBRE	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	Chimborazo	Riobamba	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+55	COAC GRUPO DIFARE	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Guayas	Guayaquil	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+56	COAC FUTURO LAMANENSE	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	\N	La Mana	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+58	COAC ACCION IMBABURAPAK	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Imbabura	Otavalo	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+61	COAC LA DOLOROSA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Carchi	Tulcán	COAC	\N	\N	\N	964052222	\N	Ecuador	\N	\N	\N	\N
+68	COAC COCA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Orellana	El Coca	COAC	\N	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+69	COAC ECUAFUTURO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	Pichincha	Quito	COAC	\N	\N	\N	\N	marina_freire@ecuafuturo.fin.ec	Ecuador	\N	\N	\N	\N
+3	COAC EDUCADORES DE BOLIVAR	\N	3250525	\N	3	2025-09-01 15:53:29.230944	t	Bolívar	Guaranda	cooperativa	\N	3250525	\N	987845244	\N	Ecuador	\N	\N	\N	\N
+78	COAC 15 DE ABRIL LTDA	1390013678001	52633032	\N	1	2025-09-03 16:01:09.015036	t	Manabí	Portoviejo	cooperativa	\N	\N	\N	0000000000	\N	Ecuador	\N	\N	6	\N
+\.
+
+
+
+COPY public.cooperativas_backup_before_email_cleanup (id_cooperativa, nombre, ruc, telefono, email, id_segmento, fecha_registro, activa, tipo_entidad, telefono_fijo_1, telefono_fijo_2, telefono_movil, email2, pais, notas, red, provincia_id, canton_id) FROM stdin;
+66	COAC COOPROGRESO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+73	HATUN MUSKUY ENTIDAD FINANCIERA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+65	UCACNOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	union	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+72	COAC KULLKI WASI	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+74	COAC SAN JUAN DE COTOGCHOA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+75	COAC ANDALUCIA LTDA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+76	COAC ECUACREDITOS	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+77	COAC IMBACOOP LTDA	\N	\N	\N	\N	2025-09-03 13:12:34.179973	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+64	UPROCACH	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	empresa	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+27	COAC INTEGRACION SOLIDARIA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+32	COAC INDIGENAS GALAPAGOS LTDA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+36	COAC EMPRENDER LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+67	COAC ALIANZA DEL VALLE LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+63	RED DE ESTRUCTURAS FINANCIERAS POPULARES Y SOLIDARIAS EQUINOCCIO REDFINPSEQ (2130)	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	red	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+44	COAC FUTURO ESFUERZO Y DISCIPLINA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
+18	COAC MANANTIAL DE ORO	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	990102200	\N	Ecuador	\N	\N	19	\N
+25	COAC HERMES GAIBOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	990874240	\N	Ecuador	\N	\N	5	\N
+33	COAC SALITRE LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	985757696	\N	Ecuador	\N	\N	10	\N
+38	COAC CAMARA DE COMERCIO LA JOYA DE LOS SACHAS	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	17	\N
+17	COAC 16 DE JULIO LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	cooperativa	\N	\N	0999261241	\N	Ecuador	\N	\N	19	\N
+68	COAC COCA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	17	\N
+3	COAC EDUCADORES DE BOLIVAR	\N	3250525	\N	3	2025-09-01 15:53:29.230944	t	cooperativa	3250525	\N	987845244	\N	Ecuador	\N	\N	2	16
+61	COAC LA DOLOROSA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	964052222	\N	Ecuador	\N	\N	4	30
+53	COAC SIERRA CENTRO LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	5	36
+5	COAC ANDINA	\N	329943107	\N	2	2025-09-01 15:53:29.230944	t	COAC	329943107	32802100	9854251911	\N	Ecuador	\N	\N	5	36
+1	COAC SEÑOR DEL ARBOL	\N	987654321	\N	4	2025-09-01 15:53:29.230944	t	COAC	987654321	98799257	991939235	\N	Ecuador	\N	\N	5	36
+28	COAC ANDINA LTDA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	5	36
+56	COAC FUTURO LAMANENSE	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	37
+30	COAC ICHUBAMBA LTDA	\N	\N	\N	5	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	5	39
+10	COAC NUEVO AMANECER COTOPAXI	\N	32597709	\N	5	2025-09-01 15:53:29.230944	t	COAC	32597709	998911061	988459290	\N	Ecuador	\N	\N	5	40
+54	COAC 27 DE NOVIEMBRE	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	6	43
+11	COAC RIOBAMBA LTDA.	\N	032962431	\N	1	2025-09-01 15:53:29.230944	t	COAC	032962431	\N	983480014	\N	Ecuador	\N	\N	6	43
+9	COAC SOL DE LOS ANDES LTDA	\N	32954855	\N	3	2025-09-01 15:53:29.230944	t	COAC	32954855	\N	988482879	\N	Ecuador	\N	\N	6	43
+29	COAC CHUNCHI LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	6	47
+7	COAC CHUNCHI	\N	32936497	\N	3	2025-09-01 15:53:29.230944	t	COAC	32936497	32936610	995256017	\N	Ecuador	\N	\N	6	47
+39	COAC CÁMARA DE COMERCIO INDÍGENA DE GUAMOTE LTDA	\N	\N	\N	5	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	6	48
+8	COAC GUAMOTE	\N	32916258	\N	3	2025-09-01 15:53:29.230944	t	COAC	32916258	\N	987378595	\N	Ecuador	\N	\N	6	48
+24	COAC MARCABELÍ LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	7	61
+55	COAC GRUPO DIFARE	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	10	77
+52	COAC SAN ANTONIO IMBABURA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	11	102
+16	COAC ARTESANOS	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	11	102
+14	COAC SANTA ANITA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	11	102
+13	COAC SAN ANTONIO-IMBABURA	\N	65050304	\N	2	2025-09-01 15:53:29.230944	t	COAC	65050304	\N	983170991	\N	Ecuador	\N	\N	11	102
+12	COAC MUJERES UNIDAS "TANTANAKUSHKA WARMIKUNAPAC" CACMU	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	11	102
+15	COAC SAN GABRIEL	\N	65359843	\N	3	2025-09-01 15:53:29.230944	t	COAC	65359843	\N	987367241	\N	Ecuador	\N	\N	11	102
+58	COAC ACCION IMBABURAPAK	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	11	105
+48	COAC IMBABURA LTDA (FINANZACOOP)	\N	062922846	\N	4	2025-09-01 15:53:29.230944	t	COAC	062922846	\N	\N	\N	Ecuador	\N	\N	11	105
+34	COAC FORTUNA LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	12	108
+6	COAC DE LA MICROEMPRESA LA FORTUNA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	12	108
+40	COAC SAN JOSE LTDA	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	12	108
+31	COAC SAN ANTONIO LTDA DE LOS RIOS	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	131
+41	COAC MAGISTERIO MANABITA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	14	137
+78	COAC 15 DE ABRIL LTDA	1390013678001	52633032	\N	1	2025-09-03 16:01:09.015036	t	cooperativa	\N	\N	0000000000	\N	Ecuador	\N	\N	6	137
+42	COAC CAMARA DE COMERCIO EL CARMEN LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	140
+69	COAC ECUAFUTURO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	marina_freire@ecuafuturo.fin.ec	Ecuador	\N	\N	19	184
+50	COAC CORPORACION CENTRO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+49	COAC EL COMERCIO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+47	COAC ORDEN Y SEGURIDAD	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+45	COAC OCCIDENTAL LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+62	EQUITY CASA DE VALORES	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	casa_valores	\N	\N	958854579	\N	Ecuador	\N	\N	19	184
+35	COAC HUAICANA	\N	\N	\N	2	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+23	COAC EL MOLINO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+21	COAC 17 DE MARZO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+19	COAC SAN CRISTOBAL	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	987461741	\N	Ecuador	\N	\N	19	184
+60	COAC PABLO MUÑOZ VEGA	\N	\N	\N	1	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+59	COAC EMPRENDEDORES COOPEMPRENDER LTDA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+51	COAC BANCO CENTRAL	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+46	COAC UNION POPULAR	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+43	COAC SAN VALENTIN	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+57	COAC EMPLEADOS Y JUBILADOS BANCO CENTRAL DEL ECUADOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+26	COAC UNIVERSIDAD CATOLICA	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+20	COAC ESPERANZA Y PROGRESO DEL VALLE	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+22	COAC COOPARTAMOS	\N	\N	\N	4	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	19	184
+70	COAC ALLI TARPURK LTDA	\N	22286525	\N	4	2025-09-03 13:12:34.179973	t	COAC	22286525	\N	987811257	\N	Ecuador	\N	\N	\N	184
+2	COAC VONNELAN	\N	22851527	\N	4	2025-09-01 15:53:29.230944	t	COAC	22851527	\N	988386066	\N	Ecuador	\N	\N	19	190
+37	COAC ASOCIACION MUTUALISTA DE AHORRO Y CRÉDITO PARA LA VIVIENDA AMBATO	\N	\N	\N	1	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	23	204
+4	COAC COORAMBATO LTDA.	\N	32826057	\N	3	2025-09-01 15:53:29.230944	t	COAC	32826057	\N	986201200	\N	Ecuador	\N	\N	23	204
+\.
+
+
+
+COPY public.datos_facturacion (id_facturacion, id_cooperativa, direccion, provincia, canton, email1, email2, email3, email4, email5, tel_fijo1, tel_fijo2, tel_fijo3, tel_cel1, tel_cel2, tel_cel3, contabilidad_nombre, contabilidad_telefono, fecha_registro, provincia_id, canton_id, email_canonical) FROM stdin;
+\.
+
+
+
+COPY public.datos_facturacion_backup_before_email_cleanup (id_facturacion, id_cooperativa, direccion, provincia, canton, email1, email2, email3, email4, email5, tel_fijo1, tel_fijo2, tel_fijo3, tel_cel1, tel_cel2, tel_cel3, contabilidad_nombre, contabilidad_telefono, fecha_registro, provincia_id, canton_id) FROM stdin;
+\.
+
+
+
+COPY public.departamentos (id, clave, nombre, creado_en) FROM stdin;
+1	comercial	Comercial	2025-10-11 16:47:28.181614-05
+2	contabilidad	Contabilidad	2025-10-11 16:47:28.181614-05
+3	sistemas	Sistemas	2025-10-11 16:47:28.181614-05
+4	cumplimiento	Cumplimiento	2025-10-11 16:47:28.181614-05
+5	gerencia	Gerencia	2025-10-11 16:47:28.181614-05
+\.
+
+
+
+COPY public.email_cleanup_problems (id_cooperativa, nombre, email_final, email2_original, email_canonical, email1, email2, email3, email4, email5, personal_email_sample) FROM stdin;
+69	COAC ECUAFUTURO	marina_freire@ecuafuturo.fin.ec	marina_freire@ecuafuturo.fin.ec	\N	\N	\N	\N	\N	\N	\N
+\.
+
+
+
+COPY public.email_cleanup_problems_coop (id_cooperativa, nombre, email_final, email2_original) FROM stdin;
+\.
+
+
+
+COPY public.equipos (id_equipo, codigo_patrimonial, nombre_equipo, tipo, marca, modelo, id_usuario_asignado, fecha_adquisicion, garantia_hasta, especificaciones, estado) FROM stdin;
+\.
+
+
+
+COPY public.incidencia_tipos (id, nombre) FROM stdin;
+1	soporte
+2	instalación
+3	desinstalación
+4	contrato
+5	solicitud de información
+\.
+
+
+
+COPY public.incidencias_comercial (id_incidencia, id_cooperativa, asunto, descripcion, prioridad, estado, creado_por, id_ticket, created_at, tipo_incidencia_id, departamento_id, tipo_incidencia_departamento_id) FROM stdin;
+20	54	5555	5555	Crítico	Enviado	9	\N	2025-10-14 19:45:42.051556	4	2	4
+\.
+
+
+
+COPY public.incidencias_vistas (id_usuario, id_incidencia, visto_cerrada_at) FROM stdin;
+9	1	2025-08-28 16:27:46.84396
+\.
+
+
+
+COPY public.info_contabilidad (id_info, id_cooperativa, responsable_contable, email_contable, telefono_contable, ruc_contabilidad, direccion_contabilidad, fecha_actualizacion) FROM stdin;
+\.
+
+
+
+COPY public.instalaciones (id_instalacion, id_contratacion, id_usuario_tecnico, fecha_instalacion, fecha_completada, estado, observaciones) FROM stdin;
+\.
+
+
+
+COPY public.listas_control (id_lista_control, id_cooperativa, fecha_actualizacion, responsable, observaciones) FROM stdin;
+\.
+
+
+
+COPY public.pagos (id_pago, id_contratacion, monto, fecha_pago, metodo_pago, comprobante, estado, observaciones) FROM stdin;
+1	\N	120.50	2025-08-25	Transferencia	comprobante_1.pdf	Completado	\N
+2	\N	250.75	2025-08-26	Efectivo	comprobante_2.pdf	Pendiente	\N
+3	\N	300.00	2025-08-27	Cheque	comprobante_3.pdf	Completado	\N
+4	\N	180.20	2025-08-28	Tarjeta de crédito	comprobante_4.pdf	Rechazado	\N
+5	\N	500.00	2025-08-29	Transferencia	comprobante_5.pdf	Completado	\N
+\.
+
+
+
+COPY public.personal_cooperativa (id_personal, id_cooperativa, nombre, cargo, telefono, email, departamento) FROM stdin;
+\.
+
+
+
+COPY public.provincia (id, nombre) FROM stdin;
+1	Azuay
+2	Bolívar
+3	Cañar
+4	Carchi
+5	Cotopaxi
+6	Chimborazo
+7	El Oro
+8	Esmeraldas
+9	Galápagos
+10	Guayas
+11	Imbabura
+12	Loja
+13	Los Ríos
+14	Manabí
+15	Morona Santiago
+16	Napo
+17	Orellana
+18	Pastaza
+19	Pichincha
+20	Santa Elena
+21	Santo Domingo de los Tsáchilas
+22	Sucumbíos
+23	Tungurahua
+24	Zamora Chinchipe
+\.
+
+
+
+COPY public.red (codigo, nombre) FROM stdin;
+UPROCACHT	UPROCACHT
+UCACNOR	UCACNOR
+FECOAC	FECOAC
+\.
+
+
+
+COPY public.roles (id_rol, nombre_rol, descripcion) FROM stdin;
+1	administrador	Administrador
+3	contabilidad	Departamento Contabilidad
+2	comercial	Departamento Comercial
+4	sistemas	Departamento Sistemas
+5	cumplimiento	Departamento Cumplimiento
+6	providencias	Departamento Providencias/SIC
+\.
+
+
+
+COPY public.segmentos (id_segmento, nombre_segmento, descripcion) FROM stdin;
+1	Segmento 1	\N
+2	Segmento 2	\N
+4	Segmento 4	\N
+5	Segmento 5	\N
+3	Segmento 3	\N
+\.
+
+
+
+COPY public.seguimiento_tipos (id, nombre, orden) FROM stdin;
+1	Contacto	10
+2	Soporte	20
+3	Ticket	30
+4	Reunión	40
+5	Visita	50
+6	Llamada	15
+\.
+
+
+
+COPY public.servicios (id_servicio, nombre_servicio, descripcion, activo) FROM stdin;
+8	CORE FINANCIERO	Core Financiero	t
+1	Matrix	MATRIX	t
+4	SISPLA	SISPLA	t
+2	PJ	Providencias judiciales	t
+3	SIC	Sistema de información de clientes	t
+\.
+
+
+
+COPY public.ticket_historial (id_historial, id_ticket, fecha_cambio, campo_modificado, valor_anterior, valor_nuevo, id_usuario) FROM stdin;
+\.
+
+
+
+COPY public.tickets (id_ticket, titulo, descripcion, id_usuario_reporta, id_equipo, id_categoria, prioridad, estado, fecha_apertura, fecha_cierre, solucion, id_tecnico_asignado, departamento_id) FROM stdin;
+6	Prueba 2	dsbtr	13	\N	9	Crítico	Abierto	2025-08-22 15:32:22.074792	\N	\N	\N	\N
+1	Instalación PJ	Instalación del nuevo sistema de Providencias Judiciales a COAC Anda lucia	13	\N	9	Crítico	Abierto	2025-06-20 15:58:12.485914	\N	\N	\N	\N
+9	Prueba 1	bfddsv	13	\N	1	Medio	Cerrado	2025-08-25 12:53:43.898553	2025-08-25 12:54:20.75008	\N	16	\N
+10	111	urgente	9	\N	8	Crítico	Abierto	2025-08-26 15:19:43.96657	\N	\N	\N	\N
+11	P	ddd	9	\N	8	Crítico	Abierto	2025-08-28 16:16:18.657312	\N	\N	\N	\N
+12	321312	321312	9	\N	8	Medio	Abierto	2025-09-08 15:11:51.606564	\N	\N	\N	\N
+\.
+
+
+
+COPY public.tipos_incidencias_departamento (id, departamento_id, nombre, referencia_id, orden, creado_en) FROM stdin;
+1	1	Contactar	\N	10	2025-10-11 16:47:28.184335-05
+2	1	Revisiones	\N	20	2025-10-11 16:47:28.184335-05
+3	1	Reuniones	\N	30	2025-10-11 16:47:28.184335-05
+4	2	Contrato	\N	10	2025-10-11 16:47:28.184335-05
+5	2	Correcciones	\N	20	2025-10-11 16:47:28.184335-05
+6	2	Solicitud de información	\N	30	2025-10-11 16:47:28.184335-05
+7	2	Pagos	\N	40	2025-10-11 16:47:28.184335-05
+8	4	Soporte	\N	10	2025-10-11 16:47:28.184335-05
+9	5	Solicitud de información	\N	10	2025-10-11 16:47:28.184335-05
+10	3	Validación de insumos	\N	101	2025-10-11 16:47:28.184335-05
+11	3	Instalaciones	\N	102	2025-10-11 16:47:28.184335-05
+12	3	Manuales	\N	103	2025-10-11 16:47:28.184335-05
+13	3	Mantenimiento	\N	104	2025-10-11 16:47:28.184335-05
+14	3	Revisiones y correcciones	\N	201	2025-10-11 16:47:28.184335-05
+15	3	Desarrollo	\N	202	2025-10-11 16:47:28.184335-05
+16	3	Soporte a clientes	\N	203	2025-10-11 16:47:28.184335-05
+17	3	Validación de actualizaciones	\N	204	2025-10-11 16:47:28.184335-05
+18	3	Corrección de bugs	\N	301	2025-10-11 16:47:28.184335-05
+19	3	Revisión de APIs	\N	302	2025-10-11 16:47:28.184335-05
+20	3	Despliegues	\N	303	2025-10-11 16:47:28.184335-05
+21	3	Mantenimiento de BD	\N	304	2025-10-11 16:47:28.184335-05
+22	3	Coordinación TI	\N	305	2025-10-11 16:47:28.184335-05
+23	3	Seguridad TI	\N	306	2025-10-11 16:47:28.184335-05
+24	3	Entrega de documentación	\N	307	2025-10-11 16:47:28.184335-05
+25	3	Consultas a BD	\N	308	2025-10-11 16:47:28.184335-05
+26	3	Nuevos módulos	\N	309	2025-10-11 16:47:28.184335-05
+\.
+
+
+
+COPY public.usuario_categorias (id_usuario, id_categoria) FROM stdin;
+\.
+
+
+
+COPY public.usuarios (id_usuario, username, password_md5, id_rol, nombre_completo, email, activo, fecha_creacion, departamento) FROM stdin;
+1	admin	21232f297a57a5a743894a0e4a801fc3	1	Renato Joel	renatojoel11@gmail.com	t	2025-04-22 00:00:00	\N
+14	Cumplimiento	6579f08fa9dd51234fd90a8ee0212302	5	Cumplimientos	cumplimiento@vipg.com	t	2025-07-04 10:42:08.792303	\N
+13	sistemas	102ddaf691e1615d5dacd4c86299bfa4	4	Soporte Sistemas	asistencia.tecnica@vipg.com	t	2025-06-20 11:55:36.354497	\N
+11	contabilidad	d5a9e0f7baefc827e7ac792cc2ba3439	3	contabilidad	contabilidad@gmail.com	t	2025-04-28 12:31:01.160634	\N
+15	Sugerencias	8370e358c73f99a7f89d9e288d9ad524	4	Sugerencias	sugerencias@vipg.com	t	2025-07-04 10:46:27.975379	\N
+16	Dennis	c3875d07f44c422f3b3bc019c23e16ae	4	Dennis Andrade	denisandradeg@gmail.com	t	2025-08-21 15:12:01.528089	\N
+9	comercial	4072c1c3f468878a7d48dd7a4564cb57	2	Dennis Andrade	denisa@gmail.com	t	2025-04-23 12:15:28.99413	\N
+\.
+
+
+
+SELECT pg_catalog.setval('public.agenda_contactos_id_evento_seq', 5, true);
+
+
+
+SELECT pg_catalog.setval('public.agenda_id_agenda_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.asistentes_capacitacion_id_asistente_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.canton_id_seq', 221, true);
+
+
+
+SELECT pg_catalog.setval('public.capacitaciones_id_capacitacion_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.capacitaciones_providencias_id_capacitacion_providencia_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.categorias_id_categoria_seq', 9, true);
+
+
+
+SELECT pg_catalog.setval('public.comercial_seguimientos_id_seq', 13, true);
+
+
+
+SELECT pg_catalog.setval('public.contactos_cooperativa_id_contacto_seq', 87, true);
+
+
+
+SELECT pg_catalog.setval('public.contrataciones_id_contratacion_seq', 10, true);
+
+
+
+SELECT pg_catalog.setval('public.contrataciones_servicios_id_contratacion_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.cooperativas_id_cooperativa_seq', 152, true);
+
+
+
+SELECT pg_catalog.setval('public.datos_facturacion_id_facturacion_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.departamentos_id_seq', 5, true);
+
+
+
+SELECT pg_catalog.setval('public.equipos_id_equipo_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.incidencia_tipos_id_seq', 5, true);
+
+
+
+SELECT pg_catalog.setval('public.incidencias_comercial_id_incidencia_seq', 20, true);
+
+
+
+SELECT pg_catalog.setval('public.info_contabilidad_id_info_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.instalaciones_id_instalacion_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.listas_control_id_lista_control_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.pagos_id_pago_seq', 5, true);
+
+
+
+SELECT pg_catalog.setval('public.personal_cooperativa_id_personal_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.provincia_id_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.roles_id_rol_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.segmentos_id_segmento_seq', 16, true);
+
+
+
+SELECT pg_catalog.setval('public.seguimiento_tipos_id_seq', 7, true);
+
+
+
+SELECT pg_catalog.setval('public.servicios_id_servicio_seq', 12, true);
+
+
+
+SELECT pg_catalog.setval('public.ticket_historial_id_historial_seq', 1, false);
+
+
+
+SELECT pg_catalog.setval('public.tickets_id_ticket_seq', 12, true);
+
+
+
+SELECT pg_catalog.setval('public.tipos_incidencias_departamento_id_seq', 26, true);
+
+
+
+SELECT pg_catalog.setval('public.usuarios_id_usuario_seq', 16, true);
+
+
+
+ALTER TABLE ONLY public.agenda_contactos
+    ADD CONSTRAINT agenda_contactos_pkey PRIMARY KEY (id_evento);
+
+
+
+ALTER TABLE ONLY public.agenda
+    ADD CONSTRAINT agenda_pkey PRIMARY KEY (id_agenda);
+
+
+
+ALTER TABLE ONLY public.asistentes_capacitacion
+    ADD CONSTRAINT asistentes_capacitacion_pkey PRIMARY KEY (id_asistente);
+
+
+
+ALTER TABLE ONLY public.canton
+    ADD CONSTRAINT canton_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.canton
+    ADD CONSTRAINT canton_provincia_id_nombre_key UNIQUE (provincia_id, nombre);
+
+
+
+ALTER TABLE ONLY public.capacitaciones
+    ADD CONSTRAINT capacitaciones_pkey PRIMARY KEY (id_capacitacion);
+
+
+
+ALTER TABLE ONLY public.capacitaciones_providencias
+    ADD CONSTRAINT capacitaciones_providencias_pkey PRIMARY KEY (id_capacitacion_providencia);
+
+
+
+ALTER TABLE ONLY public.categorias
+    ADD CONSTRAINT categorias_pkey PRIMARY KEY (id_categoria);
+
+
+
+ALTER TABLE ONLY public.comercial_seguimientos
+    ADD CONSTRAINT comercial_seguimientos_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.contactos_cooperativa
+    ADD CONSTRAINT contactos_cooperativa_pkey PRIMARY KEY (id_contacto);
+
+
+
+ALTER TABLE ONLY public.contrataciones
+    ADD CONSTRAINT contrataciones_pkey PRIMARY KEY (id_contratacion);
+
+
+
+ALTER TABLE ONLY public.contrataciones_servicios
+    ADD CONSTRAINT contrataciones_servicios_pkey PRIMARY KEY (id_contratacion);
+
+
+
+ALTER TABLE ONLY public.cooperativa_red
+    ADD CONSTRAINT cooperativa_red_pkey PRIMARY KEY (id_cooperativa, codigo_red);
+
+
+
+ALTER TABLE ONLY public.cooperativa_servicio
+    ADD CONSTRAINT cooperativa_servicio_pk PRIMARY KEY (id_cooperativa, id_servicio);
+
+
+
+ALTER TABLE ONLY public.cooperativas
+    ADD CONSTRAINT cooperativas_pkey PRIMARY KEY (id_cooperativa);
+
+
+
+ALTER TABLE ONLY public.cooperativas
+    ADD CONSTRAINT cooperativas_ruc_key UNIQUE (ruc);
+
+
+
+ALTER TABLE ONLY public.datos_facturacion
+    ADD CONSTRAINT datos_facturacion_pkey PRIMARY KEY (id_facturacion);
+
+
+
+ALTER TABLE ONLY public.departamentos
+    ADD CONSTRAINT departamentos_clave_key UNIQUE (clave);
+
+
+
+ALTER TABLE ONLY public.departamentos
+    ADD CONSTRAINT departamentos_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.equipos
+    ADD CONSTRAINT equipos_codigo_patrimonial_key UNIQUE (codigo_patrimonial);
+
+
+
+ALTER TABLE ONLY public.equipos
+    ADD CONSTRAINT equipos_pkey PRIMARY KEY (id_equipo);
+
+
+
+ALTER TABLE ONLY public.incidencia_tipos
+    ADD CONSTRAINT incidencia_tipos_nombre_key UNIQUE (nombre);
+
+
+
+ALTER TABLE ONLY public.incidencia_tipos
+    ADD CONSTRAINT incidencia_tipos_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.incidencias_comercial
+    ADD CONSTRAINT incidencias_comercial_pkey PRIMARY KEY (id_incidencia);
+
+
+
+ALTER TABLE ONLY public.incidencias_vistas
+    ADD CONSTRAINT incidencias_vistas_pkey PRIMARY KEY (id_usuario, id_incidencia);
+
+
+
+ALTER TABLE ONLY public.info_contabilidad
+    ADD CONSTRAINT info_contabilidad_pkey PRIMARY KEY (id_info);
+
+
+
+ALTER TABLE ONLY public.instalaciones
+    ADD CONSTRAINT instalaciones_pkey PRIMARY KEY (id_instalacion);
+
+
+
+ALTER TABLE ONLY public.listas_control
+    ADD CONSTRAINT listas_control_pkey PRIMARY KEY (id_lista_control);
+
+
+
+ALTER TABLE ONLY public.pagos
+    ADD CONSTRAINT pagos_pkey PRIMARY KEY (id_pago);
+
+
+
+ALTER TABLE ONLY public.personal_cooperativa
+    ADD CONSTRAINT personal_cooperativa_pkey PRIMARY KEY (id_personal);
+
+
+
+ALTER TABLE ONLY public.provincia
+    ADD CONSTRAINT provincia_nombre_key UNIQUE (nombre);
+
+
+
+ALTER TABLE ONLY public.provincia
+    ADD CONSTRAINT provincia_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.red
+    ADD CONSTRAINT red_pkey PRIMARY KEY (codigo);
+
+
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_nombre_rol_key UNIQUE (nombre_rol);
+
+
+
+ALTER TABLE ONLY public.roles
+    ADD CONSTRAINT roles_pkey PRIMARY KEY (id_rol);
+
+
+
+ALTER TABLE ONLY public.segmentos
+    ADD CONSTRAINT segmentos_nombre_segmento_key UNIQUE (nombre_segmento);
+
+
+
+ALTER TABLE ONLY public.segmentos
+    ADD CONSTRAINT segmentos_pkey PRIMARY KEY (id_segmento);
+
+
+
+ALTER TABLE ONLY public.seguimiento_tipos
+    ADD CONSTRAINT seguimiento_tipos_nombre_key UNIQUE (nombre);
+
+
+
+ALTER TABLE ONLY public.seguimiento_tipos
+    ADD CONSTRAINT seguimiento_tipos_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.servicios
+    ADD CONSTRAINT servicios_nombre_servicio_key UNIQUE (nombre_servicio);
+
+
+
+ALTER TABLE ONLY public.servicios
+    ADD CONSTRAINT servicios_pkey PRIMARY KEY (id_servicio);
+
+
+
+ALTER TABLE ONLY public.ticket_historial
+    ADD CONSTRAINT ticket_historial_pkey PRIMARY KEY (id_historial);
+
+
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_pkey PRIMARY KEY (id_ticket);
+
+
+
+ALTER TABLE ONLY public.tipos_incidencias_departamento
+    ADD CONSTRAINT tipos_incidencias_departamento_departamento_id_nombre_key UNIQUE (departamento_id, nombre);
+
+
+
+ALTER TABLE ONLY public.tipos_incidencias_departamento
+    ADD CONSTRAINT tipos_incidencias_departamento_pkey PRIMARY KEY (id);
+
+
+
+ALTER TABLE ONLY public.info_contabilidad
+    ADD CONSTRAINT uk_info_contabilidad_cooperativa UNIQUE (id_cooperativa);
+
+
+
+ALTER TABLE ONLY public.usuario_categorias
+    ADD CONSTRAINT usuario_categorias_pkey PRIMARY KEY (id_usuario, id_categoria);
+
+
+
+ALTER TABLE ONLY public.usuarios
+    ADD CONSTRAINT usuarios_email_key UNIQUE (email);
+
+
+
+ALTER TABLE ONLY public.usuarios
+    ADD CONSTRAINT usuarios_pkey PRIMARY KEY (id_usuario);
+
+
+
+ALTER TABLE ONLY public.usuarios
+    ADD CONSTRAINT usuarios_username_key UNIQUE (username);
+
+
+
+CREATE INDEX agenda_entidad_idx ON public.agenda USING btree (id_entidad);
+
+
+
+CREATE INDEX agenda_estado_idx ON public.agenda USING btree (estado);
+
+
+
+CREATE INDEX agenda_fecha_idx ON public.agenda USING btree (fecha);
+
+
+
+CREATE INDEX idx_agenda_contactos_coop ON public.agenda_contactos USING btree (id_cooperativa);
+
+
+
+CREATE INDEX idx_agenda_contactos_fecha ON public.agenda_contactos USING btree (fecha_evento);
+
+
+
+CREATE INDEX idx_com_seg_contacto ON public.comercial_seguimientos USING btree (id_contacto);
+
+
+
+CREATE INDEX idx_com_seg_fecha_fin ON public.comercial_seguimientos USING btree (fecha_finalizacion);
+
+
+
+CREATE INDEX idx_comercial_seguimientos_coop ON public.comercial_seguimientos USING btree (id_cooperativa);
+
+
+
+CREATE INDEX idx_comercial_seguimientos_fecha ON public.comercial_seguimientos USING btree (fecha_actividad);
+
+
+
+CREATE INDEX idx_comercial_seguimientos_ticket ON public.comercial_seguimientos USING btree (ticket_id);
+
+
+
+CREATE INDEX idx_contactos_cooperativa_activo ON public.contactos_cooperativa USING btree (activo) WHERE (activo = true);
+
+
+
+CREATE INDEX idx_contactos_cooperativa_id ON public.contactos_cooperativa USING btree (id_cooperativa);
+
+
+
+CREATE INDEX idx_coop_email ON public.cooperativas USING btree (lower((email)::text));
+
+
+
+CREATE INDEX idx_coops_nombre ON public.cooperativas USING btree (nombre);
+
+
+
+CREATE INDEX idx_coops_ruc ON public.cooperativas USING btree (ruc);
+
+
+
+CREATE INDEX idx_datosfact_email_canon ON public.datos_facturacion USING btree (lower(email_canonical));
+
+
+
+CREATE INDEX idx_incidencias_comercial_coop ON public.incidencias_comercial USING btree (id_cooperativa);
+
+
+
+CREATE INDEX idx_incidencias_comercial_departamento_id ON public.incidencias_comercial USING btree (departamento_id);
+
+
+
+CREATE INDEX idx_incidencias_comercial_estado ON public.incidencias_comercial USING btree (estado);
+
+
+
+CREATE INDEX idx_incidencias_tipo_dep_id ON public.incidencias_comercial USING btree (tipo_incidencia_departamento_id);
+
+
+
+CREATE INDEX idx_incidencias_tipo_id ON public.incidencias_comercial USING btree (tipo_incidencia_id);
+
+
+
+CREATE INDEX idx_servicios_nombre ON public.servicios USING btree (nombre_servicio);
+
+
+
+CREATE INDEX idx_tickets_departamento_id ON public.tickets USING btree (departamento_id);
+
+
+
+CREATE INDEX idx_tipos_inc_departamento ON public.tipos_incidencias_departamento USING btree (departamento_id, orden);
+
+
+
+CREATE INDEX ix_canton_provincia ON public.canton USING btree (provincia_id, nombre);
+
+
+
+CREATE UNIQUE INDEX uq_cooperativas_ruc_notnull ON public.cooperativas USING btree (ruc) WHERE (ruc IS NOT NULL);
+
+
+
+ALTER TABLE ONLY public.agenda_contactos
+    ADD CONSTRAINT agenda_contactos_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.agenda_contactos
+    ADD CONSTRAINT agenda_contactos_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.agenda
+    ADD CONSTRAINT agenda_id_entidad_fkey FOREIGN KEY (id_entidad) REFERENCES public.cooperativas(id_cooperativa) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.asistentes_capacitacion
+    ADD CONSTRAINT asistentes_capacitacion_id_capacitacion_fkey FOREIGN KEY (id_capacitacion) REFERENCES public.capacitaciones(id_capacitacion);
+
+
+
+ALTER TABLE ONLY public.asistentes_capacitacion
+    ADD CONSTRAINT asistentes_capacitacion_id_personal_fkey FOREIGN KEY (id_personal) REFERENCES public.personal_cooperativa(id_personal);
+
+
+
+ALTER TABLE ONLY public.canton
+    ADD CONSTRAINT canton_provincia_id_fkey FOREIGN KEY (provincia_id) REFERENCES public.provincia(id) ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY public.capacitaciones
+    ADD CONSTRAINT capacitaciones_id_contratacion_fkey FOREIGN KEY (id_contratacion) REFERENCES public.contrataciones(id_contratacion);
+
+
+
+ALTER TABLE ONLY public.capacitaciones
+    ADD CONSTRAINT capacitaciones_id_usuario_capacitador_fkey FOREIGN KEY (id_usuario_capacitador) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.capacitaciones_providencias
+    ADD CONSTRAINT capacitaciones_providencias_id_capacitacion_fkey FOREIGN KEY (id_capacitacion) REFERENCES public.capacitaciones(id_capacitacion);
+
+
+
+ALTER TABLE ONLY public.comercial_seguimientos
+    ADD CONSTRAINT comercial_seguimientos_editado_por_fkey FOREIGN KEY (editado_por) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.comercial_seguimientos
+    ADD CONSTRAINT comercial_seguimientos_id_contacto_fkey FOREIGN KEY (id_contacto) REFERENCES public.contactos_cooperativa(id_contacto);
+
+
+
+ALTER TABLE ONLY public.contactos_cooperativa
+    ADD CONSTRAINT contactos_cooperativa_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.contrataciones
+    ADD CONSTRAINT contrataciones_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa);
+
+
+
+ALTER TABLE ONLY public.contrataciones
+    ADD CONSTRAINT contrataciones_id_servicio_fkey FOREIGN KEY (id_servicio) REFERENCES public.servicios(id_servicio);
+
+
+
+ALTER TABLE ONLY public.contrataciones_servicios
+    ADD CONSTRAINT contrataciones_servicios_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.contrataciones_servicios
+    ADD CONSTRAINT contrataciones_servicios_id_servicio_fkey FOREIGN KEY (id_servicio) REFERENCES public.servicios(id_servicio);
+
+
+
+ALTER TABLE ONLY public.cooperativa_red
+    ADD CONSTRAINT cooperativa_red_red_fk FOREIGN KEY (codigo_red) REFERENCES public.red(codigo) ON UPDATE CASCADE;
+
+
+
+ALTER TABLE ONLY public.cooperativa_servicio
+    ADD CONSTRAINT cooperativa_servicio_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.cooperativa_servicio
+    ADD CONSTRAINT cooperativa_servicio_id_servicio_fkey FOREIGN KEY (id_servicio) REFERENCES public.servicios(id_servicio);
+
+
+
+ALTER TABLE ONLY public.cooperativas
+    ADD CONSTRAINT cooperativas_canton_fk FOREIGN KEY (canton_id) REFERENCES public.canton(id);
+
+
+
+ALTER TABLE ONLY public.cooperativas
+    ADD CONSTRAINT cooperativas_id_segmento_fkey FOREIGN KEY (id_segmento) REFERENCES public.segmentos(id_segmento);
+
+
+
+ALTER TABLE ONLY public.cooperativas
+    ADD CONSTRAINT cooperativas_provincia_fk FOREIGN KEY (provincia_id) REFERENCES public.provincia(id);
+
+
+
+ALTER TABLE ONLY public.datos_facturacion
+    ADD CONSTRAINT datos_fact_canton_fk FOREIGN KEY (canton_id) REFERENCES public.canton(id);
+
+
+
+ALTER TABLE ONLY public.datos_facturacion
+    ADD CONSTRAINT datos_fact_prov_fk FOREIGN KEY (provincia_id) REFERENCES public.provincia(id);
+
+
+
+ALTER TABLE ONLY public.datos_facturacion
+    ADD CONSTRAINT datos_facturacion_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa);
+
+
+
+ALTER TABLE ONLY public.equipos
+    ADD CONSTRAINT equipos_id_usuario_asignado_fkey FOREIGN KEY (id_usuario_asignado) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.comercial_seguimientos
+    ADD CONSTRAINT fk_comercial_sg_cooperativa FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.comercial_seguimientos
+    ADD CONSTRAINT fk_comercial_sg_usuario FOREIGN KEY (creado_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.incidencias_comercial
+    ADD CONSTRAINT fk_incidencias_tipo FOREIGN KEY (tipo_incidencia_id) REFERENCES public.incidencia_tipos(id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+
+ALTER TABLE ONLY public.incidencias_comercial
+    ADD CONSTRAINT fk_incidencias_tipo_dep FOREIGN KEY (tipo_incidencia_departamento_id) REFERENCES public.tipos_incidencias_departamento(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.tipos_incidencias_departamento
+    ADD CONSTRAINT fk_tipos_incidencias_global FOREIGN KEY (referencia_id) REFERENCES public.incidencia_tipos(id);
+
+
+
+ALTER TABLE ONLY public.incidencias_comercial
+    ADD CONSTRAINT incidencias_comercial_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.incidencias_comercial
+    ADD CONSTRAINT incidencias_comercial_departamento_fk FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.incidencias_comercial
+    ADD CONSTRAINT incidencias_comercial_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.incidencias_comercial
+    ADD CONSTRAINT incidencias_comercial_id_ticket_fkey FOREIGN KEY (id_ticket) REFERENCES public.tickets(id_ticket) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.info_contabilidad
+    ADD CONSTRAINT info_contabilidad_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.instalaciones
+    ADD CONSTRAINT instalaciones_id_contratacion_fkey FOREIGN KEY (id_contratacion) REFERENCES public.contrataciones(id_contratacion);
+
+
+
+ALTER TABLE ONLY public.instalaciones
+    ADD CONSTRAINT instalaciones_id_usuario_tecnico_fkey FOREIGN KEY (id_usuario_tecnico) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.listas_control
+    ADD CONSTRAINT listas_control_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa);
+
+
+
+ALTER TABLE ONLY public.pagos
+    ADD CONSTRAINT pagos_contrat_fk FOREIGN KEY (id_contratacion) REFERENCES public.contrataciones(id_contratacion) ON DELETE CASCADE NOT VALID;
+
+
+
+ALTER TABLE ONLY public.personal_cooperativa
+    ADD CONSTRAINT personal_cooperativa_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa);
+
+
+
+ALTER TABLE ONLY public.ticket_historial
+    ADD CONSTRAINT ticket_historial_id_ticket_fkey FOREIGN KEY (id_ticket) REFERENCES public.tickets(id_ticket);
+
+
+
+ALTER TABLE ONLY public.ticket_historial
+    ADD CONSTRAINT ticket_historial_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_departamento_fk FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE SET NULL;
+
+
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_id_categoria_fkey FOREIGN KEY (id_categoria) REFERENCES public.categorias(id_categoria);
+
+
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_id_equipo_fkey FOREIGN KEY (id_equipo) REFERENCES public.equipos(id_equipo);
+
+
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_id_tecnico_asignado_fkey FOREIGN KEY (id_tecnico_asignado) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.tickets
+    ADD CONSTRAINT tickets_id_usuario_reporta_fkey FOREIGN KEY (id_usuario_reporta) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.tipos_incidencias_departamento
+    ADD CONSTRAINT tipos_incidencias_departamento_departamento_id_fkey FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY public.usuario_categorias
+    ADD CONSTRAINT usuario_categorias_id_categoria_fkey FOREIGN KEY (id_categoria) REFERENCES public.categorias(id_categoria);
+
+
+
+ALTER TABLE ONLY public.usuario_categorias
+    ADD CONSTRAINT usuario_categorias_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuarios(id_usuario);
+
+
+
+ALTER TABLE ONLY public.usuarios
+    ADD CONSTRAINT usuarios_id_rol_fkey FOREIGN KEY (id_rol) REFERENCES public.roles(id_rol);
