@@ -433,6 +433,7 @@ final class SeguimientoRepository extends BaseRepository
                 $codigo = 'Ticket #' . $ticketId;
             }
             $items[] = [
+                'id'          => $ticketId,
                 'ticket_id'   => $ticketId,
                 'codigo'      => $codigo,
                 'descripcion' => isset($row['descripcion']) ? (string)$row['descripcion'] : '',

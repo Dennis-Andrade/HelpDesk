@@ -153,6 +153,16 @@ final class SeguimientoController
         }
 
         $items = $this->repo->buscarTickets($term);
+        $items = array_map(static function ($row) {
+            if (!isset($row['id']) && isset($row['id_ticket'])) {
+                $row['id'] = (int) $row['id_ticket'];
+            }
+            if (!isset($row['id_ticket']) && isset($row['id'])) {
+                $row['id_ticket'] = (int) $row['id'];
+            }
+            return $row;
+        }, $items);
+
         echo json_encode(['ok' => true, 'items' => $items], JSON_UNESCAPED_UNICODE);
     }
 
@@ -166,6 +176,16 @@ final class SeguimientoController
         }
 
         $items = $this->repo->buscarTicketsSeguimiento($term);
+        $items = array_map(static function ($row) {
+            if (!isset($row['id']) && isset($row['ticket_id'])) {
+                $row['id'] = (int) $row['ticket_id'];
+            }
+            if (!isset($row['ticket_id']) && isset($row['id'])) {
+                $row['ticket_id'] = (int) $row['id'];
+            }
+            return $row;
+        }, $items);
+
         echo json_encode(['ok' => true, 'items' => $items], JSON_UNESCAPED_UNICODE);
     }
 
