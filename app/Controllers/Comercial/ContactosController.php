@@ -123,9 +123,17 @@ final class ContactosController
             return;
         }
 
+        $idEntidad = (int)($_POST['id_entidad'] ?? 0);
+        $nombre    = trim((string)($_POST['nombre'] ?? ''));
+
+        if ($idEntidad < 1 || $nombre === '') {
+            redirect('/comercial/contactos');
+            return;
+        }
+
         $data = [
-            'id_cooperativa'    => (int)($_POST['id_entidad'] ?? 0),
-            'nombre'            => trim((string)($_POST['nombre'] ?? '')),
+            'id_cooperativa'    => $idEntidad,
+            'nombre'            => $nombre,
             'titulo'            => trim((string)($_POST['titulo'] ?? '')),
             'cargo'             => trim((string)($_POST['cargo'] ?? '')),
             'telefono_contacto' => $telefono,
@@ -140,9 +148,9 @@ final class ContactosController
     /**
      * Muestra el formulario para editar un contacto existente.
      */
-    public function editForm()
+    public function editForm($id)
     {
-        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        $id = (int)$id;
         if ($id < 1) {
             redirect('/comercial/contactos');
             return;
@@ -181,15 +189,29 @@ final class ContactosController
             return;
         }
 
+        $postedId = isset($_POST['id']) ? (int)$_POST['id'] : 0;
+        if ($postedId > 0 && $postedId !== $id) {
+            redirect('/comercial/contactos');
+            return;
+        }
+
         $correo = trim((string)($_POST['correo'] ?? ''));
         if ($correo !== '' && !\filter_var($correo, FILTER_VALIDATE_EMAIL)) {
             redirect('/comercial/contactos');
             return;
         }
 
+        $idEntidad = (int)($_POST['id_entidad'] ?? 0);
+        $nombre    = trim((string)($_POST['nombre'] ?? ''));
+
+        if ($idEntidad < 1 || $nombre === '') {
+            redirect('/comercial/contactos');
+            return;
+        }
+
         $data = [
-            'id_cooperativa'    => (int)($_POST['id_entidad'] ?? 0),
-            'nombre'            => trim((string)($_POST['nombre'] ?? '')),
+            'id_cooperativa'    => $idEntidad,
+            'nombre'            => $nombre,
             'titulo'            => trim((string)($_POST['titulo'] ?? '')),
             'cargo'             => trim((string)($_POST['cargo'] ?? '')),
             'telefono_contacto' => $telefono,
