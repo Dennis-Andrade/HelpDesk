@@ -7,8 +7,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
-  <main class="content-auth">
+<body class="auth-body">
+  <div class="auth-body__grid" aria-hidden="true"></div>
+  <main class="auth-shell" role="main">
     <?php include $___viewFile; ?>
   </main>
 </body>
