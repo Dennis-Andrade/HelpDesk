@@ -12,6 +12,7 @@ final class SeguimientoRepository extends BaseRepository
     private const COOPS_TABLE = 'public.cooperativas';
     private const CONTACTS_TABLE = 'public.contactos_cooperativa';
     private const TICKETS_VIEW = 'public.v_tickets_busqueda';
+    private const TICKETS_TABLE = 'public.tickets';
     private const USERS_TABLE = 'public.usuarios';
     private const TIPOS_TABLE = 'public.seguimiento_tipos';
 
@@ -31,7 +32,8 @@ final class SeguimientoRepository extends BaseRepository
         $joins = ' INNER JOIN ' . self::COOPS_TABLE . ' c ON c.id_cooperativa = s.id_cooperativa'
             . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
             . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
-            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id';
+            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id'
+            . ' LEFT JOIN ' . self::TICKETS_TABLE . ' tk ON tk.id_ticket = s.ticket_id';
 
         $countSql = 'SELECT COUNT(*) AS total FROM ' . self::TABLE . ' s' . $joins . ($where !== '' ? ' ' . $where : '');
 
@@ -95,6 +97,7 @@ final class SeguimientoRepository extends BaseRepository
             . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
             . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
             . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id'
+            . ' LEFT JOIN ' . self::TICKETS_TABLE . ' tk ON tk.id_ticket = s.ticket_id'
             . ($where !== '' ? ' ' . $where : '')
             . ' ORDER BY s.fecha_actividad DESC, s.id DESC';
 
@@ -191,6 +194,7 @@ final class SeguimientoRepository extends BaseRepository
             . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
             . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
             . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id'
+            . ' LEFT JOIN ' . self::TICKETS_TABLE . ' tk ON tk.id_ticket = s.ticket_id'
             . ' WHERE s.id = :id';
 
         try {
@@ -307,9 +311,14 @@ final class SeguimientoRepository extends BaseRepository
             return [];
         }
 
-        $sql = 'SELECT id_ticket, codigo_ticket, titulo, departamento_nombre, nombre_categoria, prioridad, estado'
-            . ' FROM ' . self::TICKETS_VIEW
-            . ' WHERE codigo_ticket ILIKE :term OR titulo ILIKE :term'
+        $sql = 'SELECT vt.id_ticket,'
+            . " COALESCE(NULLIF(tk.codigo, ''), NULLIF(vt.codigo_ticket::text, '')) AS codigo,"
+            . ' vt.titulo, vt.departamento_nombre, vt.nombre_categoria, vt.prioridad, vt.estado'
+            . ' FROM ' . self::TICKETS_VIEW . ' vt'
+            . ' LEFT JOIN ' . self::TICKETS_TABLE . ' tk ON tk.id_ticket = vt.id_ticket'
+            . " WHERE (COALESCE(NULLIF(tk.codigo, ''), NULLIF(vt.codigo_ticket::text, '')) ILIKE :term"
+            . ' OR vt.titulo ILIKE :term'
+            . ' OR CAST(vt.id_ticket AS TEXT) ILIKE :term)'
             . ' ORDER BY fecha_apertura DESC'
             . ' LIMIT 15';
 
@@ -321,12 +330,17 @@ final class SeguimientoRepository extends BaseRepository
 
         $items = [];
         foreach ($rows as $row) {
-            if (!isset($row['id_ticket'], $row['codigo_ticket'])) {
+            if (!isset($row['id_ticket'])) {
                 continue;
+            }
+            $codigo = isset($row['codigo']) ? (string)$row['codigo'] : '';
+            if ($codigo === '') {
+                $codigo = 'Ticket #' . (int)$row['id_ticket'];
             }
             $items[] = [
                 'id'          => (int)$row['id_ticket'],
-                'codigo'      => (string)$row['codigo_ticket'],
+                'id_ticket'   => (int)$row['id_ticket'],
+                'codigo'      => $codigo,
                 'titulo'      => isset($row['titulo']) ? (string)$row['titulo'] : '',
                 'departamento'=> isset($row['departamento_nombre']) ? (string)$row['departamento_nombre'] : '',
                 'tipo'        => isset($row['nombre_categoria']) ? (string)$row['nombre_categoria'] : '',
@@ -346,9 +360,12 @@ final class SeguimientoRepository extends BaseRepository
             return null;
         }
 
-        $sql = 'SELECT id_ticket, codigo_ticket, titulo, departamento_nombre, nombre_categoria, prioridad, estado'
-            . ' FROM ' . self::TICKETS_VIEW
-            . ' WHERE id_ticket = :id'
+        $sql = 'SELECT vt.id_ticket,'
+            . " COALESCE(NULLIF(tk.codigo, ''), NULLIF(vt.codigo_ticket::text, '')) AS codigo,"
+            . ' vt.titulo, vt.departamento_nombre, vt.nombre_categoria, vt.prioridad, vt.estado'
+            . ' FROM ' . self::TICKETS_VIEW . ' vt'
+            . ' LEFT JOIN ' . self::TICKETS_TABLE . ' tk ON tk.id_ticket = vt.id_ticket'
+            . ' WHERE vt.id_ticket = :id'
             . ' LIMIT 1';
 
         try {
@@ -361,9 +378,15 @@ final class SeguimientoRepository extends BaseRepository
             return null;
         }
 
+        $codigo = isset($row['codigo']) ? (string)$row['codigo'] : '';
+        if ($codigo === '') {
+            $codigo = 'Ticket #' . (int)$row['id_ticket'];
+        }
+
         return [
             'id'          => (int)$row['id_ticket'],
-            'codigo'      => isset($row['codigo_ticket']) ? (string)$row['codigo_ticket'] : '',
+            'id_ticket'   => (int)$row['id_ticket'],
+            'codigo'      => $codigo,
             'titulo'      => isset($row['titulo']) ? (string)$row['titulo'] : '',
             'departamento'=> isset($row['departamento_nombre']) ? (string)$row['departamento_nombre'] : '',
             'tipo'        => isset($row['nombre_categoria']) ? (string)$row['nombre_categoria'] : '',
@@ -384,12 +407,13 @@ final class SeguimientoRepository extends BaseRepository
 
         $sql = 'SELECT DISTINCT'
             . ' s.ticket_id,'
-            . ' COALESCE(s.datos_ticket->>\'codigo\', \'\') AS codigo,'
+            . " COALESCE(s.datos_ticket->>'codigo', tk.codigo, '') AS codigo,"
             . ' LEFT(COALESCE(s.datos_ticket->>\'descripcion\', s.descripcion), 120) AS descripcion'
             . ' FROM ' . self::TABLE . ' s'
+            . ' LEFT JOIN ' . self::TICKETS_TABLE . ' tk ON tk.id_ticket = s.ticket_id'
             . ' WHERE ('
             . ' (s.ticket_id IS NOT NULL AND CAST(s.ticket_id AS TEXT) ILIKE :term)'
-            . ' OR (COALESCE(s.datos_ticket->>\'codigo\', \'\') ILIKE :term)'
+            . " OR (COALESCE(s.datos_ticket->>'codigo', tk.codigo, '') ILIKE :term)"
             . ' OR (s.descripcion ILIKE :term)'
             . ' )'
             . ' ORDER BY COALESCE(s.ticket_id, 0) DESC, codigo DESC, s.fecha_actividad DESC'
@@ -473,7 +497,8 @@ final class SeguimientoRepository extends BaseRepository
         $ticket = isset($filters['ticket']) ? trim((string)$filters['ticket']) : '';
         if ($ticket !== '') {
             $conditions[] = '((CAST(s.ticket_id AS TEXT) ILIKE :ticket)'
-                . ' OR (COALESCE(s.datos_ticket::text, \'\') ILIKE :ticket))';
+                . ' OR (COALESCE(s.datos_ticket::text, \'\') ILIKE :ticket)'
+                . ' OR (COALESCE(tk.codigo, \'\') ILIKE :ticket))';
             $params[':ticket'] = ['%' . $ticket . '%', PDO::PARAM_STR];
         }
 
@@ -509,7 +534,7 @@ final class SeguimientoRepository extends BaseRepository
             'cc.nombre_contacto',
             'cc.telefono AS contacto_telefono',
             'cc.email AS contacto_email',
-            'vt.codigo_ticket',
+            "COALESCE(NULLIF(tk.codigo, ''), NULLIF(vt.codigo_ticket::text, '')) AS codigo_ticket",
             'vt.departamento_nombre',
             'vt.nombre_categoria',
             'vt.prioridad',

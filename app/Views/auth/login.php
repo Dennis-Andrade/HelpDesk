@@ -25,7 +25,7 @@
         <form method="post" class="login-form" autocomplete="on">
           <div class="inputBox">
             <input id="login-id" type="text" name="id" placeholder=" " required autofocus autocomplete="username">
-            <i>Usuario</i>
+            <i>Usuario o Email</i>
           </div>
           <div class="inputBox">
             <input id="login-password" type="password" name="password" placeholder=" " required autocomplete="current-password">

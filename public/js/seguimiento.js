@@ -305,11 +305,22 @@
     var lookup = {};
 
     function writeHidden(ticket) {
+      var ticketId = null;
+      if (ticket) {
+        if (ticket.id_ticket) {
+          ticketId = ticket.id_ticket;
+        } else if (ticket.id) {
+          ticketId = ticket.id;
+        }
+      }
       if (hiddenId) {
-        hiddenId.value = ticket && ticket.id ? String(ticket.id) : '';
+        hiddenId.value = ticketId !== null && ticketId !== undefined && ticketId !== ''
+          ? String(ticketId)
+          : '';
       }
       if (hiddenData) {
         hiddenData.value = ticket ? JSON.stringify({
+          id: ticketId,
           codigo: ticket.codigo || '',
           departamento: ticket.departamento || '',
           tipo: ticket.tipo || '',
