@@ -11,12 +11,7 @@ final class SeguimientoRepository extends BaseRepository
     private const TABLE = 'public.comercial_seguimientos';
     private const COOPS_TABLE = 'public.cooperativas';
     private const CONTACTS_TABLE = 'public.contactos_cooperativa';
-    private const INCIDENTS_TABLE = 'public.incidencias_comercial';
-    private const INCIDENT_TYPES_TABLE = 'public.tipos_incidencias_departamento';
-    private const INCIDENT_TYPES_GLOBAL_TABLE = 'public.incidencia_tipos';
-    private const DEPARTMENTS_TABLE = 'public.departamentos';
-    private const INCIDENT_CREATED_COLUMN = 'created_at';
-    private const INCIDENT_ID_COLUMN = 'id_incidencia';
+    private const TICKETS_VIEW = 'public.v_tickets_busqueda';
     private const USERS_TABLE = 'public.usuarios';
     private const TIPOS_TABLE = 'public.seguimiento_tipos';
 
@@ -36,10 +31,7 @@ final class SeguimientoRepository extends BaseRepository
         $joins = ' INNER JOIN ' . self::COOPS_TABLE . ' c ON c.id_cooperativa = s.id_cooperativa'
             . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
             . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
-            . ' LEFT JOIN ' . self::INCIDENTS_TABLE . ' ic ON ic.' . self::INCIDENT_ID_COLUMN . ' = s.ticket_id'
-            . ' LEFT JOIN ' . self::DEPARTMENTS_TABLE . ' dep ON dep.id = ic.departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_TABLE . ' itdep ON itdep.id = ic.tipo_incidencia_departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_GLOBAL_TABLE . ' itg ON itg.id = ic.tipo_incidencia_id';
+            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id';
 
         $countSql = 'SELECT COUNT(*) AS total FROM ' . self::TABLE . ' s' . $joins . ($where !== '' ? ' ' . $where : '');
 
@@ -102,10 +94,7 @@ final class SeguimientoRepository extends BaseRepository
             . ' INNER JOIN ' . self::COOPS_TABLE . ' c ON c.id_cooperativa = s.id_cooperativa'
             . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
             . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
-            . ' LEFT JOIN ' . self::INCIDENTS_TABLE . ' ic ON ic.' . self::INCIDENT_ID_COLUMN . ' = s.ticket_id'
-            . ' LEFT JOIN ' . self::DEPARTMENTS_TABLE . ' dep ON dep.id = ic.departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_TABLE . ' itdep ON itdep.id = ic.tipo_incidencia_departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_GLOBAL_TABLE . ' itg ON itg.id = ic.tipo_incidencia_id'
+            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id'
             . ($where !== '' ? ' ' . $where : '')
             . ' ORDER BY s.fecha_actividad DESC, s.id DESC';
 
@@ -201,10 +190,7 @@ final class SeguimientoRepository extends BaseRepository
             . ' INNER JOIN ' . self::COOPS_TABLE . ' c ON c.id_cooperativa = s.id_cooperativa'
             . ' LEFT JOIN ' . self::USERS_TABLE . ' u ON u.id_usuario = s.creado_por'
             . ' LEFT JOIN ' . self::CONTACTS_TABLE . ' cc ON cc.id_contacto = s.id_contacto'
-            . ' LEFT JOIN ' . self::INCIDENTS_TABLE . ' ic ON ic.' . self::INCIDENT_ID_COLUMN . ' = s.ticket_id'
-            . ' LEFT JOIN ' . self::DEPARTMENTS_TABLE . ' dep ON dep.id = ic.departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_TABLE . ' itdep ON itdep.id = ic.tipo_incidencia_departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_GLOBAL_TABLE . ' itg ON itg.id = ic.tipo_incidencia_id'
+            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id'
             . ' WHERE s.id = :id';
 
         try {
@@ -321,25 +307,21 @@ final class SeguimientoRepository extends BaseRepository
             return [];
         }
 
-        $codigoExpr = $this->incidentCodeExpression('ic');
-        $sql = 'SELECT ic.' . self::INCIDENT_ID_COLUMN . ' AS id_ticket,'
-            . ' ' . $codigoExpr . ' AS codigo,'
-            . ' ic.asunto AS titulo,'
-            . ' ic.descripcion AS descripcion,'
-            . ' dep.nombre AS departamento_nombre,'
-            . ' COALESCE(itdep.nombre, itg.nombre, \'\') AS nombre_categoria,'
-            . ' ic.prioridad,'
-            . ' ic.estado'
-            . ' FROM ' . self::INCIDENTS_TABLE . ' ic'
-            . ' LEFT JOIN ' . self::DEPARTMENTS_TABLE . ' dep ON dep.id = ic.departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_TABLE . ' itdep ON itdep.id = ic.tipo_incidencia_departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_GLOBAL_TABLE . ' itg ON itg.id = ic.tipo_incidencia_id'
-            . ' WHERE (' . $codigoExpr . ' ILIKE :term'
-            . ' OR ic.asunto ILIKE :term'
-            . ' OR ic.descripcion ILIKE :term'
-            . ' OR CAST(ic.' . self::INCIDENT_ID_COLUMN . ' AS TEXT) ILIKE :term)'
-            . ' ORDER BY COALESCE(ic.' . self::INCIDENT_CREATED_COLUMN . ', CURRENT_DATE) DESC, ic.' . self::INCIDENT_ID_COLUMN . ' DESC'
-            . ' LIMIT 15';
+        $sql = 'SELECT '
+            . ' vt.id_ticket,'
+            . ' vt.codigo_ticket AS codigo,'
+            . ' vt.titulo,'
+            . ' vt.descripcion,'
+            . ' vt.departamento_id,'
+            . ' vt.departamento_nombre,'
+            . ' vt.nombre_categoria,'
+            . ' vt.prioridad,'
+            . ' vt.estado'
+            . ' FROM ' . self::TICKETS_VIEW . ' vt'
+            . ' WHERE (vt.titulo ILIKE :term'
+            . ' OR vt.codigo_ticket ILIKE :term)'
+            . ' ORDER BY vt.id_ticket DESC'
+            . ' LIMIT 10';
 
         try {
             $rows = $this->db->fetchAll($sql, [':term' => ['%' . $term . '%', PDO::PARAM_STR]]);
@@ -377,6 +359,7 @@ final class SeguimientoRepository extends BaseRepository
                 'id_ticket'   => (int)$row['id_ticket'],
                 'codigo'      => $codigo,
                 'titulo'      => $titulo,
+                'departamento_id' => isset($row['departamento_id']) ? (int)$row['departamento_id'] : null,
                 'departamento'=> isset($row['departamento_nombre']) ? (string)$row['departamento_nombre'] : '',
                 'tipo'        => isset($row['nombre_categoria']) ? (string)$row['nombre_categoria'] : '',
                 'prioridad'   => isset($row['prioridad']) ? (string)$row['prioridad'] : '',
@@ -395,20 +378,18 @@ final class SeguimientoRepository extends BaseRepository
             return null;
         }
 
-        $codigoExpr = $this->incidentCodeExpression('ic');
-        $sql = 'SELECT ic.' . self::INCIDENT_ID_COLUMN . ' AS id_ticket,'
-            . ' ' . $codigoExpr . ' AS codigo,'
-            . ' ic.asunto AS titulo,'
-            . ' ic.descripcion AS descripcion,'
-            . ' dep.nombre AS departamento_nombre,'
-            . ' COALESCE(itdep.nombre, itg.nombre, \'\') AS nombre_categoria,'
-            . ' ic.prioridad,'
-            . ' ic.estado'
-            . ' FROM ' . self::INCIDENTS_TABLE . ' ic'
-            . ' LEFT JOIN ' . self::DEPARTMENTS_TABLE . ' dep ON dep.id = ic.departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_TABLE . ' itdep ON itdep.id = ic.tipo_incidencia_departamento_id'
-            . ' LEFT JOIN ' . self::INCIDENT_TYPES_GLOBAL_TABLE . ' itg ON itg.id = ic.tipo_incidencia_id'
-            . ' WHERE ic.' . self::INCIDENT_ID_COLUMN . ' = :id'
+        $sql = 'SELECT '
+            . ' vt.id_ticket,'
+            . ' vt.codigo_ticket AS codigo,'
+            . ' vt.titulo,'
+            . ' vt.descripcion,'
+            . ' vt.departamento_id,'
+            . ' vt.departamento_nombre,'
+            . ' vt.nombre_categoria,'
+            . ' vt.prioridad,'
+            . ' vt.estado'
+            . ' FROM ' . self::TICKETS_VIEW . ' vt'
+            . ' WHERE vt.id_ticket = :id'
             . ' LIMIT 1';
 
         try {
@@ -447,6 +428,7 @@ final class SeguimientoRepository extends BaseRepository
             'id_ticket'   => (int)$row['id_ticket'],
             'codigo'      => $codigo,
             'titulo'      => $titulo,
+            'departamento_id' => isset($row['departamento_id']) ? (int)$row['departamento_id'] : null,
             'departamento'=> isset($row['departamento_nombre']) ? (string)$row['departamento_nombre'] : '',
             'tipo'        => isset($row['nombre_categoria']) ? (string)$row['nombre_categoria'] : '',
             'prioridad'   => isset($row['prioridad']) ? (string)$row['prioridad'] : '',
@@ -467,13 +449,13 @@ final class SeguimientoRepository extends BaseRepository
         $codigoExpr = $this->incidentCodeExpression('ic');
         $sql = 'SELECT DISTINCT'
             . ' s.ticket_id,'
-            . " COALESCE(s.datos_ticket->>'codigo', " . $codigoExpr . ", '') AS codigo,"
-            . ' LEFT(COALESCE(s.datos_ticket->>\'descripcion\', ic.descripcion, s.descripcion), 120) AS descripcion'
+            . " COALESCE(s.datos_ticket->>'codigo', vt.codigo_ticket, '') AS codigo,"
+            . ' LEFT(COALESCE(s.datos_ticket->>\'descripcion\', vt.descripcion, s.descripcion), 120) AS descripcion'
             . ' FROM ' . self::TABLE . ' s'
-            . ' LEFT JOIN ' . self::INCIDENTS_TABLE . ' ic ON ic.' . self::INCIDENT_ID_COLUMN . ' = s.ticket_id'
+            . ' LEFT JOIN ' . self::TICKETS_VIEW . ' vt ON vt.id_ticket = s.ticket_id'
             . ' WHERE ('
             . ' (s.ticket_id IS NOT NULL AND CAST(s.ticket_id AS TEXT) ILIKE :term)'
-            . " OR (COALESCE(s.datos_ticket->>'codigo', " . $codigoExpr . ", '') ILIKE :term)"
+            . " OR (COALESCE(s.datos_ticket->>'codigo', vt.codigo_ticket, '') ILIKE :term)"
             . ' OR (s.descripcion ILIKE :term)'
             . ' )'
             . ' ORDER BY COALESCE(s.ticket_id, 0) DESC, codigo DESC, s.fecha_actividad DESC'
@@ -559,7 +541,7 @@ final class SeguimientoRepository extends BaseRepository
         if ($ticket !== '') {
             $conditions[] = '((CAST(s.ticket_id AS TEXT) ILIKE :ticket)'
                 . ' OR (COALESCE(s.datos_ticket::text, \'\') ILIKE :ticket)'
-                . ' OR (' . $this->incidentCodeExpression('ic') . ' ILIKE :ticket))';
+                . ' OR (COALESCE(vt.codigo_ticket, \'\') ILIKE :ticket))';
             $params[':ticket'] = ['%' . $ticket . '%', PDO::PARAM_STR];
         }
 
@@ -595,11 +577,11 @@ final class SeguimientoRepository extends BaseRepository
             'cc.nombre_contacto',
             'cc.telefono AS contacto_telefono',
             'cc.email AS contacto_email',
-            $this->incidentCodeExpression('ic') . ' AS codigo_ticket',
-            'dep.nombre AS departamento_nombre',
-            'COALESCE(itdep.nombre, itg.nombre, \'\') AS nombre_categoria',
-            'ic.prioridad',
-            'ic.estado'
+            'COALESCE(vt.codigo_ticket, \'\') AS codigo_ticket',
+            'COALESCE(vt.departamento_nombre, \'\') AS departamento_nombre',
+            'COALESCE(vt.nombre_categoria, \'\') AS nombre_categoria',
+            'vt.prioridad',
+            'vt.estado'
         ]);
     }
     /**
@@ -711,8 +693,4 @@ final class SeguimientoRepository extends BaseRepository
         ];
     }
 
-    private function incidentCodeExpression(string $alias): string
-    {
-        return "CONCAT('INC-', TO_CHAR(COALESCE(" . $alias . '.' . self::INCIDENT_CREATED_COLUMN . "::date, CURRENT_DATE), 'YYYY'), '-', LPAD(COALESCE(" . $alias . '.' . self::INCIDENT_ID_COLUMN . "::text, ''), 5, '0'))";
-    }
 }
