@@ -5,7 +5,7 @@
 -- Dumped from database version 14.18
 -- Dumped by pg_dump version 14.18
 
--- Started on 2025-10-17 18:55:01
+-- Started on 2025-10-18 09:15:31
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -1979,7 +1979,7 @@ CREATE VIEW public.v_cooperativas_cards AS
 ALTER TABLE public.v_cooperativas_cards OWNER TO postgres;
 
 --
--- TOC entry 289 (class 1259 OID 61776)
+-- TOC entry 289 (class 1259 OID 69965)
 -- Name: v_tickets_busqueda; Type: VIEW; Schema: public; Owner: postgres
 --
 
@@ -1993,9 +1993,9 @@ CREATE VIEW public.v_tickets_busqueda AS
     d.nombre AS departamento_nombre,
     it.nombre AS nombre_categoria,
     ic.tipo_incidencia_id AS id_categoria,
-    ((('INC.'::text || to_char(ic.created_at, 'YYYY'::text)) || '-'::text) || lpad((ic.id_incidencia)::text, 5, '0'::text)) AS codigo_ticket,
+    ((('INC-'::text || to_char(COALESCE(ic.created_at, (CURRENT_DATE)::timestamp without time zone), 'YYYY'::text)) || '-'::text) || lpad((ic.id_incidencia)::text, 5, '0'::text)) AS codigo_ticket,
     ic.created_at AS fecha_apertura,
-    NULL::integer AS id_tecnico_asignado,
+    NULL::text AS id_tecnico_asignado,
     NULL::text AS tecnico_asignado
    FROM ((public.incidencias_comercial ic
      LEFT JOIN public.departamentos d ON ((ic.departamento_id = d.id)))
@@ -2588,6 +2588,9 @@ COPY public.comercial_seguimientos (id, id_cooperativa, fecha_actividad, tipo, d
 18	21	2025-10-03	Llamada	vivih	\N	9	2025-10-16 15:56:53.275703-05	\N	\N	\N	2025-10-24	\N	\N	\N	\N	\N
 19	5	2025-10-09	Soporte	DDDD	\N	9	2025-10-17 12:24:41.657945-05	\N	\N	\N	2025-10-31	\N	\N	\N	\N	\N
 20	54	2025-10-14	Llamada	ffffffffff	\N	9	2025-10-17 12:56:50.281482-05	\N	\N	\N	2025-10-17	\N	\N	\N	\N	\N
+21	17	2025-10-01	Soporte	77777	\N	9	2025-10-17 22:23:17.978077-05	\N	\N	\N	2025-10-15	\N	\N	\N	\N	\N
+22	21	2025-10-17	Llamada	ttttt	\N	9	2025-10-17 22:39:08.255529-05	\N	\N	\N	2025-10-23	\N	\N	\N	\N	\N
+23	58	2025-10-17	Soporte	ggggggg	\N	9	2025-10-17 22:43:08.320103-05	\N	\N	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
@@ -3649,7 +3652,7 @@ SELECT pg_catalog.setval('public.categorias_id_categoria_seq', 9, true);
 -- Name: comercial_seguimientos_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
-SELECT pg_catalog.setval('public.comercial_seguimientos_id_seq', 20, true);
+SELECT pg_catalog.setval('public.comercial_seguimientos_id_seq', 23, true);
 
 
 --
@@ -5001,7 +5004,7 @@ ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_id_rol_fkey FOREIGN KEY (id_rol) REFERENCES public.roles(id_rol);
 
 
--- Completed on 2025-10-17 18:55:01
+-- Completed on 2025-10-18 09:15:32
 
 --
 -- PostgreSQL database dump complete
