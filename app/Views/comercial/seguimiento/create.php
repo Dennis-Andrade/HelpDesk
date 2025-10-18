@@ -58,7 +58,7 @@ include __DIR__ . '/../../partials/breadcrumbs.php';
       <h2>Contacto relacionado</h2>
       <div class="seguimiento-form__field">
         <label for="nuevo-contacto">Seleccionar contacto</label>
-        <select id="nuevo-contacto" name="id_contacto">
+        <select id="nuevo-contacto" name="id_contacto" data-section-required="true">
           <option value="">Seleccione</option>
         </select>
       </div>
@@ -82,7 +82,7 @@ include __DIR__ . '/../../partials/breadcrumbs.php';
       <h2>Ticket relacionado</h2>
       <div class="seguimiento-form__field">
         <label for="nuevo-ticket-buscar">Buscar ticket</label>
-        <input id="nuevo-ticket-buscar" type="text" name="ticket_buscar" placeholder="Ej. INC-2025-00001" autocomplete="off">
+        <input id="nuevo-ticket-buscar" type="text" name="ticket_buscar" placeholder="Ej. INC-2025-00001" autocomplete="off" data-section-required="true">
         <datalist id="nuevo-ticket-opciones"></datalist>
         <input type="hidden" name="ticket_id" id="nuevo-ticket-id" value="">
         <input type="hidden" name="ticket_datos" id="nuevo-ticket-datos" value="">

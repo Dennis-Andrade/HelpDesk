@@ -2,7 +2,7 @@
   var contactCache = {};
   var ticketCache = {};
   var toastTimer = null;
-  var CONTACT_TYPES = ['contacto', 'llamada', 'reunion', 'visita'];
+  var CONTACT_TYPES = ['contacto', 'llamada', 'reunion', 'visita', 'soporte'];
   var TICKET_TYPES = ['ticket', 'soporte'];
 
   function normalizeType(value) {
@@ -271,6 +271,25 @@
     });
   }
 
+  function setSectionState(section, active) {
+    if (!section) {
+      return;
+    }
+    var fields = section.querySelectorAll('input, select, textarea, button');
+    fields.forEach(function (field) {
+      var requireWhenVisible = field.dataset && field.dataset.sectionRequired === 'true';
+      field.disabled = !active;
+      if (requireWhenVisible) {
+        if (active) {
+          field.setAttribute('required', 'required');
+        } else {
+          field.removeAttribute('required');
+        }
+      }
+    });
+    section.setAttribute('aria-hidden', active ? 'false' : 'true');
+  }
+
   function toggleSections(typeValue, sections) {
     var visibility = getSectionVisibility(typeValue);
     Object.keys(sections).forEach(function (key) {
@@ -286,7 +305,9 @@
       }
       if (show) {
         section.removeAttribute('hidden');
+        setSectionState(section, true);
       } else {
+        setSectionState(section, false);
         section.setAttribute('hidden', 'hidden');
       }
     });
