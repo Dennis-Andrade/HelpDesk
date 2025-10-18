@@ -1610,6 +1610,13 @@ body.is-modal-open{
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
+.seguimiento-form__row {
+  display: grid;
+  gap: 1rem 1.25rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-column: 1 / -1;
+}
+
 .seguimiento-form__field--wide {
   grid-column: 1 / -1;
 }
