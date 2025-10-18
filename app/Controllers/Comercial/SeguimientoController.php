@@ -280,41 +280,41 @@ final class SeguimientoController
             }
         }
 
-        $tipo = $data['tipo'];
-        switch (mb_strtolower($tipo)) {
-            case 'contacto':
-                if ($data['id_contacto'] === null || $data['id_contacto'] <= 0) {
-                    $errors[] = 'Debe seleccionar un contacto relacionado.';
+        $normalizedTipo = $this->normalizeTypeValue($data['tipo']);
+        $requiresContact = in_array($normalizedTipo, ['contacto', 'llamada', 'reunion', 'visita', 'soporte'], true);
+        $requiresTicket = in_array($normalizedTipo, ['ticket', 'soporte'], true);
+
+        if ($requiresContact) {
+            if ($data['id_contacto'] === null || $data['id_contacto'] <= 0) {
+                $errors[] = 'Debe seleccionar un contacto relacionado.';
+            }
+        } else {
+            $data['id_contacto'] = null;
+        }
+
+        if ($requiresTicket) {
+            if ($data['ticket_id'] === null || $data['ticket_id'] <= 0) {
+                $errors[] = 'Debe seleccionar un ticket.';
+            }
+            if ($ticketData === null && $data['ticket_id']) {
+                try {
+                    $ticket = $this->repo->ticketPorId($data['ticket_id']);
+                } catch (RuntimeException $e) {
+                    $ticket = null;
                 }
-                $data['ticket_id'] = null;
-                $ticketData = null;
-                break;
-            case 'ticket':
-                if ($data['ticket_id'] === null || $data['ticket_id'] <= 0) {
-                    $errors[] = 'Debe seleccionar un ticket.';
+                if ($ticket) {
+                    $ticketData = [
+                        'codigo'       => $ticket['codigo'] ?? '',
+                        'departamento' => $ticket['departamento'] ?? '',
+                        'tipo'         => $ticket['tipo'] ?? '',
+                        'prioridad'    => $ticket['prioridad'] ?? '',
+                        'estado'       => $ticket['estado'] ?? '',
+                    ];
                 }
-                if ($ticketData === null && $data['ticket_id']) {
-                    try {
-                        $ticket = $this->repo->ticketPorId($data['ticket_id']);
-                    } catch (RuntimeException $e) {
-                        $ticket = null;
-                    }
-                    if ($ticket) {
-                        $ticketData = [
-                            'codigo'       => $ticket['codigo'] ?? '',
-                            'departamento' => $ticket['departamento'] ?? '',
-                            'tipo'         => $ticket['tipo'] ?? '',
-                            'prioridad'    => $ticket['prioridad'] ?? '',
-                            'estado'       => $ticket['estado'] ?? '',
-                        ];
-                    }
-                }
-                $data['id_contacto'] = null;
-                break;
-            default:
-                $data['id_contacto'] = null;
-                $data['ticket_id'] = null;
-                $ticketData = null;
+            }
+        } else {
+            $data['ticket_id'] = null;
+            $ticketData = null;
         }
 
         $data['datos_ticket'] = $ticketData !== null
@@ -333,5 +333,25 @@ final class SeguimientoController
             return (int)$_SESSION['auth']['id'];
         }
         return null;
+    }
+
+    private function normalizeTypeValue(?string $value): string
+    {
+        if (!is_string($value)) {
+            return '';
+        }
+        $normalized = trim(mb_strtolower($value));
+        if ($normalized === '') {
+            return '';
+        }
+        $map = [
+            'á' => 'a', 'à' => 'a', 'ä' => 'a', 'â' => 'a',
+            'é' => 'e', 'è' => 'e', 'ë' => 'e', 'ê' => 'e',
+            'í' => 'i', 'ì' => 'i', 'ï' => 'i', 'î' => 'i',
+            'ó' => 'o', 'ò' => 'o', 'ö' => 'o', 'ô' => 'o',
+            'ú' => 'u', 'ù' => 'u', 'ü' => 'u', 'û' => 'u',
+            'ñ' => 'n',
+        ];
+        return strtr($normalized, $map);
     }
 }
