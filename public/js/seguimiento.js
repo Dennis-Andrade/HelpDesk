@@ -271,27 +271,47 @@
     });
   }
 
-  function setSectionState(section, active) {
+  function setSectionState(section, config) {
     if (!section) {
       return;
     }
+    var active = !!(config && config.active);
+    var keepDisabled = !!(config && config.keepDisabled);
+
+    if (active) {
+      section.hidden = false;
+      section.removeAttribute('hidden');
+      section.classList.add('is-visible');
+      section.classList.toggle('is-disabled', keepDisabled);
+      section.setAttribute('aria-hidden', 'false');
+    } else {
+      section.hidden = true;
+      section.setAttribute('hidden', '');
+      section.classList.remove('is-visible');
+      section.classList.remove('is-disabled');
+      section.setAttribute('aria-hidden', 'true');
+    }
+
     var fields = section.querySelectorAll('input, select, textarea, button');
     fields.forEach(function (field) {
       var requireWhenVisible = field.dataset && field.dataset.sectionRequired === 'true';
-      field.disabled = !active;
-      if (requireWhenVisible) {
-        if (active) {
-          field.setAttribute('required', 'required');
-        } else {
+      if (!active || keepDisabled) {
+        field.disabled = true;
+        if (requireWhenVisible) {
           field.removeAttribute('required');
+        }
+      } else {
+        field.disabled = false;
+        if (requireWhenVisible) {
+          field.setAttribute('required', 'required');
         }
       }
     });
-    section.setAttribute('aria-hidden', active ? 'false' : 'true');
   }
 
-  function toggleSections(typeValue, sections) {
+  function toggleSections(typeValue, sections, options) {
     var visibility = getSectionVisibility(typeValue);
+    var keepDisabled = !!(options && options.keepDisabled);
     Object.keys(sections).forEach(function (key) {
       var section = sections[key];
       if (!section) {
@@ -303,13 +323,10 @@
       } else if (key === 'ticket') {
         show = visibility.ticket;
       }
-      if (show) {
-        section.removeAttribute('hidden');
-        setSectionState(section, true);
-      } else {
-        setSectionState(section, false);
-        section.setAttribute('hidden', 'hidden');
-      }
+      setSectionState(section, {
+        active: show,
+        keepDisabled: keepDisabled && show,
+      });
     });
     return visibility;
   }
@@ -681,7 +698,11 @@
 
     if (tipoField) {
       tipoField.addEventListener('change', function () {
-        var visibility = toggleSections(tipoField.value, sections);
+        var visibility = toggleSections(
+          tipoField.value,
+          sections,
+          editing ? null : { keepDisabled: true }
+        );
         if (!visibility.contacto) {
           resetModalContactSection();
         }
@@ -784,7 +805,7 @@
       if (titleEl) {
         titleEl.textContent = entityName || 'Detalle de seguimiento';
       }
-      var visibility = toggleSections(data.tipo || '', sections);
+      var visibility = toggleSections(data.tipo || '', sections, { keepDisabled: true });
       if (!visibility.contacto) {
         resetModalContactSection();
       }
@@ -861,13 +882,14 @@
         if (fechaInicioField && typeof fechaInicioField.focus === 'function') {
           fechaInicioField.focus();
         }
+        toggleSections(tipoField ? tipoField.value : '', sections);
       } else {
         disableFormFields(form, true);
         if (editBtn) {
           editBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">edit</span>Editar';
         }
+        toggleSections(tipoField ? tipoField.value : '', sections, { keepDisabled: true });
       }
-      toggleSections(tipoField ? tipoField.value : '', sections);
     }
 
     function closeModal() {
@@ -878,6 +900,7 @@
       modal.setAttribute('hidden', 'hidden');
       document.body.classList.remove('seguimiento-modal-open');
       disableFormFields(form, true);
+      toggleSections(tipoField ? tipoField.value : '', sections, { keepDisabled: true });
       editing = false;
       if (editBtn) {
         editBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">edit</span>Editar';
@@ -1111,6 +1134,7 @@
     }
 
     disableFormFields(form, true);
+    toggleSections(tipoField ? tipoField.value : '', sections, { keepDisabled: true });
 
     if (form) {
       form.addEventListener('submit', function (event) {

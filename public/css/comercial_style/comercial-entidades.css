@@ -1716,6 +1716,10 @@ body.seguimiento-modal-open {
   gap: 0.85rem;
 }
 
+.seguimiento-form__section.is-disabled {
+  opacity: 0.75;
+}
+
 .seguimiento-form__section h2,
 .seguimiento-form__section h3 {
   margin: 0;
