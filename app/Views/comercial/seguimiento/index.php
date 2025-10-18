@@ -342,7 +342,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         <h3>Contacto relacionado</h3>
         <div class="seguimiento-form__field">
           <label for="modal-contacto">Seleccionar contacto</label>
-          <select id="modal-contacto" name="id_contacto">
+          <select id="modal-contacto" name="id_contacto" data-section-required="true">
             <option value="">Seleccione</option>
           </select>
         </div>
@@ -366,7 +366,7 @@ function buildSeguimientoPageUrl(int $pageNumber, array $filters, int $perPage):
         <h3>Ticket relacionado</h3>
         <div class="seguimiento-form__field">
           <label for="modal-ticket-buscar">Buscar ticket</label>
-          <input id="modal-ticket-buscar" type="text" name="ticket_buscar" placeholder="Ej. INC-2025-00001" autocomplete="off">
+          <input id="modal-ticket-buscar" type="text" name="ticket_buscar" placeholder="Ej. INC-2025-00001" autocomplete="off" data-section-required="true">
           <datalist id="modal-ticket-opciones"></datalist>
           <input type="hidden" name="ticket_id" id="modal-ticket-id" value="">
           <input type="hidden" name="ticket_datos" id="modal-ticket-datos" value="">

@@ -2,6 +2,28 @@
   var contactCache = {};
   var ticketCache = {};
   var toastTimer = null;
+  var CONTACT_TYPES = ['contacto', 'llamada', 'reunion', 'visita', 'soporte'];
+  var TICKET_TYPES = ['ticket', 'soporte'];
+
+  function normalizeType(value) {
+    if (typeof value !== 'string') {
+      return '';
+    }
+    var lower = value.trim().toLowerCase();
+    if (typeof String.prototype.normalize === 'function') {
+      lower = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+    return lower;
+  }
+
+  function getSectionVisibility(typeValue) {
+    var normalized = normalizeType(typeValue);
+    return {
+      normalized: normalized,
+      contacto: CONTACT_TYPES.indexOf(normalized) !== -1,
+      ticket: TICKET_TYPES.indexOf(normalized) !== -1,
+    };
+  }
 
   function announce(message, variant) {
     if (!message) {
@@ -249,19 +271,64 @@
     });
   }
 
-  function toggleSections(typeValue, sections) {
-    var normalized = (typeValue || '').toLowerCase();
+  function setSectionState(section, config) {
+    if (!section) {
+      return;
+    }
+    var active = !!(config && config.active);
+    var keepDisabled = !!(config && config.keepDisabled);
+
+    if (active) {
+      section.hidden = false;
+      section.removeAttribute('hidden');
+      section.classList.add('is-visible');
+      section.classList.toggle('is-disabled', keepDisabled);
+      section.setAttribute('aria-hidden', 'false');
+    } else {
+      section.hidden = true;
+      section.setAttribute('hidden', '');
+      section.classList.remove('is-visible');
+      section.classList.remove('is-disabled');
+      section.setAttribute('aria-hidden', 'true');
+    }
+
+    var fields = section.querySelectorAll('input, select, textarea, button');
+    fields.forEach(function (field) {
+      var requireWhenVisible = field.dataset && field.dataset.sectionRequired === 'true';
+      if (!active || keepDisabled) {
+        field.disabled = true;
+        if (requireWhenVisible) {
+          field.removeAttribute('required');
+        }
+      } else {
+        field.disabled = false;
+        if (requireWhenVisible) {
+          field.setAttribute('required', 'required');
+        }
+      }
+    });
+  }
+
+  function toggleSections(typeValue, sections, options) {
+    var visibility = getSectionVisibility(typeValue);
+    var keepDisabled = !!(options && options.keepDisabled);
     Object.keys(sections).forEach(function (key) {
       var section = sections[key];
       if (!section) {
         return;
       }
-      if (key === normalized) {
-        section.removeAttribute('hidden');
-      } else {
-        section.setAttribute('hidden', 'hidden');
+      var show = false;
+      if (key === 'contacto') {
+        show = visibility.contacto;
+      } else if (key === 'ticket') {
+        show = visibility.ticket;
       }
+      setSectionState(section, {
+        active: show,
+        keepDisabled: keepDisabled && show,
+      });
     });
+    return visibility;
   }
 
   function disableFormFields(form, disabled) {
@@ -454,6 +521,29 @@
     renderContactInfo(contactoResumen, null);
     renderTicketInfo(ticketResumen, null);
 
+    function resetContactSection() {
+      if (contactoSelect) {
+        contactoSelect.value = '';
+      }
+      renderContactInfo(contactoResumen, null);
+    }
+
+    function resetTicketSection() {
+      if (ticketInput) {
+        ticketInput.value = '';
+      }
+      if (ticketIdField) {
+        ticketIdField.value = '';
+      }
+      if (ticketDatosField) {
+        ticketDatosField.value = '';
+      }
+      if (ticketDatalist) {
+        ticketDatalist.innerHTML = '';
+      }
+      renderTicketInfo(ticketResumen, null);
+    }
+
     if (entidadSelect) {
       entidadSelect.addEventListener('change', function () {
         var entidadId = parseInt(entidadSelect.value, 10);
@@ -488,9 +578,21 @@
 
     if (tipoSelect) {
       tipoSelect.addEventListener('change', function () {
-        toggleSections(tipoSelect.value, sections);
+        var visibility = toggleSections(tipoSelect.value, sections);
+        if (!visibility.contacto) {
+          resetContactSection();
+        }
+        if (!visibility.ticket) {
+          resetTicketSection();
+        }
       });
-      toggleSections(tipoSelect.value, sections);
+      var initialVisibility = toggleSections(tipoSelect.value, sections);
+      if (!initialVisibility.contacto) {
+        resetContactSection();
+      }
+      if (!initialVisibility.ticket) {
+        resetTicketSection();
+      }
     }
 
     setupTicketSearch({
@@ -553,6 +655,29 @@
       summary: ticketResumen,
     });
 
+    function resetModalContactSection() {
+      if (contactoSelect) {
+        contactoSelect.value = '';
+      }
+      renderContactInfo(contactoResumen, null);
+    }
+
+    function resetModalTicketSection() {
+      if (ticketInput) {
+        ticketInput.value = '';
+      }
+      if (ticketIdField) {
+        ticketIdField.value = '';
+      }
+      if (ticketDatosField) {
+        ticketDatosField.value = '';
+      }
+      if (ticketDatalist) {
+        ticketDatalist.innerHTML = '';
+      }
+      renderTicketInfo(ticketResumen, null);
+    }
+
     if (entidadField) {
       entidadField.addEventListener('change', function () {
         if (!editing) {
@@ -573,25 +698,16 @@
 
     if (tipoField) {
       tipoField.addEventListener('change', function () {
-        toggleSections(tipoField.value, sections);
-        var normalized = (tipoField.value || '').toLowerCase();
-        if (normalized !== 'contacto') {
-          if (contactoSelect) {
-            contactoSelect.value = '';
-          }
-          renderContactInfo(contactoResumen, null);
+        var visibility = toggleSections(
+          tipoField.value,
+          sections,
+          editing ? null : { keepDisabled: true }
+        );
+        if (!visibility.contacto) {
+          resetModalContactSection();
         }
-        if (normalized !== 'ticket') {
-          if (ticketInput) {
-            ticketInput.value = '';
-          }
-          if (ticketIdField) {
-            ticketIdField.value = '';
-          }
-          if (ticketDatosField) {
-            ticketDatosField.value = '';
-          }
-          renderTicketInfo(ticketResumen, null);
+        if (!visibility.ticket) {
+          resetModalTicketSection();
         }
       });
     }
@@ -689,7 +805,13 @@
       if (titleEl) {
         titleEl.textContent = entityName || 'Detalle de seguimiento';
       }
-      toggleSections(data.tipo || '', sections);
+      var visibility = toggleSections(data.tipo || '', sections, { keepDisabled: true });
+      if (!visibility.contacto) {
+        resetModalContactSection();
+      }
+      if (!visibility.ticket) {
+        resetModalTicketSection();
+      }
 
       if (entidadField && contactoSelect) {
         var entidadId = parseInt(entidadField.value, 10);
@@ -760,13 +882,14 @@
         if (fechaInicioField && typeof fechaInicioField.focus === 'function') {
           fechaInicioField.focus();
         }
+        toggleSections(tipoField ? tipoField.value : '', sections);
       } else {
         disableFormFields(form, true);
         if (editBtn) {
           editBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">edit</span>Editar';
         }
+        toggleSections(tipoField ? tipoField.value : '', sections, { keepDisabled: true });
       }
-      toggleSections(tipoField ? tipoField.value : '', sections);
     }
 
     function closeModal() {
@@ -777,6 +900,7 @@
       modal.setAttribute('hidden', 'hidden');
       document.body.classList.remove('seguimiento-modal-open');
       disableFormFields(form, true);
+      toggleSections(tipoField ? tipoField.value : '', sections, { keepDisabled: true });
       editing = false;
       if (editBtn) {
         editBtn.innerHTML = '<span class="material-symbols-outlined" aria-hidden="true">edit</span>Editar';
@@ -1010,6 +1134,7 @@
     }
 
     disableFormFields(form, true);
+    toggleSections(tipoField ? tipoField.value : '', sections, { keepDisabled: true });
 
     if (form) {
       form.addEventListener('submit', function (event) {
