@@ -1,3 +1,11 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 14.18
+-- Dumped by pg_dump version 14.18
+
+-- Started on 2025-10-18 09:15:31
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -10,14 +18,27 @@ SET xmloption = content;
 SET client_min_messages = warning;
 SET row_security = off;
 
+--
+-- TOC entry 2 (class 3079 OID 61027)
+-- Name: unaccent; Type: EXTENSION; Schema: -; Owner: -
+--
 
 CREATE EXTENSION IF NOT EXISTS unaccent WITH SCHEMA public;
 
 
+--
+-- TOC entry 3895 (class 0 OID 0)
+-- Dependencies: 2
+-- Name: EXTENSION unaccent; Type: COMMENT; Schema: -; Owner: 
+--
 
 COMMENT ON EXTENSION unaccent IS 'text search dictionary that removes accents';
 
 
+--
+-- TOC entry 997 (class 1247 OID 61035)
+-- Name: ticket_estado; Type: TYPE; Schema: public; Owner: postgres
+--
 
 CREATE TYPE public.ticket_estado AS ENUM (
     'enviado',
@@ -28,6 +49,10 @@ CREATE TYPE public.ticket_estado AS ENUM (
 
 ALTER TYPE public.ticket_estado OWNER TO postgres;
 
+--
+-- TOC entry 1000 (class 1247 OID 61042)
+-- Name: ticket_prioridad; Type: TYPE; Schema: public; Owner: postgres
+--
 
 CREATE TYPE public.ticket_prioridad AS ENUM (
     'baja',
@@ -38,6 +63,12 @@ CREATE TYPE public.ticket_prioridad AS ENUM (
 
 
 ALTER TYPE public.ticket_prioridad OWNER TO postgres;
+
+--
+-- TOC entry 306 (class 1255 OID 61051)
+-- Name: f_cooperativas_cards(text, integer, integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
 CREATE FUNCTION public.f_cooperativas_cards(_q text, _limit integer DEFAULT 20, _offset integer DEFAULT 0) RETURNS TABLE(id integer, nombre text, ruc text, telefono text, email text, provincia text, canton text, segmento integer, nombre_segmento text, servicios_text text, activa boolean, total bigint)
     LANGUAGE sql STABLE
     AS $$
@@ -68,10 +99,35 @@ $$;
 
 ALTER FUNCTION public.f_cooperativas_cards(_q text, _limit integer, _offset integer) OWNER TO postgres;
 
+--
+-- TOC entry 294 (class 1255 OID 61774)
+-- Name: fn_tickets_set_codigo(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.fn_tickets_set_codigo() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+  IF NEW.codigo IS NULL OR NEW.codigo = '' THEN
+    UPDATE public.tickets
+    SET codigo = 'INC-' || TO_CHAR(COALESCE(NEW.fecha_apertura, now()), 'YYYY') || '-' || LPAD(NEW.id_ticket::text, 5, '0')
+    WHERE id_ticket = NEW.id_ticket;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.fn_tickets_set_codigo() OWNER TO postgres;
+
 SET default_tablespace = '';
 
 SET default_table_access_method = heap;
 
+--
+-- TOC entry 210 (class 1259 OID 61052)
+-- Name: agenda; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.agenda (
     id_agenda integer NOT NULL,
@@ -89,6 +145,10 @@ CREATE TABLE public.agenda (
 
 ALTER TABLE public.agenda OWNER TO postgres;
 
+--
+-- TOC entry 211 (class 1259 OID 61059)
+-- Name: agenda_contactos; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.agenda_contactos (
     id_evento integer NOT NULL,
@@ -111,6 +171,10 @@ CREATE TABLE public.agenda_contactos (
 
 ALTER TABLE public.agenda_contactos OWNER TO postgres;
 
+--
+-- TOC entry 212 (class 1259 OID 61068)
+-- Name: agenda_contactos_id_evento_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.agenda_contactos_id_evento_seq
     AS integer
@@ -123,10 +187,19 @@ CREATE SEQUENCE public.agenda_contactos_id_evento_seq
 
 ALTER TABLE public.agenda_contactos_id_evento_seq OWNER TO postgres;
 
+--
+-- TOC entry 3896 (class 0 OID 0)
+-- Dependencies: 212
+-- Name: agenda_contactos_id_evento_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.agenda_contactos_id_evento_seq OWNED BY public.agenda_contactos.id_evento;
 
 
+--
+-- TOC entry 213 (class 1259 OID 61069)
+-- Name: agenda_id_agenda_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.agenda_id_agenda_seq
     AS integer
@@ -139,10 +212,19 @@ CREATE SEQUENCE public.agenda_id_agenda_seq
 
 ALTER TABLE public.agenda_id_agenda_seq OWNER TO postgres;
 
+--
+-- TOC entry 3897 (class 0 OID 0)
+-- Dependencies: 213
+-- Name: agenda_id_agenda_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.agenda_id_agenda_seq OWNED BY public.agenda.id_agenda;
 
 
+--
+-- TOC entry 214 (class 1259 OID 61070)
+-- Name: asistentes_capacitacion; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.asistentes_capacitacion (
     id_asistente integer NOT NULL,
@@ -156,6 +238,10 @@ CREATE TABLE public.asistentes_capacitacion (
 
 ALTER TABLE public.asistentes_capacitacion OWNER TO postgres;
 
+--
+-- TOC entry 215 (class 1259 OID 61075)
+-- Name: asistentes_capacitacion_id_asistente_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.asistentes_capacitacion_id_asistente_seq
     AS integer
@@ -168,10 +254,19 @@ CREATE SEQUENCE public.asistentes_capacitacion_id_asistente_seq
 
 ALTER TABLE public.asistentes_capacitacion_id_asistente_seq OWNER TO postgres;
 
+--
+-- TOC entry 3898 (class 0 OID 0)
+-- Dependencies: 215
+-- Name: asistentes_capacitacion_id_asistente_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.asistentes_capacitacion_id_asistente_seq OWNED BY public.asistentes_capacitacion.id_asistente;
 
 
+--
+-- TOC entry 216 (class 1259 OID 61076)
+-- Name: canton; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.canton (
     id integer NOT NULL,
@@ -182,6 +277,10 @@ CREATE TABLE public.canton (
 
 ALTER TABLE public.canton OWNER TO postgres;
 
+--
+-- TOC entry 217 (class 1259 OID 61079)
+-- Name: canton_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.canton_id_seq
     AS integer
@@ -194,10 +293,19 @@ CREATE SEQUENCE public.canton_id_seq
 
 ALTER TABLE public.canton_id_seq OWNER TO postgres;
 
+--
+-- TOC entry 3899 (class 0 OID 0)
+-- Dependencies: 217
+-- Name: canton_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.canton_id_seq OWNED BY public.canton.id;
 
 
+--
+-- TOC entry 218 (class 1259 OID 61080)
+-- Name: cantones; Type: VIEW; Schema: public; Owner: postgres
+--
 
 CREATE VIEW public.cantones AS
  SELECT c.id AS id_canton,
@@ -208,10 +316,19 @@ CREATE VIEW public.cantones AS
 
 ALTER TABLE public.cantones OWNER TO postgres;
 
+--
+-- TOC entry 3900 (class 0 OID 0)
+-- Dependencies: 218
+-- Name: VIEW cantones; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON VIEW public.cantones IS 'Vista de compatibilidad. Mapea canton.id -> id_canton';
 
 
+--
+-- TOC entry 219 (class 1259 OID 61084)
+-- Name: capacitaciones; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.capacitaciones (
     id_capacitacion integer NOT NULL,
@@ -228,6 +345,10 @@ CREATE TABLE public.capacitaciones (
 
 ALTER TABLE public.capacitaciones OWNER TO postgres;
 
+--
+-- TOC entry 220 (class 1259 OID 61090)
+-- Name: capacitaciones_id_capacitacion_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.capacitaciones_id_capacitacion_seq
     AS integer
@@ -240,10 +361,19 @@ CREATE SEQUENCE public.capacitaciones_id_capacitacion_seq
 
 ALTER TABLE public.capacitaciones_id_capacitacion_seq OWNER TO postgres;
 
+--
+-- TOC entry 3901 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: capacitaciones_id_capacitacion_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.capacitaciones_id_capacitacion_seq OWNED BY public.capacitaciones.id_capacitacion;
 
 
+--
+-- TOC entry 221 (class 1259 OID 61091)
+-- Name: capacitaciones_providencias; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.capacitaciones_providencias (
     id_capacitacion_providencia integer NOT NULL,
@@ -256,6 +386,10 @@ CREATE TABLE public.capacitaciones_providencias (
 
 ALTER TABLE public.capacitaciones_providencias OWNER TO postgres;
 
+--
+-- TOC entry 222 (class 1259 OID 61096)
+-- Name: capacitaciones_providencias_id_capacitacion_providencia_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.capacitaciones_providencias_id_capacitacion_providencia_seq
     AS integer
@@ -268,10 +402,19 @@ CREATE SEQUENCE public.capacitaciones_providencias_id_capacitacion_providencia_s
 
 ALTER TABLE public.capacitaciones_providencias_id_capacitacion_providencia_seq OWNER TO postgres;
 
+--
+-- TOC entry 3902 (class 0 OID 0)
+-- Dependencies: 222
+-- Name: capacitaciones_providencias_id_capacitacion_providencia_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.capacitaciones_providencias_id_capacitacion_providencia_seq OWNED BY public.capacitaciones_providencias.id_capacitacion_providencia;
 
 
+--
+-- TOC entry 223 (class 1259 OID 61097)
+-- Name: categorias; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.categorias (
     id_categoria integer NOT NULL,
@@ -282,6 +425,10 @@ CREATE TABLE public.categorias (
 
 ALTER TABLE public.categorias OWNER TO postgres;
 
+--
+-- TOC entry 224 (class 1259 OID 61102)
+-- Name: categorias_id_categoria_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.categorias_id_categoria_seq
     AS integer
@@ -294,10 +441,19 @@ CREATE SEQUENCE public.categorias_id_categoria_seq
 
 ALTER TABLE public.categorias_id_categoria_seq OWNER TO postgres;
 
+--
+-- TOC entry 3903 (class 0 OID 0)
+-- Dependencies: 224
+-- Name: categorias_id_categoria_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.categorias_id_categoria_seq OWNED BY public.categorias.id_categoria;
 
 
+--
+-- TOC entry 282 (class 1259 OID 61684)
+-- Name: comercial_seguimientos; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.comercial_seguimientos (
     id integer NOT NULL,
@@ -322,30 +478,64 @@ CREATE TABLE public.comercial_seguimientos (
 
 ALTER TABLE public.comercial_seguimientos OWNER TO postgres;
 
+--
+-- TOC entry 3904 (class 0 OID 0)
+-- Dependencies: 282
+-- Name: COLUMN comercial_seguimientos.fecha_finalizacion; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.comercial_seguimientos.fecha_finalizacion IS 'Fecha de finalización del seguimiento (para el cuadro de fecha finalización)';
 
 
+--
+-- TOC entry 3905 (class 0 OID 0)
+-- Dependencies: 282
+-- Name: COLUMN comercial_seguimientos.id_contacto; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.comercial_seguimientos.id_contacto IS 'Contacto seleccionado de la entidad';
 
 
+--
+-- TOC entry 3906 (class 0 OID 0)
+-- Dependencies: 282
+-- Name: COLUMN comercial_seguimientos.datos_reunion; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.comercial_seguimientos.datos_reunion IS 'Datos específicos para tipo Reunión (JSON)';
 
 
+--
+-- TOC entry 3907 (class 0 OID 0)
+-- Dependencies: 282
+-- Name: COLUMN comercial_seguimientos.datos_ticket; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.comercial_seguimientos.datos_ticket IS 'Datos específicos para tipo Ticket (JSON)';
 
 
+--
+-- TOC entry 3908 (class 0 OID 0)
+-- Dependencies: 282
+-- Name: COLUMN comercial_seguimientos.editado_por; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.comercial_seguimientos.editado_por IS 'Usuario que editó por última vez';
 
 
+--
+-- TOC entry 3909 (class 0 OID 0)
+-- Dependencies: 282
+-- Name: COLUMN comercial_seguimientos.editado_en; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.comercial_seguimientos.editado_en IS 'Fecha y hora de la última edición';
 
 
+--
+-- TOC entry 281 (class 1259 OID 61683)
+-- Name: comercial_seguimientos_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.comercial_seguimientos_id_seq
     AS integer
@@ -358,10 +548,19 @@ CREATE SEQUENCE public.comercial_seguimientos_id_seq
 
 ALTER TABLE public.comercial_seguimientos_id_seq OWNER TO postgres;
 
+--
+-- TOC entry 3910 (class 0 OID 0)
+-- Dependencies: 281
+-- Name: comercial_seguimientos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.comercial_seguimientos_id_seq OWNED BY public.comercial_seguimientos.id;
 
 
+--
+-- TOC entry 225 (class 1259 OID 61103)
+-- Name: conm; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.conm (
     "LISTADO DE COOPERATIVAS ACTUALIZADAS DESDE JUNIO 2025;;;;;;;;;;" character varying(512)
@@ -370,6 +569,10 @@ CREATE TABLE public.conm (
 
 ALTER TABLE public.conm OWNER TO postgres;
 
+--
+-- TOC entry 288 (class 1259 OID 61738)
+-- Name: contactos_cooperativa; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.contactos_cooperativa (
     id_contacto integer NOT NULL,
@@ -387,34 +590,73 @@ CREATE TABLE public.contactos_cooperativa (
 
 ALTER TABLE public.contactos_cooperativa OWNER TO postgres;
 
+--
+-- TOC entry 3911 (class 0 OID 0)
+-- Dependencies: 288
+-- Name: TABLE contactos_cooperativa; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON TABLE public.contactos_cooperativa IS 'Tabla de contactos asociados a las entidades (cooperativas)';
 
 
+--
+-- TOC entry 3912 (class 0 OID 0)
+-- Dependencies: 288
+-- Name: COLUMN contactos_cooperativa.id_contacto; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.contactos_cooperativa.id_contacto IS 'ID único del contacto';
 
 
+--
+-- TOC entry 3913 (class 0 OID 0)
+-- Dependencies: 288
+-- Name: COLUMN contactos_cooperativa.id_cooperativa; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.contactos_cooperativa.id_cooperativa IS 'ID de la entidad (cooperativa) asociada';
 
 
+--
+-- TOC entry 3914 (class 0 OID 0)
+-- Dependencies: 288
+-- Name: COLUMN contactos_cooperativa.nombre_contacto; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.contactos_cooperativa.nombre_contacto IS 'Nombre completo del contacto';
 
 
+--
+-- TOC entry 3915 (class 0 OID 0)
+-- Dependencies: 288
+-- Name: COLUMN contactos_cooperativa.telefono; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.contactos_cooperativa.telefono IS 'Teléfono del contacto';
 
 
+--
+-- TOC entry 3916 (class 0 OID 0)
+-- Dependencies: 288
+-- Name: COLUMN contactos_cooperativa.email; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.contactos_cooperativa.email IS 'Email del contacto';
 
 
+--
+-- TOC entry 3917 (class 0 OID 0)
+-- Dependencies: 288
+-- Name: COLUMN contactos_cooperativa.cargo; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.contactos_cooperativa.cargo IS 'Cargo del contacto en la entidad';
 
 
+--
+-- TOC entry 287 (class 1259 OID 61737)
+-- Name: contactos_cooperativa_id_contacto_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.contactos_cooperativa_id_contacto_seq
     AS integer
@@ -427,10 +669,19 @@ CREATE SEQUENCE public.contactos_cooperativa_id_contacto_seq
 
 ALTER TABLE public.contactos_cooperativa_id_contacto_seq OWNER TO postgres;
 
+--
+-- TOC entry 3918 (class 0 OID 0)
+-- Dependencies: 287
+-- Name: contactos_cooperativa_id_contacto_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.contactos_cooperativa_id_contacto_seq OWNED BY public.contactos_cooperativa.id_contacto;
 
 
+--
+-- TOC entry 226 (class 1259 OID 61108)
+-- Name: contrataciones; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.contrataciones (
     id_contratacion integer NOT NULL,
@@ -455,6 +706,10 @@ CREATE TABLE public.contrataciones (
 
 ALTER TABLE public.contrataciones OWNER TO postgres;
 
+--
+-- TOC entry 227 (class 1259 OID 61115)
+-- Name: contrataciones_id_contratacion_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.contrataciones_id_contratacion_seq
     AS integer
@@ -467,10 +722,19 @@ CREATE SEQUENCE public.contrataciones_id_contratacion_seq
 
 ALTER TABLE public.contrataciones_id_contratacion_seq OWNER TO postgres;
 
+--
+-- TOC entry 3919 (class 0 OID 0)
+-- Dependencies: 227
+-- Name: contrataciones_id_contratacion_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.contrataciones_id_contratacion_seq OWNED BY public.contrataciones.id_contratacion;
 
 
+--
+-- TOC entry 228 (class 1259 OID 61116)
+-- Name: contrataciones_servicios; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.contrataciones_servicios (
     id_contratacion integer NOT NULL,
@@ -497,6 +761,10 @@ CREATE TABLE public.contrataciones_servicios (
 
 ALTER TABLE public.contrataciones_servicios OWNER TO postgres;
 
+--
+-- TOC entry 229 (class 1259 OID 61132)
+-- Name: contrataciones_servicios_id_contratacion_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.contrataciones_servicios_id_contratacion_seq
     AS integer
@@ -509,10 +777,19 @@ CREATE SEQUENCE public.contrataciones_servicios_id_contratacion_seq
 
 ALTER TABLE public.contrataciones_servicios_id_contratacion_seq OWNER TO postgres;
 
+--
+-- TOC entry 3920 (class 0 OID 0)
+-- Dependencies: 229
+-- Name: contrataciones_servicios_id_contratacion_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.contrataciones_servicios_id_contratacion_seq OWNED BY public.contrataciones_servicios.id_contratacion;
 
 
+--
+-- TOC entry 230 (class 1259 OID 61133)
+-- Name: cooperativa_red; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.cooperativa_red (
     id_cooperativa integer NOT NULL,
@@ -522,6 +799,10 @@ CREATE TABLE public.cooperativa_red (
 
 ALTER TABLE public.cooperativa_red OWNER TO postgres;
 
+--
+-- TOC entry 231 (class 1259 OID 61136)
+-- Name: cooperativa_servicio; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.cooperativa_servicio (
     id_cooperativa integer NOT NULL,
@@ -535,6 +816,10 @@ CREATE TABLE public.cooperativa_servicio (
 
 ALTER TABLE public.cooperativa_servicio OWNER TO postgres;
 
+--
+-- TOC entry 232 (class 1259 OID 61143)
+-- Name: cooperativas; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.cooperativas (
     id_cooperativa integer NOT NULL,
@@ -563,10 +848,19 @@ CREATE TABLE public.cooperativas (
 
 ALTER TABLE public.cooperativas OWNER TO postgres;
 
+--
+-- TOC entry 3921 (class 0 OID 0)
+-- Dependencies: 232
+-- Name: COLUMN cooperativas.red; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON COLUMN public.cooperativas.red IS 'DEPRECATED: usar tabla cooperativa_red para múltiples redes.';
 
 
+--
+-- TOC entry 233 (class 1259 OID 61156)
+-- Name: cooperativas_backup; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.cooperativas_backup (
     id_cooperativa integer,
@@ -595,6 +889,10 @@ CREATE TABLE public.cooperativas_backup (
 
 ALTER TABLE public.cooperativas_backup OWNER TO postgres;
 
+--
+-- TOC entry 234 (class 1259 OID 61161)
+-- Name: cooperativas_backup_before_email_cleanup; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.cooperativas_backup_before_email_cleanup (
     id_cooperativa integer,
@@ -620,6 +918,10 @@ CREATE TABLE public.cooperativas_backup_before_email_cleanup (
 
 ALTER TABLE public.cooperativas_backup_before_email_cleanup OWNER TO postgres;
 
+--
+-- TOC entry 235 (class 1259 OID 61166)
+-- Name: cooperativas_id_cooperativa_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.cooperativas_id_cooperativa_seq
     AS integer
@@ -632,10 +934,19 @@ CREATE SEQUENCE public.cooperativas_id_cooperativa_seq
 
 ALTER TABLE public.cooperativas_id_cooperativa_seq OWNER TO postgres;
 
+--
+-- TOC entry 3922 (class 0 OID 0)
+-- Dependencies: 235
+-- Name: cooperativas_id_cooperativa_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.cooperativas_id_cooperativa_seq OWNED BY public.cooperativas.id_cooperativa;
 
 
+--
+-- TOC entry 236 (class 1259 OID 61167)
+-- Name: datos_facturacion; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.datos_facturacion (
     id_facturacion integer NOT NULL,
@@ -665,6 +976,10 @@ CREATE TABLE public.datos_facturacion (
 
 ALTER TABLE public.datos_facturacion OWNER TO postgres;
 
+--
+-- TOC entry 237 (class 1259 OID 61173)
+-- Name: datos_facturacion_backup_before_email_cleanup; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.datos_facturacion_backup_before_email_cleanup (
     id_facturacion integer,
@@ -693,6 +1008,10 @@ CREATE TABLE public.datos_facturacion_backup_before_email_cleanup (
 
 ALTER TABLE public.datos_facturacion_backup_before_email_cleanup OWNER TO postgres;
 
+--
+-- TOC entry 238 (class 1259 OID 61178)
+-- Name: datos_facturacion_id_facturacion_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.datos_facturacion_id_facturacion_seq
     AS integer
@@ -705,10 +1024,19 @@ CREATE SEQUENCE public.datos_facturacion_id_facturacion_seq
 
 ALTER TABLE public.datos_facturacion_id_facturacion_seq OWNER TO postgres;
 
+--
+-- TOC entry 3923 (class 0 OID 0)
+-- Dependencies: 238
+-- Name: datos_facturacion_id_facturacion_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.datos_facturacion_id_facturacion_seq OWNED BY public.datos_facturacion.id_facturacion;
 
 
+--
+-- TOC entry 278 (class 1259 OID 61645)
+-- Name: departamentos; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.departamentos (
     id integer NOT NULL,
@@ -720,6 +1048,10 @@ CREATE TABLE public.departamentos (
 
 ALTER TABLE public.departamentos OWNER TO postgres;
 
+--
+-- TOC entry 277 (class 1259 OID 61644)
+-- Name: departamentos_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.departamentos_id_seq
     AS integer
@@ -732,10 +1064,19 @@ CREATE SEQUENCE public.departamentos_id_seq
 
 ALTER TABLE public.departamentos_id_seq OWNER TO postgres;
 
+--
+-- TOC entry 3924 (class 0 OID 0)
+-- Dependencies: 277
+-- Name: departamentos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.departamentos_id_seq OWNED BY public.departamentos.id;
 
 
+--
+-- TOC entry 239 (class 1259 OID 61179)
+-- Name: email_cleanup_problems; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.email_cleanup_problems (
     id_cooperativa integer,
@@ -754,6 +1095,10 @@ CREATE TABLE public.email_cleanup_problems (
 
 ALTER TABLE public.email_cleanup_problems OWNER TO postgres;
 
+--
+-- TOC entry 240 (class 1259 OID 61184)
+-- Name: email_cleanup_problems_coop; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.email_cleanup_problems_coop (
     id_cooperativa integer,
@@ -765,6 +1110,10 @@ CREATE TABLE public.email_cleanup_problems_coop (
 
 ALTER TABLE public.email_cleanup_problems_coop OWNER TO postgres;
 
+--
+-- TOC entry 241 (class 1259 OID 61187)
+-- Name: equipos; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.equipos (
     id_equipo integer NOT NULL,
@@ -784,6 +1133,10 @@ CREATE TABLE public.equipos (
 
 ALTER TABLE public.equipos OWNER TO postgres;
 
+--
+-- TOC entry 242 (class 1259 OID 61193)
+-- Name: equipos_id_equipo_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.equipos_id_equipo_seq
     AS integer
@@ -796,10 +1149,19 @@ CREATE SEQUENCE public.equipos_id_equipo_seq
 
 ALTER TABLE public.equipos_id_equipo_seq OWNER TO postgres;
 
+--
+-- TOC entry 3925 (class 0 OID 0)
+-- Dependencies: 242
+-- Name: equipos_id_equipo_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.equipos_id_equipo_seq OWNED BY public.equipos.id_equipo;
 
 
+--
+-- TOC entry 243 (class 1259 OID 61194)
+-- Name: incidencia_tipos; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.incidencia_tipos (
     id integer NOT NULL,
@@ -809,6 +1171,10 @@ CREATE TABLE public.incidencia_tipos (
 
 ALTER TABLE public.incidencia_tipos OWNER TO postgres;
 
+--
+-- TOC entry 244 (class 1259 OID 61197)
+-- Name: incidencia_tipos_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.incidencia_tipos_id_seq
     AS integer
@@ -821,10 +1187,19 @@ CREATE SEQUENCE public.incidencia_tipos_id_seq
 
 ALTER TABLE public.incidencia_tipos_id_seq OWNER TO postgres;
 
+--
+-- TOC entry 3926 (class 0 OID 0)
+-- Dependencies: 244
+-- Name: incidencia_tipos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.incidencia_tipos_id_seq OWNED BY public.incidencia_tipos.id;
 
 
+--
+-- TOC entry 245 (class 1259 OID 61198)
+-- Name: incidencias_comercial; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.incidencias_comercial (
     id_incidencia integer NOT NULL,
@@ -847,6 +1222,10 @@ CREATE TABLE public.incidencias_comercial (
 
 ALTER TABLE public.incidencias_comercial OWNER TO postgres;
 
+--
+-- TOC entry 246 (class 1259 OID 61208)
+-- Name: incidencias_comercial_id_incidencia_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.incidencias_comercial_id_incidencia_seq
     AS integer
@@ -859,10 +1238,19 @@ CREATE SEQUENCE public.incidencias_comercial_id_incidencia_seq
 
 ALTER TABLE public.incidencias_comercial_id_incidencia_seq OWNER TO postgres;
 
+--
+-- TOC entry 3927 (class 0 OID 0)
+-- Dependencies: 246
+-- Name: incidencias_comercial_id_incidencia_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.incidencias_comercial_id_incidencia_seq OWNED BY public.incidencias_comercial.id_incidencia;
 
 
+--
+-- TOC entry 247 (class 1259 OID 61209)
+-- Name: incidencias_vistas; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.incidencias_vistas (
     id_usuario integer NOT NULL,
@@ -873,6 +1261,10 @@ CREATE TABLE public.incidencias_vistas (
 
 ALTER TABLE public.incidencias_vistas OWNER TO postgres;
 
+--
+-- TOC entry 248 (class 1259 OID 61213)
+-- Name: info_contabilidad; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.info_contabilidad (
     id_info integer NOT NULL,
@@ -888,6 +1280,10 @@ CREATE TABLE public.info_contabilidad (
 
 ALTER TABLE public.info_contabilidad OWNER TO postgres;
 
+--
+-- TOC entry 249 (class 1259 OID 61219)
+-- Name: info_contabilidad_id_info_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.info_contabilidad_id_info_seq
     AS integer
@@ -900,10 +1296,19 @@ CREATE SEQUENCE public.info_contabilidad_id_info_seq
 
 ALTER TABLE public.info_contabilidad_id_info_seq OWNER TO postgres;
 
+--
+-- TOC entry 3928 (class 0 OID 0)
+-- Dependencies: 249
+-- Name: info_contabilidad_id_info_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.info_contabilidad_id_info_seq OWNED BY public.info_contabilidad.id_info;
 
 
+--
+-- TOC entry 250 (class 1259 OID 61220)
+-- Name: instalaciones; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.instalaciones (
     id_instalacion integer NOT NULL,
@@ -919,6 +1324,10 @@ CREATE TABLE public.instalaciones (
 
 ALTER TABLE public.instalaciones OWNER TO postgres;
 
+--
+-- TOC entry 251 (class 1259 OID 61226)
+-- Name: instalaciones_id_instalacion_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.instalaciones_id_instalacion_seq
     AS integer
@@ -931,10 +1340,19 @@ CREATE SEQUENCE public.instalaciones_id_instalacion_seq
 
 ALTER TABLE public.instalaciones_id_instalacion_seq OWNER TO postgres;
 
+--
+-- TOC entry 3929 (class 0 OID 0)
+-- Dependencies: 251
+-- Name: instalaciones_id_instalacion_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.instalaciones_id_instalacion_seq OWNED BY public.instalaciones.id_instalacion;
 
 
+--
+-- TOC entry 252 (class 1259 OID 61227)
+-- Name: listas_control; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.listas_control (
     id_lista_control integer NOT NULL,
@@ -947,6 +1365,10 @@ CREATE TABLE public.listas_control (
 
 ALTER TABLE public.listas_control OWNER TO postgres;
 
+--
+-- TOC entry 253 (class 1259 OID 61232)
+-- Name: listas_control_id_lista_control_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.listas_control_id_lista_control_seq
     AS integer
@@ -959,10 +1381,19 @@ CREATE SEQUENCE public.listas_control_id_lista_control_seq
 
 ALTER TABLE public.listas_control_id_lista_control_seq OWNER TO postgres;
 
+--
+-- TOC entry 3930 (class 0 OID 0)
+-- Dependencies: 253
+-- Name: listas_control_id_lista_control_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.listas_control_id_lista_control_seq OWNED BY public.listas_control.id_lista_control;
 
 
+--
+-- TOC entry 254 (class 1259 OID 61233)
+-- Name: pagos; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.pagos (
     id_pago integer NOT NULL,
@@ -978,6 +1409,10 @@ CREATE TABLE public.pagos (
 
 ALTER TABLE public.pagos OWNER TO postgres;
 
+--
+-- TOC entry 255 (class 1259 OID 61238)
+-- Name: pagos_id_pago_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.pagos_id_pago_seq
     AS integer
@@ -990,10 +1425,19 @@ CREATE SEQUENCE public.pagos_id_pago_seq
 
 ALTER TABLE public.pagos_id_pago_seq OWNER TO postgres;
 
+--
+-- TOC entry 3931 (class 0 OID 0)
+-- Dependencies: 255
+-- Name: pagos_id_pago_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.pagos_id_pago_seq OWNED BY public.pagos.id_pago;
 
 
+--
+-- TOC entry 256 (class 1259 OID 61239)
+-- Name: personal_cooperativa; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.personal_cooperativa (
     id_personal integer NOT NULL,
@@ -1008,6 +1452,10 @@ CREATE TABLE public.personal_cooperativa (
 
 ALTER TABLE public.personal_cooperativa OWNER TO postgres;
 
+--
+-- TOC entry 257 (class 1259 OID 61242)
+-- Name: personal_cooperativa_id_personal_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.personal_cooperativa_id_personal_seq
     AS integer
@@ -1020,10 +1468,19 @@ CREATE SEQUENCE public.personal_cooperativa_id_personal_seq
 
 ALTER TABLE public.personal_cooperativa_id_personal_seq OWNER TO postgres;
 
+--
+-- TOC entry 3932 (class 0 OID 0)
+-- Dependencies: 257
+-- Name: personal_cooperativa_id_personal_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.personal_cooperativa_id_personal_seq OWNED BY public.personal_cooperativa.id_personal;
 
 
+--
+-- TOC entry 258 (class 1259 OID 61243)
+-- Name: provincia; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.provincia (
     id integer NOT NULL,
@@ -1033,6 +1490,10 @@ CREATE TABLE public.provincia (
 
 ALTER TABLE public.provincia OWNER TO postgres;
 
+--
+-- TOC entry 259 (class 1259 OID 61246)
+-- Name: provincia_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.provincia_id_seq
     AS integer
@@ -1045,10 +1506,19 @@ CREATE SEQUENCE public.provincia_id_seq
 
 ALTER TABLE public.provincia_id_seq OWNER TO postgres;
 
+--
+-- TOC entry 3933 (class 0 OID 0)
+-- Dependencies: 259
+-- Name: provincia_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.provincia_id_seq OWNED BY public.provincia.id;
 
 
+--
+-- TOC entry 260 (class 1259 OID 61247)
+-- Name: provincias; Type: VIEW; Schema: public; Owner: postgres
+--
 
 CREATE VIEW public.provincias AS
  SELECT p.id AS id_provincia,
@@ -1058,10 +1528,19 @@ CREATE VIEW public.provincias AS
 
 ALTER TABLE public.provincias OWNER TO postgres;
 
+--
+-- TOC entry 3934 (class 0 OID 0)
+-- Dependencies: 260
+-- Name: VIEW provincias; Type: COMMENT; Schema: public; Owner: postgres
+--
 
 COMMENT ON VIEW public.provincias IS 'Vista de compatibilidad. Mapea provincia.id -> id_provincia';
 
 
+--
+-- TOC entry 261 (class 1259 OID 61251)
+-- Name: red; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.red (
     codigo character varying(20) NOT NULL,
@@ -1071,6 +1550,10 @@ CREATE TABLE public.red (
 
 ALTER TABLE public.red OWNER TO postgres;
 
+--
+-- TOC entry 262 (class 1259 OID 61254)
+-- Name: roles; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.roles (
     id_rol integer NOT NULL,
@@ -1081,6 +1564,10 @@ CREATE TABLE public.roles (
 
 ALTER TABLE public.roles OWNER TO postgres;
 
+--
+-- TOC entry 263 (class 1259 OID 61259)
+-- Name: roles_id_rol_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.roles_id_rol_seq
     AS integer
@@ -1093,10 +1580,19 @@ CREATE SEQUENCE public.roles_id_rol_seq
 
 ALTER TABLE public.roles_id_rol_seq OWNER TO postgres;
 
+--
+-- TOC entry 3935 (class 0 OID 0)
+-- Dependencies: 263
+-- Name: roles_id_rol_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.roles_id_rol_seq OWNED BY public.roles.id_rol;
 
 
+--
+-- TOC entry 264 (class 1259 OID 61260)
+-- Name: segmentos; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.segmentos (
     id_segmento integer NOT NULL,
@@ -1107,6 +1603,10 @@ CREATE TABLE public.segmentos (
 
 ALTER TABLE public.segmentos OWNER TO postgres;
 
+--
+-- TOC entry 265 (class 1259 OID 61265)
+-- Name: segmentos_id_segmento_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.segmentos_id_segmento_seq
     AS integer
@@ -1119,10 +1619,19 @@ CREATE SEQUENCE public.segmentos_id_segmento_seq
 
 ALTER TABLE public.segmentos_id_segmento_seq OWNER TO postgres;
 
+--
+-- TOC entry 3936 (class 0 OID 0)
+-- Dependencies: 265
+-- Name: segmentos_id_segmento_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.segmentos_id_segmento_seq OWNED BY public.segmentos.id_segmento;
 
 
+--
+-- TOC entry 284 (class 1259 OID 61695)
+-- Name: seguimiento_tipos; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.seguimiento_tipos (
     id integer NOT NULL,
@@ -1133,6 +1642,10 @@ CREATE TABLE public.seguimiento_tipos (
 
 ALTER TABLE public.seguimiento_tipos OWNER TO postgres;
 
+--
+-- TOC entry 283 (class 1259 OID 61694)
+-- Name: seguimiento_tipos_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.seguimiento_tipos_id_seq
     AS integer
@@ -1145,10 +1658,19 @@ CREATE SEQUENCE public.seguimiento_tipos_id_seq
 
 ALTER TABLE public.seguimiento_tipos_id_seq OWNER TO postgres;
 
+--
+-- TOC entry 3937 (class 0 OID 0)
+-- Dependencies: 283
+-- Name: seguimiento_tipos_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.seguimiento_tipos_id_seq OWNED BY public.seguimiento_tipos.id;
 
 
+--
+-- TOC entry 285 (class 1259 OID 61717)
+-- Name: seguimientos; Type: VIEW; Schema: public; Owner: postgres
+--
 
 CREATE VIEW public.seguimientos AS
  SELECT comercial_seguimientos.id,
@@ -1167,6 +1689,10 @@ CREATE VIEW public.seguimientos AS
 
 ALTER TABLE public.seguimientos OWNER TO postgres;
 
+--
+-- TOC entry 286 (class 1259 OID 61721)
+-- Name: seguimientos_comercial; Type: VIEW; Schema: public; Owner: postgres
+--
 
 CREATE VIEW public.seguimientos_comercial AS
  SELECT comercial_seguimientos.id,
@@ -1185,6 +1711,10 @@ CREATE VIEW public.seguimientos_comercial AS
 
 ALTER TABLE public.seguimientos_comercial OWNER TO postgres;
 
+--
+-- TOC entry 266 (class 1259 OID 61266)
+-- Name: servicios; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.servicios (
     id_servicio integer NOT NULL,
@@ -1196,6 +1726,10 @@ CREATE TABLE public.servicios (
 
 ALTER TABLE public.servicios OWNER TO postgres;
 
+--
+-- TOC entry 267 (class 1259 OID 61272)
+-- Name: servicios_id_servicio_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.servicios_id_servicio_seq
     AS integer
@@ -1208,10 +1742,19 @@ CREATE SEQUENCE public.servicios_id_servicio_seq
 
 ALTER TABLE public.servicios_id_servicio_seq OWNER TO postgres;
 
+--
+-- TOC entry 3938 (class 0 OID 0)
+-- Dependencies: 267
+-- Name: servicios_id_servicio_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.servicios_id_servicio_seq OWNED BY public.servicios.id_servicio;
 
 
+--
+-- TOC entry 268 (class 1259 OID 61273)
+-- Name: ticket_historial; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.ticket_historial (
     id_historial integer NOT NULL,
@@ -1226,6 +1769,10 @@ CREATE TABLE public.ticket_historial (
 
 ALTER TABLE public.ticket_historial OWNER TO postgres;
 
+--
+-- TOC entry 269 (class 1259 OID 61279)
+-- Name: ticket_historial_id_historial_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.ticket_historial_id_historial_seq
     AS integer
@@ -1238,10 +1785,19 @@ CREATE SEQUENCE public.ticket_historial_id_historial_seq
 
 ALTER TABLE public.ticket_historial_id_historial_seq OWNER TO postgres;
 
+--
+-- TOC entry 3939 (class 0 OID 0)
+-- Dependencies: 269
+-- Name: ticket_historial_id_historial_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.ticket_historial_id_historial_seq OWNED BY public.ticket_historial.id_historial;
 
 
+--
+-- TOC entry 270 (class 1259 OID 61280)
+-- Name: tickets; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.tickets (
     id_ticket integer NOT NULL,
@@ -1257,6 +1813,7 @@ CREATE TABLE public.tickets (
     solucion text,
     id_tecnico_asignado integer,
     departamento_id integer,
+    codigo character varying(64),
     CONSTRAINT tickets_estado_check CHECK (((estado)::text = ANY (ARRAY[('Abierto'::character varying)::text, ('En progreso'::character varying)::text, ('Pendiente'::character varying)::text, ('Cerrado'::character varying)::text, ('Rechazado'::character varying)::text]))),
     CONSTRAINT tickets_prioridad_check CHECK (((prioridad)::text = ANY (ARRAY[('Crítico'::character varying)::text, ('Alto'::character varying)::text, ('Medio'::character varying)::text, ('Bajo'::character varying)::text])))
 );
@@ -1264,6 +1821,10 @@ CREATE TABLE public.tickets (
 
 ALTER TABLE public.tickets OWNER TO postgres;
 
+--
+-- TOC entry 271 (class 1259 OID 61288)
+-- Name: tickets_id_ticket_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.tickets_id_ticket_seq
     AS integer
@@ -1276,10 +1837,19 @@ CREATE SEQUENCE public.tickets_id_ticket_seq
 
 ALTER TABLE public.tickets_id_ticket_seq OWNER TO postgres;
 
+--
+-- TOC entry 3940 (class 0 OID 0)
+-- Dependencies: 271
+-- Name: tickets_id_ticket_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.tickets_id_ticket_seq OWNED BY public.tickets.id_ticket;
 
 
+--
+-- TOC entry 280 (class 1259 OID 61655)
+-- Name: tipos_incidencias_departamento; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.tipos_incidencias_departamento (
     id integer NOT NULL,
@@ -1293,6 +1863,10 @@ CREATE TABLE public.tipos_incidencias_departamento (
 
 ALTER TABLE public.tipos_incidencias_departamento OWNER TO postgres;
 
+--
+-- TOC entry 279 (class 1259 OID 61654)
+-- Name: tipos_incidencias_departamento_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.tipos_incidencias_departamento_id_seq
     AS integer
@@ -1305,10 +1879,19 @@ CREATE SEQUENCE public.tipos_incidencias_departamento_id_seq
 
 ALTER TABLE public.tipos_incidencias_departamento_id_seq OWNER TO postgres;
 
+--
+-- TOC entry 3941 (class 0 OID 0)
+-- Dependencies: 279
+-- Name: tipos_incidencias_departamento_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.tipos_incidencias_departamento_id_seq OWNED BY public.tipos_incidencias_departamento.id;
 
 
+--
+-- TOC entry 272 (class 1259 OID 61289)
+-- Name: usuario_categorias; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.usuario_categorias (
     id_usuario integer NOT NULL,
@@ -1318,6 +1901,10 @@ CREATE TABLE public.usuario_categorias (
 
 ALTER TABLE public.usuario_categorias OWNER TO postgres;
 
+--
+-- TOC entry 273 (class 1259 OID 61292)
+-- Name: usuarios; Type: TABLE; Schema: public; Owner: postgres
+--
 
 CREATE TABLE public.usuarios (
     id_usuario integer NOT NULL,
@@ -1334,6 +1921,10 @@ CREATE TABLE public.usuarios (
 
 ALTER TABLE public.usuarios OWNER TO postgres;
 
+--
+-- TOC entry 274 (class 1259 OID 61297)
+-- Name: usuarios_id_usuario_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
 
 CREATE SEQUENCE public.usuarios_id_usuario_seq
     AS integer
@@ -1346,10 +1937,19 @@ CREATE SEQUENCE public.usuarios_id_usuario_seq
 
 ALTER TABLE public.usuarios_id_usuario_seq OWNER TO postgres;
 
+--
+-- TOC entry 3942 (class 0 OID 0)
+-- Dependencies: 274
+-- Name: usuarios_id_usuario_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
 
 ALTER SEQUENCE public.usuarios_id_usuario_seq OWNED BY public.usuarios.id_usuario;
 
 
+--
+-- TOC entry 275 (class 1259 OID 61298)
+-- Name: v_cooperativas_cards; Type: VIEW; Schema: public; Owner: postgres
+--
 
 CREATE VIEW public.v_cooperativas_cards AS
  SELECT c.id_cooperativa AS id,
@@ -1378,34 +1978,37 @@ CREATE VIEW public.v_cooperativas_cards AS
 
 ALTER TABLE public.v_cooperativas_cards OWNER TO postgres;
 
+--
+-- TOC entry 289 (class 1259 OID 69965)
+-- Name: v_tickets_busqueda; Type: VIEW; Schema: public; Owner: postgres
+--
 
 CREATE VIEW public.v_tickets_busqueda AS
- SELECT t.id_ticket,
-    t.titulo,
-    t.descripcion,
-    t.prioridad,
-    t.estado,
-    t.departamento_id,
+ SELECT ic.id_incidencia AS id_ticket,
+    ic.asunto AS titulo,
+    ic.descripcion,
+    ic.prioridad,
+    ic.estado,
+    ic.departamento_id,
     d.nombre AS departamento_nombre,
-    c.nombre_categoria,
-    t.id_categoria,
-    ((('INC-'::text || to_char(t.fecha_apertura, 'YYYY'::text)) || '-'::text) || lpad((t.id_ticket)::text, 5, '0'::text)) AS codigo_ticket,
-    t.fecha_apertura,
-    t.id_tecnico_asignado,
-    u.nombre_completo AS tecnico_asignado
-   FROM (((public.tickets t
-     LEFT JOIN public.departamentos d ON ((t.departamento_id = d.id)))
-     LEFT JOIN public.categorias c ON ((t.id_categoria = c.id_categoria)))
-     LEFT JOIN public.usuarios u ON ((t.id_tecnico_asignado = u.id_usuario)))
-  WHERE (((t.estado)::text <> ALL ((ARRAY['Cerrado'::character varying, 'Rechazado'::character varying])::text[])) OR (t.estado IS NULL));
+    it.nombre AS nombre_categoria,
+    ic.tipo_incidencia_id AS id_categoria,
+    ((('INC-'::text || to_char(COALESCE(ic.created_at, (CURRENT_DATE)::timestamp without time zone), 'YYYY'::text)) || '-'::text) || lpad((ic.id_incidencia)::text, 5, '0'::text)) AS codigo_ticket,
+    ic.created_at AS fecha_apertura,
+    NULL::text AS id_tecnico_asignado,
+    NULL::text AS tecnico_asignado
+   FROM ((public.incidencias_comercial ic
+     LEFT JOIN public.departamentos d ON ((ic.departamento_id = d.id)))
+     LEFT JOIN public.incidencia_tipos it ON ((ic.tipo_incidencia_id = it.id)))
+  WHERE (((ic.estado)::text <> ALL (ARRAY[('Cerrado'::character varying)::text, ('Rechazado'::character varying)::text])) OR (ic.estado IS NULL));
 
 
 ALTER TABLE public.v_tickets_busqueda OWNER TO postgres;
 
-
-COMMENT ON VIEW public.v_tickets_busqueda IS 'Vista para búsqueda y autocompletado de tickets en seguimientos';
-
-
+--
+-- TOC entry 276 (class 1259 OID 61303)
+-- Name: vw_tickets; Type: VIEW; Schema: public; Owner: postgres
+--
 
 CREATE VIEW public.vw_tickets AS
  SELECT t.id_ticket,
@@ -1426,146 +2029,290 @@ CREATE VIEW public.vw_tickets AS
 
 ALTER TABLE public.vw_tickets OWNER TO postgres;
 
+--
+-- TOC entry 3403 (class 2604 OID 61307)
+-- Name: agenda id_agenda; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.agenda ALTER COLUMN id_agenda SET DEFAULT nextval('public.agenda_id_agenda_seq'::regclass);
 
 
+--
+-- TOC entry 3407 (class 2604 OID 61308)
+-- Name: agenda_contactos id_evento; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.agenda_contactos ALTER COLUMN id_evento SET DEFAULT nextval('public.agenda_contactos_id_evento_seq'::regclass);
 
 
+--
+-- TOC entry 3410 (class 2604 OID 61309)
+-- Name: asistentes_capacitacion id_asistente; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.asistentes_capacitacion ALTER COLUMN id_asistente SET DEFAULT nextval('public.asistentes_capacitacion_id_asistente_seq'::regclass);
 
 
+--
+-- TOC entry 3412 (class 2604 OID 61310)
+-- Name: canton id; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.canton ALTER COLUMN id SET DEFAULT nextval('public.canton_id_seq'::regclass);
 
 
+--
+-- TOC entry 3413 (class 2604 OID 61311)
+-- Name: capacitaciones id_capacitacion; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.capacitaciones ALTER COLUMN id_capacitacion SET DEFAULT nextval('public.capacitaciones_id_capacitacion_seq'::regclass);
 
 
+--
+-- TOC entry 3415 (class 2604 OID 61312)
+-- Name: capacitaciones_providencias id_capacitacion_providencia; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.capacitaciones_providencias ALTER COLUMN id_capacitacion_providencia SET DEFAULT nextval('public.capacitaciones_providencias_id_capacitacion_providencia_seq'::regclass);
 
 
+--
+-- TOC entry 3416 (class 2604 OID 61313)
+-- Name: categorias id_categoria; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.categorias ALTER COLUMN id_categoria SET DEFAULT nextval('public.categorias_id_categoria_seq'::regclass);
 
 
+--
+-- TOC entry 3482 (class 2604 OID 61687)
+-- Name: comercial_seguimientos id; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.comercial_seguimientos ALTER COLUMN id SET DEFAULT nextval('public.comercial_seguimientos_id_seq'::regclass);
 
 
+--
+-- TOC entry 3487 (class 2604 OID 61741)
+-- Name: contactos_cooperativa id_contacto; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contactos_cooperativa ALTER COLUMN id_contacto SET DEFAULT nextval('public.contactos_cooperativa_id_contacto_seq'::regclass);
 
 
+--
+-- TOC entry 3417 (class 2604 OID 61314)
+-- Name: contrataciones id_contratacion; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contrataciones ALTER COLUMN id_contratacion SET DEFAULT nextval('public.contrataciones_id_contratacion_seq'::regclass);
 
 
+--
+-- TOC entry 3430 (class 2604 OID 61315)
+-- Name: contrataciones_servicios id_contratacion; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contrataciones_servicios ALTER COLUMN id_contratacion SET DEFAULT nextval('public.contrataciones_servicios_id_contratacion_seq'::regclass);
 
 
+--
+-- TOC entry 3438 (class 2604 OID 61316)
+-- Name: cooperativas id_cooperativa; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativas ALTER COLUMN id_cooperativa SET DEFAULT nextval('public.cooperativas_id_cooperativa_seq'::regclass);
 
 
+--
+-- TOC entry 3444 (class 2604 OID 61317)
+-- Name: datos_facturacion id_facturacion; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.datos_facturacion ALTER COLUMN id_facturacion SET DEFAULT nextval('public.datos_facturacion_id_facturacion_seq'::regclass);
 
 
+--
+-- TOC entry 3477 (class 2604 OID 61648)
+-- Name: departamentos id; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.departamentos ALTER COLUMN id SET DEFAULT nextval('public.departamentos_id_seq'::regclass);
 
 
+--
+-- TOC entry 3445 (class 2604 OID 61318)
+-- Name: equipos id_equipo; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.equipos ALTER COLUMN id_equipo SET DEFAULT nextval('public.equipos_id_equipo_seq'::regclass);
 
 
+--
+-- TOC entry 3447 (class 2604 OID 61319)
+-- Name: incidencia_tipos id; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencia_tipos ALTER COLUMN id SET DEFAULT nextval('public.incidencia_tipos_id_seq'::regclass);
 
 
+--
+-- TOC entry 3451 (class 2604 OID 61320)
+-- Name: incidencias_comercial id_incidencia; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_comercial ALTER COLUMN id_incidencia SET DEFAULT nextval('public.incidencias_comercial_id_incidencia_seq'::regclass);
 
 
+--
+-- TOC entry 3457 (class 2604 OID 61321)
+-- Name: info_contabilidad id_info; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.info_contabilidad ALTER COLUMN id_info SET DEFAULT nextval('public.info_contabilidad_id_info_seq'::regclass);
 
 
+--
+-- TOC entry 3458 (class 2604 OID 61322)
+-- Name: instalaciones id_instalacion; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.instalaciones ALTER COLUMN id_instalacion SET DEFAULT nextval('public.instalaciones_id_instalacion_seq'::regclass);
 
 
+--
+-- TOC entry 3460 (class 2604 OID 61323)
+-- Name: listas_control id_lista_control; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.listas_control ALTER COLUMN id_lista_control SET DEFAULT nextval('public.listas_control_id_lista_control_seq'::regclass);
 
 
+--
+-- TOC entry 3461 (class 2604 OID 61324)
+-- Name: pagos id_pago; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.pagos ALTER COLUMN id_pago SET DEFAULT nextval('public.pagos_id_pago_seq'::regclass);
 
 
+--
+-- TOC entry 3462 (class 2604 OID 61325)
+-- Name: personal_cooperativa id_personal; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.personal_cooperativa ALTER COLUMN id_personal SET DEFAULT nextval('public.personal_cooperativa_id_personal_seq'::regclass);
 
 
+--
+-- TOC entry 3463 (class 2604 OID 61326)
+-- Name: provincia id; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.provincia ALTER COLUMN id SET DEFAULT nextval('public.provincia_id_seq'::regclass);
 
 
+--
+-- TOC entry 3464 (class 2604 OID 61327)
+-- Name: roles id_rol; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.roles ALTER COLUMN id_rol SET DEFAULT nextval('public.roles_id_rol_seq'::regclass);
 
 
+--
+-- TOC entry 3465 (class 2604 OID 61328)
+-- Name: segmentos id_segmento; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.segmentos ALTER COLUMN id_segmento SET DEFAULT nextval('public.segmentos_id_segmento_seq'::regclass);
 
 
+--
+-- TOC entry 3485 (class 2604 OID 61698)
+-- Name: seguimiento_tipos id; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.seguimiento_tipos ALTER COLUMN id SET DEFAULT nextval('public.seguimiento_tipos_id_seq'::regclass);
 
 
+--
+-- TOC entry 3467 (class 2604 OID 61329)
+-- Name: servicios id_servicio; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.servicios ALTER COLUMN id_servicio SET DEFAULT nextval('public.servicios_id_servicio_seq'::regclass);
 
 
+--
+-- TOC entry 3469 (class 2604 OID 61330)
+-- Name: ticket_historial id_historial; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.ticket_historial ALTER COLUMN id_historial SET DEFAULT nextval('public.ticket_historial_id_historial_seq'::regclass);
 
 
+--
+-- TOC entry 3471 (class 2604 OID 61331)
+-- Name: tickets id_ticket; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tickets ALTER COLUMN id_ticket SET DEFAULT nextval('public.tickets_id_ticket_seq'::regclass);
 
 
+--
+-- TOC entry 3479 (class 2604 OID 61658)
+-- Name: tipos_incidencias_departamento id; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tipos_incidencias_departamento ALTER COLUMN id SET DEFAULT nextval('public.tipos_incidencias_departamento_id_seq'::regclass);
 
 
+--
+-- TOC entry 3476 (class 2604 OID 61332)
+-- Name: usuarios id_usuario; Type: DEFAULT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.usuarios ALTER COLUMN id_usuario SET DEFAULT nextval('public.usuarios_id_usuario_seq'::regclass);
 
 
+--
+-- TOC entry 3817 (class 0 OID 61052)
+-- Dependencies: 210
+-- Data for Name: agenda; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.agenda (id_agenda, fecha, id_entidad, nombre_contacto, telefono, email, titulo, notas, estado, created_at) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3818 (class 0 OID 61059)
+-- Dependencies: 211
+-- Data for Name: agenda_contactos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.agenda_contactos (id_evento, id_cooperativa, titulo, fecha_evento, contacto, nota, creado_por, estado, created_at, updated_at, telefono_contacto, oficial_nombre, oficial_correo, cargo) FROM stdin;
 5	58	XD	2025-10-15	\N	\N	\N	Pendiente	2025-10-15 03:44:37.812712	2025-10-15 03:44:37.812712	1111111111	Prueba 1	daandrade11@espe.edu.ec	XD
 \.
 
 
+--
+-- TOC entry 3821 (class 0 OID 61070)
+-- Dependencies: 214
+-- Data for Name: asistentes_capacitacion; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.asistentes_capacitacion (id_asistente, id_capacitacion, id_personal, asistio, evaluacion) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3823 (class 0 OID 61076)
+-- Dependencies: 216
+-- Data for Name: canton; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.canton (id, provincia_id, nombre) FROM stdin;
 1	1	Cuenca
@@ -1792,16 +2539,31 @@ COPY public.canton (id, provincia_id, nombre) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3825 (class 0 OID 61084)
+-- Dependencies: 219
+-- Data for Name: capacitaciones; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.capacitaciones (id_capacitacion, id_contratacion, id_usuario_capacitador, fecha_capacitacion, fecha_completada, asistentes, estado, observaciones) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3827 (class 0 OID 61091)
+-- Dependencies: 221
+-- Data for Name: capacitaciones_providencias; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.capacitaciones_providencias (id_capacitacion_providencia, id_capacitacion, tema_especifico, normativas, casos_practicos) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3829 (class 0 OID 61097)
+-- Dependencies: 223
+-- Data for Name: categorias; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.categorias (id_categoria, nombre_categoria, descripcion) FROM stdin;
 1	Seguridad	Virus, malware, problemas de acceso no autorizado
@@ -1816,24 +2578,27 @@ COPY public.categorias (id_categoria, nombre_categoria, descripcion) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3885 (class 0 OID 61684)
+-- Dependencies: 282
+-- Data for Name: comercial_seguimientos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.comercial_seguimientos (id, id_cooperativa, fecha_actividad, tipo, descripcion, ticket_id, creado_por, created_at, numero_contacto, datos_contacto, observaciones, fecha_finalizacion, id_contacto, datos_reunion, datos_ticket, editado_por, editado_en) FROM stdin;
-1	\N	2025-10-12	Contacto	Prueba: contacto inicial con cooperativa X - llamada telefónica	\N	\N	2025-10-12 20:28:36.020841-05	1	\N	\N	2025-10-12	\N	\N	\N	\N	2025-10-12 20:28:36.020841-05
-2	67	2025-10-13	Reunión	opom	\N	9	2025-10-13 15:49:41.818509-05	\N	\N	\N	2025-10-13	\N	\N	\N	9	2025-10-13 15:49:41.818509-05
-3	58	2025-10-13	Soporte	kini	0	9	2025-10-14 15:36:40.348485-05	\N	\N	\N	2025-10-13	\N	\N	\N	9	2025-10-14 15:36:40.348485-05
-4	54	2025-10-17	Seguimiento	hjjjjjj	0	9	2025-10-14 15:38:57.469556-05	\N	\N	\N	2025-10-17	\N	\N	\N	9	2025-10-14 15:38:57.469556-05
-5	54	2025-10-14	Seguimiento	dfddf	\N	9	2025-10-14 15:39:09.842915-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 15:39:09.842915-05
-6	29	2025-10-14	Soporte	dfdfv	\N	9	2025-10-14 15:40:06.293728-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 15:40:06.293728-05
-7	54	2025-10-10	Reunión	vvv	0	9	2025-10-14 15:42:49.632616-05	\N	\N	\N	2025-10-10	\N	\N	\N	9	2025-10-14 15:42:49.632616-05
-8	54	2025-10-14	Ticket	gjjgf	0	9	2025-10-14 15:44:24.169249-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 15:44:24.169249-05
-9	37	2025-11-01	Soporte	fdhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk	\N	9	2025-10-14 15:59:36.971739-05	\N	\N	\N	2025-11-01	\N	\N	\N	9	2025-10-14 15:59:36.971739-05
-10	37	2025-10-14	Seguimiento	jggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg	\N	9	2025-10-14 16:00:04.725486-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 16:00:04.725486-05
-11	54	2025-10-23	Seguimiento	jhyyjyyjyj	\N	9	2025-10-14 16:23:26.921156-05	\N	\N	\N	2025-10-23	\N	\N	\N	9	2025-10-14 16:23:26.921156-05
-12	54	2025-10-14	Reunión	ewewew	\N	9	2025-10-14 19:25:47.583174-05	\N	\N	\N	2025-10-14	\N	\N	\N	9	2025-10-14 19:25:47.583174-05
-13	17	2025-10-15	Reunión	dss	\N	9	2025-10-14 19:25:55.492906-05	\N	\N	\N	2025-10-15	\N	\N	\N	9	2025-10-14 19:25:55.492906-05
+18	21	2025-10-03	Llamada	vivih	\N	9	2025-10-16 15:56:53.275703-05	\N	\N	\N	2025-10-24	\N	\N	\N	\N	\N
+19	5	2025-10-09	Soporte	DDDD	\N	9	2025-10-17 12:24:41.657945-05	\N	\N	\N	2025-10-31	\N	\N	\N	\N	\N
+20	54	2025-10-14	Llamada	ffffffffff	\N	9	2025-10-17 12:56:50.281482-05	\N	\N	\N	2025-10-17	\N	\N	\N	\N	\N
+21	17	2025-10-01	Soporte	77777	\N	9	2025-10-17 22:23:17.978077-05	\N	\N	\N	2025-10-15	\N	\N	\N	\N	\N
+22	21	2025-10-17	Llamada	ttttt	\N	9	2025-10-17 22:39:08.255529-05	\N	\N	\N	2025-10-23	\N	\N	\N	\N	\N
+23	58	2025-10-17	Soporte	ggggggg	\N	9	2025-10-17 22:43:08.320103-05	\N	\N	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
+--
+-- TOC entry 3831 (class 0 OID 61103)
+-- Dependencies: 225
+-- Data for Name: conm; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.conm ("LISTADO DE COOPERATIVAS ACTUALIZADAS DESDE JUNIO 2025;;;;;;;;;;") FROM stdin;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2057,6 +2822,11 @@ COAC IMBACOOP LTDA;;;;;;;;;;;;;;;;;;;;;;;;;;
 \.
 
 
+--
+-- TOC entry 3889 (class 0 OID 61738)
+-- Dependencies: 288
+-- Data for Name: contactos_cooperativa; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.contactos_cooperativa (id_contacto, id_cooperativa, nombre_contacto, telefono, email, cargo, departamento, activo, created_at, updated_at) FROM stdin;
 1	65	Contacto Principal UCACNOR	\N	\N	Gerente	Gerencia	t	2025-10-14 23:27:21.016507	2025-10-14 23:27:21.016507
@@ -2149,6 +2919,11 @@ COPY public.contactos_cooperativa (id_contacto, id_cooperativa, nombre_contacto,
 \.
 
 
+--
+-- TOC entry 3832 (class 0 OID 61108)
+-- Dependencies: 226
+-- Data for Name: contrataciones; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.contrataciones (id_contratacion, id_cooperativa, id_servicio, fecha_contratacion, fecha_inicio, fecha_fin, estado, observaciones, precio_individual, precio_grupal, iva, fecha_suscripcion, fecha_caducidad, fecha_desvinculacion, estado_servicio) FROM stdin;
 6	1	1	2025-01-01	2025-01-01	2025-12-31	Activo	Contrato demo 1	100.00	450.00	12.00	2025-01-01	2025-12-31	\N	Activo
@@ -2159,16 +2934,31 @@ COPY public.contrataciones (id_contratacion, id_cooperativa, id_servicio, fecha_
 \.
 
 
+--
+-- TOC entry 3834 (class 0 OID 61116)
+-- Dependencies: 228
+-- Data for Name: contrataciones_servicios; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.contrataciones_servicios (id_contratacion, id_cooperativa, id_servicio, fecha_contratacion, valor_contratado, periodo_facturacion, activo, documento_contable, fecha_finalizacion, numero_licencias, fecha_ultimo_pago, estado_pago, licencias_pj_matrix, licencias_sic_matrix, licencias_gratis_matrix, licencias_pj_gratis, licencias_sic_gratis, licencias_sispla_matrix) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3836 (class 0 OID 61133)
+-- Dependencies: 230
+-- Data for Name: cooperativa_red; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.cooperativa_red (id_cooperativa, codigo_red) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3837 (class 0 OID 61136)
+-- Dependencies: 231
+-- Data for Name: cooperativa_servicio; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.cooperativa_servicio (id_cooperativa, id_servicio, activo, fecha_alta, fecha_baja, notas) FROM stdin;
 78	1	t	2025-10-01	\N	\N
@@ -2176,6 +2966,11 @@ COPY public.cooperativa_servicio (id_cooperativa, id_servicio, activo, fecha_alt
 \.
 
 
+--
+-- TOC entry 3838 (class 0 OID 61143)
+-- Dependencies: 232
+-- Data for Name: cooperativas; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.cooperativas (id_cooperativa, nombre, ruc, telefono, email, id_segmento, fecha_registro, activa, tipo_entidad, telefono_fijo_1, telefono_fijo_2, telefono_movil, pais, notas, red, provincia_id, canton_id) FROM stdin;
 65	UCACNOR	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	union	\N	\N	\N	Ecuador	\N	\N	\N	\N
@@ -2258,6 +3053,11 @@ COPY public.cooperativas (id_cooperativa, nombre, ruc, telefono, email, id_segme
 \.
 
 
+--
+-- TOC entry 3839 (class 0 OID 61156)
+-- Dependencies: 233
+-- Data for Name: cooperativas_backup; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.cooperativas_backup (id_cooperativa, nombre, ruc, telefono, email, id_segmento, fecha_registro, activa, provincia, canton, tipo_entidad, servicio_activo, telefono_fijo_1, telefono_fijo_2, telefono_movil, email2, pais, notas, red, provincia_id, canton_id) FROM stdin;
 15	COAC SAN GABRIEL	\N	65359843	\N	3	2025-09-01 15:53:29.230944	t	Imbabura	Ibarra	COAC	\N	65359843	\N	987367241	\N	Ecuador	\N	\N	\N	\N
@@ -2340,6 +3140,11 @@ COPY public.cooperativas_backup (id_cooperativa, nombre, ruc, telefono, email, i
 \.
 
 
+--
+-- TOC entry 3840 (class 0 OID 61161)
+-- Dependencies: 234
+-- Data for Name: cooperativas_backup_before_email_cleanup; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.cooperativas_backup_before_email_cleanup (id_cooperativa, nombre, ruc, telefono, email, id_segmento, fecha_registro, activa, tipo_entidad, telefono_fijo_1, telefono_fijo_2, telefono_movil, email2, pais, notas, red, provincia_id, canton_id) FROM stdin;
 66	COAC COOPROGRESO	\N	\N	\N	3	2025-09-01 15:53:29.230944	t	COAC	\N	\N	\N	\N	Ecuador	\N	\N	\N	\N
@@ -2422,16 +3227,31 @@ COPY public.cooperativas_backup_before_email_cleanup (id_cooperativa, nombre, ru
 \.
 
 
+--
+-- TOC entry 3842 (class 0 OID 61167)
+-- Dependencies: 236
+-- Data for Name: datos_facturacion; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.datos_facturacion (id_facturacion, id_cooperativa, direccion, provincia, canton, email1, email2, email3, email4, email5, tel_fijo1, tel_fijo2, tel_fijo3, tel_cel1, tel_cel2, tel_cel3, contabilidad_nombre, contabilidad_telefono, fecha_registro, provincia_id, canton_id, email_canonical) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3843 (class 0 OID 61173)
+-- Dependencies: 237
+-- Data for Name: datos_facturacion_backup_before_email_cleanup; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.datos_facturacion_backup_before_email_cleanup (id_facturacion, id_cooperativa, direccion, provincia, canton, email1, email2, email3, email4, email5, tel_fijo1, tel_fijo2, tel_fijo3, tel_cel1, tel_cel2, tel_cel3, contabilidad_nombre, contabilidad_telefono, fecha_registro, provincia_id, canton_id) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3881 (class 0 OID 61645)
+-- Dependencies: 278
+-- Data for Name: departamentos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.departamentos (id, clave, nombre, creado_en) FROM stdin;
 1	comercial	Comercial	2025-10-11 16:47:28.181614-05
@@ -2442,22 +3262,42 @@ COPY public.departamentos (id, clave, nombre, creado_en) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3845 (class 0 OID 61179)
+-- Dependencies: 239
+-- Data for Name: email_cleanup_problems; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.email_cleanup_problems (id_cooperativa, nombre, email_final, email2_original, email_canonical, email1, email2, email3, email4, email5, personal_email_sample) FROM stdin;
 69	COAC ECUAFUTURO	marina_freire@ecuafuturo.fin.ec	marina_freire@ecuafuturo.fin.ec	\N	\N	\N	\N	\N	\N	\N
 \.
 
 
+--
+-- TOC entry 3846 (class 0 OID 61184)
+-- Dependencies: 240
+-- Data for Name: email_cleanup_problems_coop; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.email_cleanup_problems_coop (id_cooperativa, nombre, email_final, email2_original) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3847 (class 0 OID 61187)
+-- Dependencies: 241
+-- Data for Name: equipos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.equipos (id_equipo, codigo_patrimonial, nombre_equipo, tipo, marca, modelo, id_usuario_asignado, fecha_adquisicion, garantia_hasta, especificaciones, estado) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3849 (class 0 OID 61194)
+-- Dependencies: 243
+-- Data for Name: incidencia_tipos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.incidencia_tipos (id, nombre) FROM stdin;
 1	soporte
@@ -2468,33 +3308,63 @@ COPY public.incidencia_tipos (id, nombre) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3851 (class 0 OID 61198)
+-- Dependencies: 245
+-- Data for Name: incidencias_comercial; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.incidencias_comercial (id_incidencia, id_cooperativa, asunto, descripcion, prioridad, estado, creado_por, id_ticket, created_at, tipo_incidencia_id, departamento_id, tipo_incidencia_departamento_id) FROM stdin;
-20	54	5555	5555	Crítico	Enviado	9	\N	2025-10-14 19:45:42.051556	4	2	4
+22	58	IIKKK	RTXCG	Bajo	Enviado	9	\N	2025-10-17 17:24:10.002849	4	5	9
 \.
 
 
+--
+-- TOC entry 3853 (class 0 OID 61209)
+-- Dependencies: 247
+-- Data for Name: incidencias_vistas; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.incidencias_vistas (id_usuario, id_incidencia, visto_cerrada_at) FROM stdin;
 9	1	2025-08-28 16:27:46.84396
 \.
 
 
+--
+-- TOC entry 3854 (class 0 OID 61213)
+-- Dependencies: 248
+-- Data for Name: info_contabilidad; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.info_contabilidad (id_info, id_cooperativa, responsable_contable, email_contable, telefono_contable, ruc_contabilidad, direccion_contabilidad, fecha_actualizacion) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3856 (class 0 OID 61220)
+-- Dependencies: 250
+-- Data for Name: instalaciones; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.instalaciones (id_instalacion, id_contratacion, id_usuario_tecnico, fecha_instalacion, fecha_completada, estado, observaciones) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3858 (class 0 OID 61227)
+-- Dependencies: 252
+-- Data for Name: listas_control; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.listas_control (id_lista_control, id_cooperativa, fecha_actualizacion, responsable, observaciones) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3860 (class 0 OID 61233)
+-- Dependencies: 254
+-- Data for Name: pagos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.pagos (id_pago, id_contratacion, monto, fecha_pago, metodo_pago, comprobante, estado, observaciones) FROM stdin;
 1	\N	120.50	2025-08-25	Transferencia	comprobante_1.pdf	Completado	\N
@@ -2505,11 +3375,21 @@ COPY public.pagos (id_pago, id_contratacion, monto, fecha_pago, metodo_pago, com
 \.
 
 
+--
+-- TOC entry 3862 (class 0 OID 61239)
+-- Dependencies: 256
+-- Data for Name: personal_cooperativa; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.personal_cooperativa (id_personal, id_cooperativa, nombre, cargo, telefono, email, departamento) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3864 (class 0 OID 61243)
+-- Dependencies: 258
+-- Data for Name: provincia; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.provincia (id, nombre) FROM stdin;
 1	Azuay
@@ -2539,6 +3419,11 @@ COPY public.provincia (id, nombre) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3866 (class 0 OID 61251)
+-- Dependencies: 261
+-- Data for Name: red; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.red (codigo, nombre) FROM stdin;
 UPROCACHT	UPROCACHT
@@ -2547,6 +3432,11 @@ FECOAC	FECOAC
 \.
 
 
+--
+-- TOC entry 3867 (class 0 OID 61254)
+-- Dependencies: 262
+-- Data for Name: roles; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.roles (id_rol, nombre_rol, descripcion) FROM stdin;
 1	administrador	Administrador
@@ -2558,6 +3448,11 @@ COPY public.roles (id_rol, nombre_rol, descripcion) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3869 (class 0 OID 61260)
+-- Dependencies: 264
+-- Data for Name: segmentos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.segmentos (id_segmento, nombre_segmento, descripcion) FROM stdin;
 1	Segmento 1	\N
@@ -2568,6 +3463,11 @@ COPY public.segmentos (id_segmento, nombre_segmento, descripcion) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3887 (class 0 OID 61695)
+-- Dependencies: 284
+-- Data for Name: seguimiento_tipos; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.seguimiento_tipos (id, nombre, orden) FROM stdin;
 1	Contacto	10
@@ -2579,6 +3479,11 @@ COPY public.seguimiento_tipos (id, nombre, orden) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3871 (class 0 OID 61266)
+-- Dependencies: 266
+-- Data for Name: servicios; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.servicios (id_servicio, nombre_servicio, descripcion, activo) FROM stdin;
 8	CORE FINANCIERO	Core Financiero	t
@@ -2589,22 +3494,37 @@ COPY public.servicios (id_servicio, nombre_servicio, descripcion, activo) FROM s
 \.
 
 
+--
+-- TOC entry 3873 (class 0 OID 61273)
+-- Dependencies: 268
+-- Data for Name: ticket_historial; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.ticket_historial (id_historial, id_ticket, fecha_cambio, campo_modificado, valor_anterior, valor_nuevo, id_usuario) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3875 (class 0 OID 61280)
+-- Dependencies: 270
+-- Data for Name: tickets; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
-COPY public.tickets (id_ticket, titulo, descripcion, id_usuario_reporta, id_equipo, id_categoria, prioridad, estado, fecha_apertura, fecha_cierre, solucion, id_tecnico_asignado, departamento_id) FROM stdin;
-6	Prueba 2	dsbtr	13	\N	9	Crítico	Abierto	2025-08-22 15:32:22.074792	\N	\N	\N	\N
-1	Instalación PJ	Instalación del nuevo sistema de Providencias Judiciales a COAC Anda lucia	13	\N	9	Crítico	Abierto	2025-06-20 15:58:12.485914	\N	\N	\N	\N
-9	Prueba 1	bfddsv	13	\N	1	Medio	Cerrado	2025-08-25 12:53:43.898553	2025-08-25 12:54:20.75008	\N	16	\N
-10	111	urgente	9	\N	8	Crítico	Abierto	2025-08-26 15:19:43.96657	\N	\N	\N	\N
-11	P	ddd	9	\N	8	Crítico	Abierto	2025-08-28 16:16:18.657312	\N	\N	\N	\N
-12	321312	321312	9	\N	8	Medio	Abierto	2025-09-08 15:11:51.606564	\N	\N	\N	\N
+COPY public.tickets (id_ticket, titulo, descripcion, id_usuario_reporta, id_equipo, id_categoria, prioridad, estado, fecha_apertura, fecha_cierre, solucion, id_tecnico_asignado, departamento_id, codigo) FROM stdin;
+6	Prueba 2	dsbtr	13	\N	9	Crítico	Abierto	2025-08-22 15:32:22.074792	\N	\N	\N	\N	INC-2025-00006
+1	Instalación PJ	Instalación del nuevo sistema de Providencias Judiciales a COAC Anda lucia	13	\N	9	Crítico	Abierto	2025-06-20 15:58:12.485914	\N	\N	\N	\N	INC-2025-00001
+9	Prueba 1	bfddsv	13	\N	1	Medio	Cerrado	2025-08-25 12:53:43.898553	2025-08-25 12:54:20.75008	\N	16	\N	INC-2025-00009
+10	111	urgente	9	\N	8	Crítico	Abierto	2025-08-26 15:19:43.96657	\N	\N	\N	\N	INC-2025-00010
+11	P	ddd	9	\N	8	Crítico	Abierto	2025-08-28 16:16:18.657312	\N	\N	\N	\N	INC-2025-00011
+12	321312	321312	9	\N	8	Medio	Abierto	2025-09-08 15:11:51.606564	\N	\N	\N	\N	INC-2025-00012
 \.
 
 
+--
+-- TOC entry 3883 (class 0 OID 61655)
+-- Dependencies: 280
+-- Data for Name: tipos_incidencias_departamento; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.tipos_incidencias_departamento (id, departamento_id, nombre, referencia_id, orden, creado_en) FROM stdin;
 1	1	Contactar	\N	10	2025-10-11 16:47:28.184335-05
@@ -2636,11 +3556,21 @@ COPY public.tipos_incidencias_departamento (id, departamento_id, nombre, referen
 \.
 
 
+--
+-- TOC entry 3877 (class 0 OID 61289)
+-- Dependencies: 272
+-- Data for Name: usuario_categorias; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.usuario_categorias (id_usuario, id_categoria) FROM stdin;
 \.
 
 
+--
+-- TOC entry 3878 (class 0 OID 61292)
+-- Dependencies: 273
+-- Data for Name: usuarios; Type: TABLE DATA; Schema: public; Owner: postgres
+--
 
 COPY public.usuarios (id_usuario, username, password_md5, id_rol, nombre_completo, email, activo, fecha_creacion, departamento) FROM stdin;
 1	admin	21232f297a57a5a743894a0e4a801fc3	1	Renato Joel	renatojoel11@gmail.com	t	2025-04-22 00:00:00	\N
@@ -2653,739 +3583,1430 @@ COPY public.usuarios (id_usuario, username, password_md5, id_rol, nombre_complet
 \.
 
 
+--
+-- TOC entry 3943 (class 0 OID 0)
+-- Dependencies: 212
+-- Name: agenda_contactos_id_evento_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.agenda_contactos_id_evento_seq', 5, true);
 
 
+--
+-- TOC entry 3944 (class 0 OID 0)
+-- Dependencies: 213
+-- Name: agenda_id_agenda_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.agenda_id_agenda_seq', 1, false);
 
 
+--
+-- TOC entry 3945 (class 0 OID 0)
+-- Dependencies: 215
+-- Name: asistentes_capacitacion_id_asistente_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.asistentes_capacitacion_id_asistente_seq', 1, false);
 
 
+--
+-- TOC entry 3946 (class 0 OID 0)
+-- Dependencies: 217
+-- Name: canton_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.canton_id_seq', 221, true);
 
 
+--
+-- TOC entry 3947 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: capacitaciones_id_capacitacion_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.capacitaciones_id_capacitacion_seq', 1, false);
 
 
+--
+-- TOC entry 3948 (class 0 OID 0)
+-- Dependencies: 222
+-- Name: capacitaciones_providencias_id_capacitacion_providencia_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.capacitaciones_providencias_id_capacitacion_providencia_seq', 1, false);
 
 
+--
+-- TOC entry 3949 (class 0 OID 0)
+-- Dependencies: 224
+-- Name: categorias_id_categoria_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.categorias_id_categoria_seq', 9, true);
 
 
+--
+-- TOC entry 3950 (class 0 OID 0)
+-- Dependencies: 281
+-- Name: comercial_seguimientos_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
-SELECT pg_catalog.setval('public.comercial_seguimientos_id_seq', 13, true);
+SELECT pg_catalog.setval('public.comercial_seguimientos_id_seq', 23, true);
 
 
+--
+-- TOC entry 3951 (class 0 OID 0)
+-- Dependencies: 287
+-- Name: contactos_cooperativa_id_contacto_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.contactos_cooperativa_id_contacto_seq', 87, true);
 
 
+--
+-- TOC entry 3952 (class 0 OID 0)
+-- Dependencies: 227
+-- Name: contrataciones_id_contratacion_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.contrataciones_id_contratacion_seq', 10, true);
 
 
+--
+-- TOC entry 3953 (class 0 OID 0)
+-- Dependencies: 229
+-- Name: contrataciones_servicios_id_contratacion_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.contrataciones_servicios_id_contratacion_seq', 1, false);
 
 
+--
+-- TOC entry 3954 (class 0 OID 0)
+-- Dependencies: 235
+-- Name: cooperativas_id_cooperativa_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.cooperativas_id_cooperativa_seq', 152, true);
 
 
+--
+-- TOC entry 3955 (class 0 OID 0)
+-- Dependencies: 238
+-- Name: datos_facturacion_id_facturacion_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.datos_facturacion_id_facturacion_seq', 1, false);
 
 
+--
+-- TOC entry 3956 (class 0 OID 0)
+-- Dependencies: 277
+-- Name: departamentos_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.departamentos_id_seq', 5, true);
 
 
+--
+-- TOC entry 3957 (class 0 OID 0)
+-- Dependencies: 242
+-- Name: equipos_id_equipo_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.equipos_id_equipo_seq', 1, false);
 
 
+--
+-- TOC entry 3958 (class 0 OID 0)
+-- Dependencies: 244
+-- Name: incidencia_tipos_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.incidencia_tipos_id_seq', 5, true);
 
 
+--
+-- TOC entry 3959 (class 0 OID 0)
+-- Dependencies: 246
+-- Name: incidencias_comercial_id_incidencia_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
-SELECT pg_catalog.setval('public.incidencias_comercial_id_incidencia_seq', 20, true);
+SELECT pg_catalog.setval('public.incidencias_comercial_id_incidencia_seq', 22, true);
 
 
+--
+-- TOC entry 3960 (class 0 OID 0)
+-- Dependencies: 249
+-- Name: info_contabilidad_id_info_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.info_contabilidad_id_info_seq', 1, false);
 
 
+--
+-- TOC entry 3961 (class 0 OID 0)
+-- Dependencies: 251
+-- Name: instalaciones_id_instalacion_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.instalaciones_id_instalacion_seq', 1, false);
 
 
+--
+-- TOC entry 3962 (class 0 OID 0)
+-- Dependencies: 253
+-- Name: listas_control_id_lista_control_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.listas_control_id_lista_control_seq', 1, false);
 
 
+--
+-- TOC entry 3963 (class 0 OID 0)
+-- Dependencies: 255
+-- Name: pagos_id_pago_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.pagos_id_pago_seq', 5, true);
 
 
+--
+-- TOC entry 3964 (class 0 OID 0)
+-- Dependencies: 257
+-- Name: personal_cooperativa_id_personal_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.personal_cooperativa_id_personal_seq', 1, false);
 
 
+--
+-- TOC entry 3965 (class 0 OID 0)
+-- Dependencies: 259
+-- Name: provincia_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.provincia_id_seq', 1, false);
 
 
+--
+-- TOC entry 3966 (class 0 OID 0)
+-- Dependencies: 263
+-- Name: roles_id_rol_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.roles_id_rol_seq', 1, false);
 
 
+--
+-- TOC entry 3967 (class 0 OID 0)
+-- Dependencies: 265
+-- Name: segmentos_id_segmento_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.segmentos_id_segmento_seq', 16, true);
 
 
+--
+-- TOC entry 3968 (class 0 OID 0)
+-- Dependencies: 283
+-- Name: seguimiento_tipos_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.seguimiento_tipos_id_seq', 7, true);
 
 
+--
+-- TOC entry 3969 (class 0 OID 0)
+-- Dependencies: 267
+-- Name: servicios_id_servicio_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.servicios_id_servicio_seq', 12, true);
 
 
+--
+-- TOC entry 3970 (class 0 OID 0)
+-- Dependencies: 269
+-- Name: ticket_historial_id_historial_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.ticket_historial_id_historial_seq', 1, false);
 
 
+--
+-- TOC entry 3971 (class 0 OID 0)
+-- Dependencies: 271
+-- Name: tickets_id_ticket_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.tickets_id_ticket_seq', 12, true);
 
 
+--
+-- TOC entry 3972 (class 0 OID 0)
+-- Dependencies: 279
+-- Name: tipos_incidencias_departamento_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.tipos_incidencias_departamento_id_seq', 26, true);
 
 
+--
+-- TOC entry 3973 (class 0 OID 0)
+-- Dependencies: 274
+-- Name: usuarios_id_usuario_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
 
 SELECT pg_catalog.setval('public.usuarios_id_usuario_seq', 16, true);
 
 
+--
+-- TOC entry 3497 (class 2606 OID 61334)
+-- Name: agenda_contactos agenda_contactos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.agenda_contactos
     ADD CONSTRAINT agenda_contactos_pkey PRIMARY KEY (id_evento);
 
 
+--
+-- TOC entry 3495 (class 2606 OID 61336)
+-- Name: agenda agenda_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.agenda
     ADD CONSTRAINT agenda_pkey PRIMARY KEY (id_agenda);
 
 
+--
+-- TOC entry 3501 (class 2606 OID 61338)
+-- Name: asistentes_capacitacion asistentes_capacitacion_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.asistentes_capacitacion
     ADD CONSTRAINT asistentes_capacitacion_pkey PRIMARY KEY (id_asistente);
 
 
+--
+-- TOC entry 3503 (class 2606 OID 61340)
+-- Name: canton canton_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.canton
     ADD CONSTRAINT canton_pkey PRIMARY KEY (id);
 
 
+--
+-- TOC entry 3505 (class 2606 OID 61342)
+-- Name: canton canton_provincia_id_nombre_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.canton
     ADD CONSTRAINT canton_provincia_id_nombre_key UNIQUE (provincia_id, nombre);
 
 
+--
+-- TOC entry 3508 (class 2606 OID 61344)
+-- Name: capacitaciones capacitaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.capacitaciones
     ADD CONSTRAINT capacitaciones_pkey PRIMARY KEY (id_capacitacion);
 
 
+--
+-- TOC entry 3510 (class 2606 OID 61346)
+-- Name: capacitaciones_providencias capacitaciones_providencias_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.capacitaciones_providencias
     ADD CONSTRAINT capacitaciones_providencias_pkey PRIMARY KEY (id_capacitacion_providencia);
 
 
+--
+-- TOC entry 3512 (class 2606 OID 61348)
+-- Name: categorias categorias_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.categorias
     ADD CONSTRAINT categorias_pkey PRIMARY KEY (id_categoria);
 
 
+--
+-- TOC entry 3604 (class 2606 OID 61693)
+-- Name: comercial_seguimientos comercial_seguimientos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.comercial_seguimientos
     ADD CONSTRAINT comercial_seguimientos_pkey PRIMARY KEY (id);
 
 
+--
+-- TOC entry 3615 (class 2606 OID 61748)
+-- Name: contactos_cooperativa contactos_cooperativa_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contactos_cooperativa
     ADD CONSTRAINT contactos_cooperativa_pkey PRIMARY KEY (id_contacto);
 
 
+--
+-- TOC entry 3514 (class 2606 OID 61350)
+-- Name: contrataciones contrataciones_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contrataciones
     ADD CONSTRAINT contrataciones_pkey PRIMARY KEY (id_contratacion);
 
 
+--
+-- TOC entry 3516 (class 2606 OID 61352)
+-- Name: contrataciones_servicios contrataciones_servicios_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contrataciones_servicios
     ADD CONSTRAINT contrataciones_servicios_pkey PRIMARY KEY (id_contratacion);
 
 
+--
+-- TOC entry 3518 (class 2606 OID 61354)
+-- Name: cooperativa_red cooperativa_red_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativa_red
     ADD CONSTRAINT cooperativa_red_pkey PRIMARY KEY (id_cooperativa, codigo_red);
 
 
+--
+-- TOC entry 3520 (class 2606 OID 61356)
+-- Name: cooperativa_servicio cooperativa_servicio_pk; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativa_servicio
     ADD CONSTRAINT cooperativa_servicio_pk PRIMARY KEY (id_cooperativa, id_servicio);
 
 
+--
+-- TOC entry 3522 (class 2606 OID 61358)
+-- Name: cooperativas cooperativas_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativas
     ADD CONSTRAINT cooperativas_pkey PRIMARY KEY (id_cooperativa);
 
 
+--
+-- TOC entry 3524 (class 2606 OID 61360)
+-- Name: cooperativas cooperativas_ruc_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativas
     ADD CONSTRAINT cooperativas_ruc_key UNIQUE (ruc);
 
 
+--
+-- TOC entry 3530 (class 2606 OID 61362)
+-- Name: datos_facturacion datos_facturacion_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.datos_facturacion
     ADD CONSTRAINT datos_facturacion_pkey PRIMARY KEY (id_facturacion);
 
 
+--
+-- TOC entry 3595 (class 2606 OID 61653)
+-- Name: departamentos departamentos_clave_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.departamentos
     ADD CONSTRAINT departamentos_clave_key UNIQUE (clave);
 
 
+--
+-- TOC entry 3597 (class 2606 OID 61651)
+-- Name: departamentos departamentos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.departamentos
     ADD CONSTRAINT departamentos_pkey PRIMARY KEY (id);
 
 
+--
+-- TOC entry 3533 (class 2606 OID 61364)
+-- Name: equipos equipos_codigo_patrimonial_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.equipos
     ADD CONSTRAINT equipos_codigo_patrimonial_key UNIQUE (codigo_patrimonial);
 
 
+--
+-- TOC entry 3535 (class 2606 OID 61366)
+-- Name: equipos equipos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.equipos
     ADD CONSTRAINT equipos_pkey PRIMARY KEY (id_equipo);
 
 
+--
+-- TOC entry 3537 (class 2606 OID 61368)
+-- Name: incidencia_tipos incidencia_tipos_nombre_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencia_tipos
     ADD CONSTRAINT incidencia_tipos_nombre_key UNIQUE (nombre);
 
 
+--
+-- TOC entry 3539 (class 2606 OID 61370)
+-- Name: incidencia_tipos incidencia_tipos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencia_tipos
     ADD CONSTRAINT incidencia_tipos_pkey PRIMARY KEY (id);
 
 
+--
+-- TOC entry 3546 (class 2606 OID 61372)
+-- Name: incidencias_comercial incidencias_comercial_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_comercial
     ADD CONSTRAINT incidencias_comercial_pkey PRIMARY KEY (id_incidencia);
 
 
+--
+-- TOC entry 3548 (class 2606 OID 61374)
+-- Name: incidencias_vistas incidencias_vistas_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_vistas
     ADD CONSTRAINT incidencias_vistas_pkey PRIMARY KEY (id_usuario, id_incidencia);
 
 
+--
+-- TOC entry 3550 (class 2606 OID 61376)
+-- Name: info_contabilidad info_contabilidad_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.info_contabilidad
     ADD CONSTRAINT info_contabilidad_pkey PRIMARY KEY (id_info);
 
 
+--
+-- TOC entry 3554 (class 2606 OID 61378)
+-- Name: instalaciones instalaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.instalaciones
     ADD CONSTRAINT instalaciones_pkey PRIMARY KEY (id_instalacion);
 
 
+--
+-- TOC entry 3556 (class 2606 OID 61380)
+-- Name: listas_control listas_control_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.listas_control
     ADD CONSTRAINT listas_control_pkey PRIMARY KEY (id_lista_control);
 
 
+--
+-- TOC entry 3558 (class 2606 OID 61382)
+-- Name: pagos pagos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.pagos
     ADD CONSTRAINT pagos_pkey PRIMARY KEY (id_pago);
 
 
+--
+-- TOC entry 3560 (class 2606 OID 61384)
+-- Name: personal_cooperativa personal_cooperativa_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.personal_cooperativa
     ADD CONSTRAINT personal_cooperativa_pkey PRIMARY KEY (id_personal);
 
 
+--
+-- TOC entry 3562 (class 2606 OID 61386)
+-- Name: provincia provincia_nombre_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.provincia
     ADD CONSTRAINT provincia_nombre_key UNIQUE (nombre);
 
 
+--
+-- TOC entry 3564 (class 2606 OID 61388)
+-- Name: provincia provincia_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.provincia
     ADD CONSTRAINT provincia_pkey PRIMARY KEY (id);
 
 
+--
+-- TOC entry 3566 (class 2606 OID 61390)
+-- Name: red red_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.red
     ADD CONSTRAINT red_pkey PRIMARY KEY (codigo);
 
 
+--
+-- TOC entry 3568 (class 2606 OID 61392)
+-- Name: roles roles_nombre_rol_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.roles
     ADD CONSTRAINT roles_nombre_rol_key UNIQUE (nombre_rol);
 
 
+--
+-- TOC entry 3570 (class 2606 OID 61394)
+-- Name: roles roles_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.roles
     ADD CONSTRAINT roles_pkey PRIMARY KEY (id_rol);
 
 
+--
+-- TOC entry 3572 (class 2606 OID 61396)
+-- Name: segmentos segmentos_nombre_segmento_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.segmentos
     ADD CONSTRAINT segmentos_nombre_segmento_key UNIQUE (nombre_segmento);
 
 
+--
+-- TOC entry 3574 (class 2606 OID 61398)
+-- Name: segmentos segmentos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.segmentos
     ADD CONSTRAINT segmentos_pkey PRIMARY KEY (id_segmento);
 
 
+--
+-- TOC entry 3611 (class 2606 OID 61703)
+-- Name: seguimiento_tipos seguimiento_tipos_nombre_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.seguimiento_tipos
     ADD CONSTRAINT seguimiento_tipos_nombre_key UNIQUE (nombre);
 
 
+--
+-- TOC entry 3613 (class 2606 OID 61701)
+-- Name: seguimiento_tipos seguimiento_tipos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.seguimiento_tipos
     ADD CONSTRAINT seguimiento_tipos_pkey PRIMARY KEY (id);
 
 
+--
+-- TOC entry 3577 (class 2606 OID 61400)
+-- Name: servicios servicios_nombre_servicio_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.servicios
     ADD CONSTRAINT servicios_nombre_servicio_key UNIQUE (nombre_servicio);
 
 
+--
+-- TOC entry 3579 (class 2606 OID 61402)
+-- Name: servicios servicios_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.servicios
     ADD CONSTRAINT servicios_pkey PRIMARY KEY (id_servicio);
 
 
+--
+-- TOC entry 3581 (class 2606 OID 61404)
+-- Name: ticket_historial ticket_historial_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.ticket_historial
     ADD CONSTRAINT ticket_historial_pkey PRIMARY KEY (id_historial);
 
 
+--
+-- TOC entry 3585 (class 2606 OID 61406)
+-- Name: tickets tickets_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tickets
     ADD CONSTRAINT tickets_pkey PRIMARY KEY (id_ticket);
 
 
+--
+-- TOC entry 3600 (class 2606 OID 61664)
+-- Name: tipos_incidencias_departamento tipos_incidencias_departamento_departamento_id_nombre_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tipos_incidencias_departamento
     ADD CONSTRAINT tipos_incidencias_departamento_departamento_id_nombre_key UNIQUE (departamento_id, nombre);
 
 
+--
+-- TOC entry 3602 (class 2606 OID 61662)
+-- Name: tipos_incidencias_departamento tipos_incidencias_departamento_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tipos_incidencias_departamento
     ADD CONSTRAINT tipos_incidencias_departamento_pkey PRIMARY KEY (id);
 
 
+--
+-- TOC entry 3552 (class 2606 OID 61408)
+-- Name: info_contabilidad uk_info_contabilidad_cooperativa; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.info_contabilidad
     ADD CONSTRAINT uk_info_contabilidad_cooperativa UNIQUE (id_cooperativa);
 
 
+--
+-- TOC entry 3587 (class 2606 OID 61410)
+-- Name: usuario_categorias usuario_categorias_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.usuario_categorias
     ADD CONSTRAINT usuario_categorias_pkey PRIMARY KEY (id_usuario, id_categoria);
 
 
+--
+-- TOC entry 3589 (class 2606 OID 61412)
+-- Name: usuarios usuarios_email_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_email_key UNIQUE (email);
 
 
+--
+-- TOC entry 3591 (class 2606 OID 61414)
+-- Name: usuarios usuarios_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_pkey PRIMARY KEY (id_usuario);
 
 
+--
+-- TOC entry 3593 (class 2606 OID 61416)
+-- Name: usuarios usuarios_username_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_username_key UNIQUE (username);
 
 
+--
+-- TOC entry 3491 (class 1259 OID 61417)
+-- Name: agenda_entidad_idx; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX agenda_entidad_idx ON public.agenda USING btree (id_entidad);
 
 
+--
+-- TOC entry 3492 (class 1259 OID 61418)
+-- Name: agenda_estado_idx; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX agenda_estado_idx ON public.agenda USING btree (estado);
 
 
+--
+-- TOC entry 3493 (class 1259 OID 61419)
+-- Name: agenda_fecha_idx; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX agenda_fecha_idx ON public.agenda USING btree (fecha);
 
 
+--
+-- TOC entry 3498 (class 1259 OID 61420)
+-- Name: idx_agenda_contactos_coop; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_agenda_contactos_coop ON public.agenda_contactos USING btree (id_cooperativa);
 
 
+--
+-- TOC entry 3499 (class 1259 OID 61421)
+-- Name: idx_agenda_contactos_fecha; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_agenda_contactos_fecha ON public.agenda_contactos USING btree (fecha_evento);
 
 
+--
+-- TOC entry 3605 (class 1259 OID 61766)
+-- Name: idx_com_seg_contacto; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_com_seg_contacto ON public.comercial_seguimientos USING btree (id_contacto);
 
 
+--
+-- TOC entry 3606 (class 1259 OID 61767)
+-- Name: idx_com_seg_fecha_fin; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_com_seg_fecha_fin ON public.comercial_seguimientos USING btree (fecha_finalizacion);
 
 
+--
+-- TOC entry 3607 (class 1259 OID 61704)
+-- Name: idx_comercial_seguimientos_coop; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_comercial_seguimientos_coop ON public.comercial_seguimientos USING btree (id_cooperativa);
 
 
+--
+-- TOC entry 3608 (class 1259 OID 61705)
+-- Name: idx_comercial_seguimientos_fecha; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_comercial_seguimientos_fecha ON public.comercial_seguimientos USING btree (fecha_actividad);
 
 
+--
+-- TOC entry 3609 (class 1259 OID 61706)
+-- Name: idx_comercial_seguimientos_ticket; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_comercial_seguimientos_ticket ON public.comercial_seguimientos USING btree (ticket_id);
 
 
+--
+-- TOC entry 3616 (class 1259 OID 61755)
+-- Name: idx_contactos_cooperativa_activo; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_contactos_cooperativa_activo ON public.contactos_cooperativa USING btree (activo) WHERE (activo = true);
 
 
+--
+-- TOC entry 3617 (class 1259 OID 61754)
+-- Name: idx_contactos_cooperativa_id; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_contactos_cooperativa_id ON public.contactos_cooperativa USING btree (id_cooperativa);
 
 
+--
+-- TOC entry 3525 (class 1259 OID 61422)
+-- Name: idx_coop_email; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_coop_email ON public.cooperativas USING btree (lower((email)::text));
 
 
+--
+-- TOC entry 3526 (class 1259 OID 61423)
+-- Name: idx_coops_nombre; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_coops_nombre ON public.cooperativas USING btree (nombre);
 
 
+--
+-- TOC entry 3527 (class 1259 OID 61424)
+-- Name: idx_coops_ruc; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_coops_ruc ON public.cooperativas USING btree (ruc);
 
 
+--
+-- TOC entry 3531 (class 1259 OID 61425)
+-- Name: idx_datosfact_email_canon; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_datosfact_email_canon ON public.datos_facturacion USING btree (lower(email_canonical));
 
 
+--
+-- TOC entry 3540 (class 1259 OID 61426)
+-- Name: idx_incidencias_comercial_coop; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_incidencias_comercial_coop ON public.incidencias_comercial USING btree (id_cooperativa);
 
 
+--
+-- TOC entry 3541 (class 1259 OID 61681)
+-- Name: idx_incidencias_comercial_departamento_id; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_incidencias_comercial_departamento_id ON public.incidencias_comercial USING btree (departamento_id);
 
 
+--
+-- TOC entry 3542 (class 1259 OID 61427)
+-- Name: idx_incidencias_comercial_estado; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_incidencias_comercial_estado ON public.incidencias_comercial USING btree (estado);
 
 
+--
+-- TOC entry 3543 (class 1259 OID 61725)
+-- Name: idx_incidencias_tipo_dep_id; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_incidencias_tipo_dep_id ON public.incidencias_comercial USING btree (tipo_incidencia_departamento_id);
 
 
+--
+-- TOC entry 3544 (class 1259 OID 61428)
+-- Name: idx_incidencias_tipo_id; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_incidencias_tipo_id ON public.incidencias_comercial USING btree (tipo_incidencia_id);
 
 
+--
+-- TOC entry 3575 (class 1259 OID 61429)
+-- Name: idx_servicios_nombre; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_servicios_nombre ON public.servicios USING btree (nombre_servicio);
 
 
+--
+-- TOC entry 3582 (class 1259 OID 61773)
+-- Name: idx_tickets_codigo; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX idx_tickets_codigo ON public.tickets USING btree (codigo);
+
+
+--
+-- TOC entry 3583 (class 1259 OID 61680)
+-- Name: idx_tickets_departamento_id; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_tickets_departamento_id ON public.tickets USING btree (departamento_id);
 
 
+--
+-- TOC entry 3598 (class 1259 OID 61682)
+-- Name: idx_tipos_inc_departamento; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX idx_tipos_inc_departamento ON public.tipos_incidencias_departamento USING btree (departamento_id, orden);
 
 
+--
+-- TOC entry 3506 (class 1259 OID 61430)
+-- Name: ix_canton_provincia; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE INDEX ix_canton_provincia ON public.canton USING btree (provincia_id, nombre);
 
 
+--
+-- TOC entry 3528 (class 1259 OID 61431)
+-- Name: uq_cooperativas_ruc_notnull; Type: INDEX; Schema: public; Owner: postgres
+--
 
 CREATE UNIQUE INDEX uq_cooperativas_ruc_notnull ON public.cooperativas USING btree (ruc) WHERE (ruc IS NOT NULL);
 
 
+--
+-- TOC entry 3670 (class 2620 OID 61775)
+-- Name: tickets trg_tickets_set_codigo; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_tickets_set_codigo AFTER INSERT ON public.tickets FOR EACH ROW EXECUTE FUNCTION public.fn_tickets_set_codigo();
+
+
+--
+-- TOC entry 3619 (class 2606 OID 61432)
+-- Name: agenda_contactos agenda_contactos_creado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.agenda_contactos
     ADD CONSTRAINT agenda_contactos_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3620 (class 2606 OID 61437)
+-- Name: agenda_contactos agenda_contactos_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.agenda_contactos
     ADD CONSTRAINT agenda_contactos_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE SET NULL;
 
 
+--
+-- TOC entry 3618 (class 2606 OID 61442)
+-- Name: agenda agenda_id_entidad_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.agenda
     ADD CONSTRAINT agenda_id_entidad_fkey FOREIGN KEY (id_entidad) REFERENCES public.cooperativas(id_cooperativa) ON DELETE SET NULL;
 
 
+--
+-- TOC entry 3621 (class 2606 OID 61447)
+-- Name: asistentes_capacitacion asistentes_capacitacion_id_capacitacion_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.asistentes_capacitacion
     ADD CONSTRAINT asistentes_capacitacion_id_capacitacion_fkey FOREIGN KEY (id_capacitacion) REFERENCES public.capacitaciones(id_capacitacion);
 
 
+--
+-- TOC entry 3622 (class 2606 OID 61452)
+-- Name: asistentes_capacitacion asistentes_capacitacion_id_personal_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.asistentes_capacitacion
     ADD CONSTRAINT asistentes_capacitacion_id_personal_fkey FOREIGN KEY (id_personal) REFERENCES public.personal_cooperativa(id_personal);
 
 
+--
+-- TOC entry 3623 (class 2606 OID 61457)
+-- Name: canton canton_provincia_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.canton
     ADD CONSTRAINT canton_provincia_id_fkey FOREIGN KEY (provincia_id) REFERENCES public.provincia(id) ON DELETE RESTRICT;
 
 
+--
+-- TOC entry 3624 (class 2606 OID 61462)
+-- Name: capacitaciones capacitaciones_id_contratacion_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.capacitaciones
     ADD CONSTRAINT capacitaciones_id_contratacion_fkey FOREIGN KEY (id_contratacion) REFERENCES public.contrataciones(id_contratacion);
 
 
+--
+-- TOC entry 3625 (class 2606 OID 61467)
+-- Name: capacitaciones capacitaciones_id_usuario_capacitador_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.capacitaciones
     ADD CONSTRAINT capacitaciones_id_usuario_capacitador_fkey FOREIGN KEY (id_usuario_capacitador) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3626 (class 2606 OID 61472)
+-- Name: capacitaciones_providencias capacitaciones_providencias_id_capacitacion_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.capacitaciones_providencias
     ADD CONSTRAINT capacitaciones_providencias_id_capacitacion_fkey FOREIGN KEY (id_capacitacion) REFERENCES public.capacitaciones(id_capacitacion);
 
 
+--
+-- TOC entry 3665 (class 2606 OID 61761)
+-- Name: comercial_seguimientos comercial_seguimientos_editado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.comercial_seguimientos
     ADD CONSTRAINT comercial_seguimientos_editado_por_fkey FOREIGN KEY (editado_por) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3666 (class 2606 OID 61756)
+-- Name: comercial_seguimientos comercial_seguimientos_id_contacto_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.comercial_seguimientos
     ADD CONSTRAINT comercial_seguimientos_id_contacto_fkey FOREIGN KEY (id_contacto) REFERENCES public.contactos_cooperativa(id_contacto);
 
 
+--
+-- TOC entry 3669 (class 2606 OID 61749)
+-- Name: contactos_cooperativa contactos_cooperativa_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contactos_cooperativa
     ADD CONSTRAINT contactos_cooperativa_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
 
 
+--
+-- TOC entry 3627 (class 2606 OID 61477)
+-- Name: contrataciones contrataciones_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contrataciones
     ADD CONSTRAINT contrataciones_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa);
 
 
+--
+-- TOC entry 3628 (class 2606 OID 61482)
+-- Name: contrataciones contrataciones_id_servicio_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contrataciones
     ADD CONSTRAINT contrataciones_id_servicio_fkey FOREIGN KEY (id_servicio) REFERENCES public.servicios(id_servicio);
 
 
+--
+-- TOC entry 3629 (class 2606 OID 61487)
+-- Name: contrataciones_servicios contrataciones_servicios_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contrataciones_servicios
     ADD CONSTRAINT contrataciones_servicios_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
 
 
+--
+-- TOC entry 3630 (class 2606 OID 61492)
+-- Name: contrataciones_servicios contrataciones_servicios_id_servicio_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.contrataciones_servicios
     ADD CONSTRAINT contrataciones_servicios_id_servicio_fkey FOREIGN KEY (id_servicio) REFERENCES public.servicios(id_servicio);
 
 
+--
+-- TOC entry 3631 (class 2606 OID 61497)
+-- Name: cooperativa_red cooperativa_red_red_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativa_red
     ADD CONSTRAINT cooperativa_red_red_fk FOREIGN KEY (codigo_red) REFERENCES public.red(codigo) ON UPDATE CASCADE;
 
 
+--
+-- TOC entry 3632 (class 2606 OID 61502)
+-- Name: cooperativa_servicio cooperativa_servicio_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativa_servicio
     ADD CONSTRAINT cooperativa_servicio_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
 
 
+--
+-- TOC entry 3633 (class 2606 OID 61507)
+-- Name: cooperativa_servicio cooperativa_servicio_id_servicio_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativa_servicio
     ADD CONSTRAINT cooperativa_servicio_id_servicio_fkey FOREIGN KEY (id_servicio) REFERENCES public.servicios(id_servicio);
 
 
+--
+-- TOC entry 3634 (class 2606 OID 61512)
+-- Name: cooperativas cooperativas_canton_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativas
     ADD CONSTRAINT cooperativas_canton_fk FOREIGN KEY (canton_id) REFERENCES public.canton(id);
 
 
+--
+-- TOC entry 3635 (class 2606 OID 61517)
+-- Name: cooperativas cooperativas_id_segmento_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativas
     ADD CONSTRAINT cooperativas_id_segmento_fkey FOREIGN KEY (id_segmento) REFERENCES public.segmentos(id_segmento);
 
 
+--
+-- TOC entry 3636 (class 2606 OID 61522)
+-- Name: cooperativas cooperativas_provincia_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.cooperativas
     ADD CONSTRAINT cooperativas_provincia_fk FOREIGN KEY (provincia_id) REFERENCES public.provincia(id);
 
 
+--
+-- TOC entry 3637 (class 2606 OID 61527)
+-- Name: datos_facturacion datos_fact_canton_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.datos_facturacion
     ADD CONSTRAINT datos_fact_canton_fk FOREIGN KEY (canton_id) REFERENCES public.canton(id);
 
 
+--
+-- TOC entry 3638 (class 2606 OID 61532)
+-- Name: datos_facturacion datos_fact_prov_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.datos_facturacion
     ADD CONSTRAINT datos_fact_prov_fk FOREIGN KEY (provincia_id) REFERENCES public.provincia(id);
 
 
+--
+-- TOC entry 3639 (class 2606 OID 61537)
+-- Name: datos_facturacion datos_facturacion_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.datos_facturacion
     ADD CONSTRAINT datos_facturacion_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa);
 
 
+--
+-- TOC entry 3640 (class 2606 OID 61542)
+-- Name: equipos equipos_id_usuario_asignado_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.equipos
     ADD CONSTRAINT equipos_id_usuario_asignado_fkey FOREIGN KEY (id_usuario_asignado) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3667 (class 2606 OID 61707)
+-- Name: comercial_seguimientos fk_comercial_sg_cooperativa; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.comercial_seguimientos
     ADD CONSTRAINT fk_comercial_sg_cooperativa FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE SET NULL;
 
 
+--
+-- TOC entry 3668 (class 2606 OID 61712)
+-- Name: comercial_seguimientos fk_comercial_sg_usuario; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.comercial_seguimientos
     ADD CONSTRAINT fk_comercial_sg_usuario FOREIGN KEY (creado_por) REFERENCES public.usuarios(id_usuario) ON DELETE SET NULL;
 
 
+--
+-- TOC entry 3641 (class 2606 OID 61547)
+-- Name: incidencias_comercial fk_incidencias_tipo; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_comercial
     ADD CONSTRAINT fk_incidencias_tipo FOREIGN KEY (tipo_incidencia_id) REFERENCES public.incidencia_tipos(id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
+--
+-- TOC entry 3646 (class 2606 OID 61726)
+-- Name: incidencias_comercial fk_incidencias_tipo_dep; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_comercial
     ADD CONSTRAINT fk_incidencias_tipo_dep FOREIGN KEY (tipo_incidencia_departamento_id) REFERENCES public.tipos_incidencias_departamento(id) ON DELETE SET NULL;
 
 
+--
+-- TOC entry 3663 (class 2606 OID 61732)
+-- Name: tipos_incidencias_departamento fk_tipos_incidencias_global; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tipos_incidencias_departamento
     ADD CONSTRAINT fk_tipos_incidencias_global FOREIGN KEY (referencia_id) REFERENCES public.incidencia_tipos(id);
 
 
+--
+-- TOC entry 3642 (class 2606 OID 61552)
+-- Name: incidencias_comercial incidencias_comercial_creado_por_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_comercial
     ADD CONSTRAINT incidencias_comercial_creado_por_fkey FOREIGN KEY (creado_por) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3645 (class 2606 OID 61675)
+-- Name: incidencias_comercial incidencias_comercial_departamento_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_comercial
     ADD CONSTRAINT incidencias_comercial_departamento_fk FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE SET NULL;
 
 
+--
+-- TOC entry 3643 (class 2606 OID 61557)
+-- Name: incidencias_comercial incidencias_comercial_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_comercial
     ADD CONSTRAINT incidencias_comercial_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
 
 
+--
+-- TOC entry 3644 (class 2606 OID 61562)
+-- Name: incidencias_comercial incidencias_comercial_id_ticket_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.incidencias_comercial
     ADD CONSTRAINT incidencias_comercial_id_ticket_fkey FOREIGN KEY (id_ticket) REFERENCES public.tickets(id_ticket) ON DELETE SET NULL;
 
 
+--
+-- TOC entry 3647 (class 2606 OID 61567)
+-- Name: info_contabilidad info_contabilidad_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.info_contabilidad
     ADD CONSTRAINT info_contabilidad_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa) ON DELETE CASCADE;
 
 
+--
+-- TOC entry 3648 (class 2606 OID 61572)
+-- Name: instalaciones instalaciones_id_contratacion_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.instalaciones
     ADD CONSTRAINT instalaciones_id_contratacion_fkey FOREIGN KEY (id_contratacion) REFERENCES public.contrataciones(id_contratacion);
 
 
+--
+-- TOC entry 3649 (class 2606 OID 61577)
+-- Name: instalaciones instalaciones_id_usuario_tecnico_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.instalaciones
     ADD CONSTRAINT instalaciones_id_usuario_tecnico_fkey FOREIGN KEY (id_usuario_tecnico) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3650 (class 2606 OID 61582)
+-- Name: listas_control listas_control_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.listas_control
     ADD CONSTRAINT listas_control_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa);
 
 
+--
+-- TOC entry 3651 (class 2606 OID 61587)
+-- Name: pagos pagos_contrat_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.pagos
     ADD CONSTRAINT pagos_contrat_fk FOREIGN KEY (id_contratacion) REFERENCES public.contrataciones(id_contratacion) ON DELETE CASCADE NOT VALID;
 
 
+--
+-- TOC entry 3652 (class 2606 OID 61592)
+-- Name: personal_cooperativa personal_cooperativa_id_cooperativa_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.personal_cooperativa
     ADD CONSTRAINT personal_cooperativa_id_cooperativa_fkey FOREIGN KEY (id_cooperativa) REFERENCES public.cooperativas(id_cooperativa);
 
 
+--
+-- TOC entry 3653 (class 2606 OID 61597)
+-- Name: ticket_historial ticket_historial_id_ticket_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.ticket_historial
     ADD CONSTRAINT ticket_historial_id_ticket_fkey FOREIGN KEY (id_ticket) REFERENCES public.tickets(id_ticket);
 
 
+--
+-- TOC entry 3654 (class 2606 OID 61602)
+-- Name: ticket_historial ticket_historial_id_usuario_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.ticket_historial
     ADD CONSTRAINT ticket_historial_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3659 (class 2606 OID 61670)
+-- Name: tickets tickets_departamento_fk; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tickets
     ADD CONSTRAINT tickets_departamento_fk FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE SET NULL;
 
 
+--
+-- TOC entry 3655 (class 2606 OID 61607)
+-- Name: tickets tickets_id_categoria_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tickets
     ADD CONSTRAINT tickets_id_categoria_fkey FOREIGN KEY (id_categoria) REFERENCES public.categorias(id_categoria);
 
 
+--
+-- TOC entry 3656 (class 2606 OID 61612)
+-- Name: tickets tickets_id_equipo_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tickets
     ADD CONSTRAINT tickets_id_equipo_fkey FOREIGN KEY (id_equipo) REFERENCES public.equipos(id_equipo);
 
 
+--
+-- TOC entry 3657 (class 2606 OID 61617)
+-- Name: tickets tickets_id_tecnico_asignado_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tickets
     ADD CONSTRAINT tickets_id_tecnico_asignado_fkey FOREIGN KEY (id_tecnico_asignado) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3658 (class 2606 OID 61622)
+-- Name: tickets tickets_id_usuario_reporta_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tickets
     ADD CONSTRAINT tickets_id_usuario_reporta_fkey FOREIGN KEY (id_usuario_reporta) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3664 (class 2606 OID 61665)
+-- Name: tipos_incidencias_departamento tipos_incidencias_departamento_departamento_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.tipos_incidencias_departamento
     ADD CONSTRAINT tipos_incidencias_departamento_departamento_id_fkey FOREIGN KEY (departamento_id) REFERENCES public.departamentos(id) ON DELETE CASCADE;
 
 
+--
+-- TOC entry 3660 (class 2606 OID 61627)
+-- Name: usuario_categorias usuario_categorias_id_categoria_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.usuario_categorias
     ADD CONSTRAINT usuario_categorias_id_categoria_fkey FOREIGN KEY (id_categoria) REFERENCES public.categorias(id_categoria);
 
 
+--
+-- TOC entry 3661 (class 2606 OID 61632)
+-- Name: usuario_categorias usuario_categorias_id_usuario_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.usuario_categorias
     ADD CONSTRAINT usuario_categorias_id_usuario_fkey FOREIGN KEY (id_usuario) REFERENCES public.usuarios(id_usuario);
 
 
+--
+-- TOC entry 3662 (class 2606 OID 61637)
+-- Name: usuarios usuarios_id_rol_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
 
 ALTER TABLE ONLY public.usuarios
     ADD CONSTRAINT usuarios_id_rol_fkey FOREIGN KEY (id_rol) REFERENCES public.roles(id_rol);
+
+
+-- Completed on 2025-10-18 09:15:32
+
+--
+-- PostgreSQL database dump complete
+--
+

@@ -446,6 +446,7 @@ final class SeguimientoRepository extends BaseRepository
             return [];
         }
 
+        $codigoExpr = $this->incidentCodeExpression('ic');
         $sql = 'SELECT DISTINCT'
             . ' s.ticket_id,'
             . " COALESCE(s.datos_ticket->>'codigo', vt.codigo_ticket, '') AS codigo,"
