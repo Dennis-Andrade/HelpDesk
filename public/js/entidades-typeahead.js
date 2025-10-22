@@ -1,0 +1,157 @@
+(function(){
+  const form  = document.querySelector('.ent-search[data-suggest-url]');
+  if (!form) { return; }
+
+  const input = form.querySelector('#ent-search-input');
+  const box   = form.querySelector('#ent-search-suggestions');
+  const suggestUrl = form.getAttribute('data-suggest-url');
+  if (!input || !box || !suggestUrl) { return; }
+
+  const minChars  = parseInt(box.getAttribute('data-min-chars') || '3', 10);
+  let controller  = null;
+  let activeIndex = -1;
+  let lastQuery   = '';
+
+  function clearSuggestions() {
+    box.innerHTML = '';
+    box.hidden = true;
+    box.setAttribute('aria-hidden', 'true');
+    input.setAttribute('aria-expanded', 'false');
+    activeIndex = -1;
+  }
+
+  function highlight(index) {
+    const buttons = box.querySelectorAll('button[data-term]');
+    buttons.forEach((btn, idx) => {
+      if (idx === index) {
+        btn.classList.add('is-active');
+        btn.setAttribute('aria-selected', 'true');
+      } else {
+        btn.classList.remove('is-active');
+        btn.setAttribute('aria-selected', 'false');
+      }
+    });
+    activeIndex = index;
+  }
+
+  function selectSuggestion(button) {
+    if (!button) { return; }
+    const term = button.getAttribute('data-term') || '';
+    if (!term) { return; }
+    input.value = term;
+    clearSuggestions();
+    if (form.requestSubmit) {
+      form.requestSubmit();
+    } else {
+      form.submit();
+    }
+  }
+
+  function renderSuggestions(items) {
+    clearSuggestions();
+    if (!items.length) { return; }
+
+    const frag = document.createDocumentFragment();
+    items.forEach((item) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'ent-search__suggestion';
+      btn.textContent = item.label || item.term || '';
+      btn.setAttribute('data-term', item.term || '');
+      btn.setAttribute('role', 'option');
+      btn.setAttribute('aria-selected', 'false');
+      btn.addEventListener('mousedown', (ev) => {
+        ev.preventDefault();
+        selectSuggestion(btn);
+      });
+      frag.appendChild(btn);
+    });
+
+    box.appendChild(frag);
+    box.hidden = false;
+    box.setAttribute('aria-hidden', 'false');
+    input.setAttribute('aria-expanded', 'true');
+    highlight(-1);
+  }
+
+  async function fetchSuggestions(query) {
+    if (controller) {
+      controller.abort();
+    }
+    controller = new AbortController();
+
+    try {
+      const response = await fetch(suggestUrl + '?q=' + encodeURIComponent(query), {
+        headers: { 'Accept': 'application/json' },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error('Solicitud fallida');
+      }
+      const data = await response.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+      renderSuggestions(items.slice(0, 10));
+    } catch (error) {
+      if (error.name === 'AbortError') { return; }
+      clearSuggestions();
+    }
+  }
+
+  input.setAttribute('role', 'combobox');
+  input.setAttribute('aria-autocomplete', 'list');
+  input.setAttribute('aria-expanded', 'false');
+
+  input.addEventListener('input', (event) => {
+    const value = (event.target.value || '').trim();
+    if (value.length < minChars) {
+      clearSuggestions();
+      lastQuery = value;
+      return;
+    }
+    if (value === lastQuery) {
+      return;
+    }
+    lastQuery = value;
+    fetchSuggestions(value);
+  });
+
+  input.addEventListener('keydown', (event) => {
+    if (box.hidden) { return; }
+    const buttons = box.querySelectorAll('button[data-term]');
+    if (!buttons.length) { return; }
+
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        if (activeIndex < buttons.length - 1) {
+          highlight(activeIndex + 1);
+        } else {
+          highlight(0);
+        }
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        if (activeIndex > 0) {
+          highlight(activeIndex - 1);
+        } else {
+          highlight(buttons.length - 1);
+        }
+        break;
+      case 'Enter':
+        if (activeIndex >= 0 && buttons[activeIndex]) {
+          event.preventDefault();
+          selectSuggestion(buttons[activeIndex]);
+        }
+        break;
+      case 'Escape':
+        clearSuggestions();
+        break;
+      default:
+        break;
+    }
+  });
+
+  input.addEventListener('blur', () => {
+    setTimeout(() => clearSuggestions(), 120);
+  });
+})();
